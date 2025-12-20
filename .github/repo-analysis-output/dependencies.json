@@ -129,8 +129,6 @@
       "external_dependencies": {
         "stdlib": [
           "json",
-          "pathlib.Path",
-          "unittest.mock.MagicMock",
           "unittest.mock.patch"
         ],
         "third-party": [
@@ -212,7 +210,6 @@
       "time",
       "tomllib",
       "typing.Any",
-      "unittest.mock.MagicMock",
       "unittest.mock.patch",
       "uuid"
     ],
@@ -228,7 +225,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 19,
+    "stdlib_count": 18,
     "third-party_count": 10
   }
 }

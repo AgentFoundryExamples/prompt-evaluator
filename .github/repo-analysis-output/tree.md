@@ -16,7 +16,9 @@
   └── workflows
     └── af_maintenance.yml
 ├── examples
-  └── .gitkeep
+  ├── .gitkeep
+  ├── input.txt
+  └── system_prompt.txt
 ├── src
   └── prompt_evaluator
     ├── __init__.py

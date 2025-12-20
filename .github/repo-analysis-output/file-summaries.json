@@ -123,8 +123,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 8863,
-        "loc": 202,
+        "size_bytes": 8862,
+        "loc": 204,
         "todo_count": 0
       }
     }

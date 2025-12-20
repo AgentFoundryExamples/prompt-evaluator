@@ -77,6 +77,14 @@
         {
           "type": "file",
           "name": ".gitkeep"
+        },
+        {
+          "type": "file",
+          "name": "input.txt"
+        },
+        {
+          "type": "file",
+          "name": "system_prompt.txt"
         }
       ]
     },

@@ -90,12 +90,54 @@ model_name = "gpt-4"
 
 Config file values take precedence over environment variables. If the config file is missing, the tool will gracefully fall back to environment variables and defaults.
 
+### Generate Command
+
+The `generate` command performs a single LLM completion with system and user prompts:
+
+```bash
+# Basic usage with file inputs
+prompt-evaluator generate \
+  --system-prompt prompts/system.txt \
+  --input prompts/user_input.txt
+
+# With model and parameter overrides
+prompt-evaluator generate \
+  --system-prompt prompts/system.txt \
+  --input prompts/user_input.txt \
+  --model gpt-4 \
+  --temperature 0.5 \
+  --max-tokens 500 \
+  --seed 42
+
+# Using stdin for input
+echo "What is Python?" | prompt-evaluator generate \
+  --system-prompt prompts/system.txt \
+  --input -
+
+# With custom output directory
+prompt-evaluator generate \
+  --system-prompt prompts/system.txt \
+  --input prompts/user_input.txt \
+  --output-dir my-runs
+```
+
+The command will:
+- Read system and user prompts from files (or stdin when input is `-`)
+- Call the OpenAI API with the specified model and parameters
+- Print the completion to stdout
+- Save the completion and metadata to `runs/<run_id>/` directory
+- Display a summary with run details to stderr
+
+Each run generates:
+- `runs/<run_id>/output.txt` - Raw completion text
+- `runs/<run_id>/metadata.json` - Run metadata including prompts, config, tokens, and latency
+
 ## Roadmap
 
 - [x] Project scaffolding and structure
-- [ ] Configuration file format and loading
-- [ ] CLI commands for running evaluations
-- [ ] LLM provider integrations (OpenAI, etc.)
+- [x] Configuration file format and loading
+- [x] CLI commands for running evaluations
+- [x] LLM provider integrations (OpenAI, etc.)
 - [ ] Evaluation metrics and reporting
 - [ ] Result comparison and analysis tools
 

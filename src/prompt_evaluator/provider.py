@@ -156,19 +156,19 @@ def get_provider(
 
 
 def generate_completion(
-    provider: BaseProvider,
+    provider: OpenAIProvider,
     system_prompt: str,
     user_prompt: str,
     model: str,
-    temperature: float = 0.7,
-    max_tokens: int = 1024,
+    temperature: float,
+    max_tokens: int,
     seed: int | None = None,
 ) -> tuple[str, dict[str, float | int | None]]:
     """
-    Generate a completion using the provider with system and user prompts.
+    Generate a completion using the OpenAI provider with system and user prompts.
 
     Args:
-        provider: The LLM provider to use
+        provider: The OpenAI provider to use
         system_prompt: System prompt to set context
         user_prompt: User prompt/input
         model: Model identifier
@@ -180,14 +180,8 @@ def generate_completion(
         Tuple of (response_text, metadata) where metadata contains tokens_used and latency_ms
 
     Raises:
-        ValueError: If the provider doesn't support the operation
         OpenAIError: If the API call fails
     """
-    # TODO: Make this more extensible to support multiple providers
-    # Currently only OpenAI provider is supported
-    if not isinstance(provider, OpenAIProvider):
-        raise ValueError("Only OpenAI provider is currently supported for generate_completion")
-
     start_time = time.time()
 
     try:

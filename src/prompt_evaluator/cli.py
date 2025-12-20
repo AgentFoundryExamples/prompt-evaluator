@@ -23,12 +23,13 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import typer
 
 from prompt_evaluator.config import APIConfig
 from prompt_evaluator.models import GeneratorConfig, PromptRun
-from prompt_evaluator.provider import generate_completion, get_provider
+from prompt_evaluator.provider import OpenAIProvider, generate_completion, get_provider
 
 app = typer.Typer(
     name="prompt-evaluator",
@@ -96,21 +97,33 @@ def generate(
             user_prompt_content = input_file_path.read_text(encoding="utf-8")
 
         # Build GeneratorConfig with CLI overrides
-        # Use defaults from GeneratorConfig if not provided via CLI
-        default_config = GeneratorConfig()
-        model_name = model or api_config.model_name
-        config_temp = temperature if temperature is not None else default_config.temperature
-        config_max_tokens = max_tokens if max_tokens is not None else default_config.max_tokens
+        # Precedence: CLI > config file > defaults
+        # Start with model defaults, override with API config, then with CLI args
+        base_config = GeneratorConfig(model_name=api_config.model_name)
 
+        # Create overrides dict, filtering out None values
+        cli_overrides: dict[str, Any] = {}
+        if model is not None:
+            cli_overrides["model_name"] = model
+        if temperature is not None:
+            cli_overrides["temperature"] = temperature
+        if max_tokens is not None:
+            cli_overrides["max_tokens"] = max_tokens
+        if seed is not None:
+            cli_overrides["seed"] = seed
+
+        # Apply overrides to base config
         generator_config = GeneratorConfig(
-            model_name=model_name,
-            temperature=config_temp,
-            max_tokens=config_max_tokens,
-            seed=seed,
+            model_name=cli_overrides.get("model_name", base_config.model_name),
+            temperature=cli_overrides.get("temperature", base_config.temperature),
+            max_tokens=cli_overrides.get("max_tokens", base_config.max_tokens),
+            seed=cli_overrides.get("seed", base_config.seed),
         )
 
         # Create provider
         provider = get_provider("openai", api_key=api_config.api_key, base_url=api_config.base_url)
+        # Type assertion: get_provider with "openai" always returns OpenAIProvider
+        assert isinstance(provider, OpenAIProvider)
 
         # Generate completion
         typer.echo("Generating completion...", err=True)
@@ -128,6 +141,15 @@ def generate(
         run_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc)
         output_dir_path = Path(output_dir)
+
+        # Validate output path is a directory
+        if output_dir_path.exists() and not output_dir_path.is_dir():
+            typer.echo(
+                f"Error: Output path '{output_dir}' exists and is not a directory.",
+                err=True
+            )
+            raise typer.Exit(1)
+
         run_dir = output_dir_path / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -173,6 +195,9 @@ def generate(
     except FileNotFoundError as e:
         typer.echo(f"File error: {e}", err=True)
         raise typer.Exit(1)
+    except (KeyboardInterrupt, SystemExit):
+        # Allow system signals to propagate
+        raise
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)

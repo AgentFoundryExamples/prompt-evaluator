@@ -27,7 +27,8 @@
 ├── tests
   ├── __init__.py
   ├── test_basic.py
-  └── test_config_models.py
+  ├── test_config_models.py
+  └── test_generate_cli.py
 ├── .gitignore
 ├── LICENSE
 ├── pyproject.toml

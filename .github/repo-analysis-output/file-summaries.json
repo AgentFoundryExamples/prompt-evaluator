@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 8,
+  "total_files": 9,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 1720,
-        "loc": 33,
+        "size_bytes": 8540,
+        "loc": 161,
         "todo_count": 0
       }
     },
@@ -67,8 +67,8 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 4427,
-        "loc": 97,
+        "size_bytes": 6999,
+        "loc": 157,
         "todo_count": 0
       }
     },
@@ -111,6 +111,20 @@
       "metrics": {
         "size_bytes": 12215,
         "loc": 232,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_generate_cli.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 8863,
+        "loc": 202,
         "todo_count": 0
       }
     }

@@ -147,9 +147,12 @@ def get_provider(
             f"Unsupported provider: {provider_name}. Supported providers: {list(providers.keys())}"
         )
 
+    # OpenAI provider supports base_url parameter
     if provider_name.lower() == "openai":
         return provider_class(api_key=api_key, base_url=base_url)
-    return provider_class(api_key=api_key)
+
+    # For other providers that don't support base_url
+    return provider_class(api_key=api_key)  # type: ignore[call-arg]
 
 
 def generate_completion(
@@ -180,6 +183,8 @@ def generate_completion(
         ValueError: If the provider doesn't support the operation
         OpenAIError: If the API call fails
     """
+    # TODO: Make this more extensible to support multiple providers
+    # Currently only OpenAI provider is supported
     if not isinstance(provider, OpenAIProvider):
         raise ValueError("Only OpenAI provider is currently supported for generate_completion")
 

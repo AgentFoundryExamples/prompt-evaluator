@@ -85,6 +85,7 @@ def generate(
 
         # Read user input (from file or stdin)
         if input_path == "-":
+            # Read from stdin - for very large inputs, consider streaming
             user_prompt_content = sys.stdin.read()
             input_file_path = Path("<stdin>")
         else:
@@ -95,9 +96,11 @@ def generate(
             user_prompt_content = input_file_path.read_text(encoding="utf-8")
 
         # Build GeneratorConfig with CLI overrides
+        # Use defaults from GeneratorConfig if not provided via CLI
+        default_config = GeneratorConfig()
         model_name = model or api_config.model_name
-        config_temp = temperature if temperature is not None else 0.7
-        config_max_tokens = max_tokens if max_tokens is not None else 1024
+        config_temp = temperature if temperature is not None else default_config.temperature
+        config_max_tokens = max_tokens if max_tokens is not None else default_config.max_tokens
 
         generator_config = GeneratorConfig(
             model_name=model_name,

@@ -19,8 +19,7 @@ and output writing functionality.
 """
 
 import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -113,7 +112,10 @@ class TestGenerateCLI:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
         # Mock the generate_completion function
-        mock_generate.return_value = ("Paris is the capital of France.", {"tokens_used": 10, "latency_ms": 100.5})
+        mock_generate.return_value = (
+            "Paris is the capital of France.",
+            {"tokens_used": 10, "latency_ms": 100.5},
+        )
 
         result = cli_runner.invoke(
             app,

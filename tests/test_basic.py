@@ -79,6 +79,43 @@ def test_prompt_template_render():
     assert result == "Hello Alice, you are 30 years old."
 
 
+def test_prompt_template_validation():
+    """Test that PromptTemplate validation prevents unsafe format strings."""
+    from prompt_evaluator.models import PromptTemplate
+
+    # Valid template should work
+    valid_template = PromptTemplate(
+        template="Hello {name}",
+        variables={"name": "User's name"}
+    )
+    assert valid_template.template == "Hello {name}"
+
+    # Dangerous patterns should be rejected
+    dangerous_templates = [
+        "{obj.attr}",  # Attribute access
+        "{obj[0]}",    # Indexing
+        "{var!r}",     # Conversion
+        "{var:03d}",   # Format spec
+    ]
+
+    for dangerous in dangerous_templates:
+        with pytest.raises(ValueError, match="potentially unsafe format string"):
+            PromptTemplate(template=dangerous, variables={})
+
+
+def test_prompt_template_missing_variable():
+    """Test that PromptTemplate raises clear error for missing variables."""
+    from prompt_evaluator.models import PromptTemplate
+
+    template = PromptTemplate(
+        template="Hello {name} and {friend}",
+        variables={"name": "User's name", "friend": "Friend's name"}
+    )
+
+    with pytest.raises(KeyError, match="Missing required template variable"):
+        template.render(name="Alice")  # Missing 'friend'
+
+
 def test_get_provider_openai():
     """Test that OpenAI provider can be retrieved."""
     from prompt_evaluator.provider import OpenAIProvider, get_provider

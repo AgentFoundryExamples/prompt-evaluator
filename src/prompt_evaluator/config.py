@@ -57,7 +57,7 @@ def load_config(config_path: Path) -> EvaluationConfig:
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
-    with open(config_path) as f:
+    with open(config_path, encoding="utf-8") as f:
         config_data = yaml.safe_load(f)
 
     return EvaluationConfig(**config_data)

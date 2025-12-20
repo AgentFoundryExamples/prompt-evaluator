@@ -5,11 +5,12 @@ This module defines the core data structures used throughout the
 evaluation process, including prompts, responses, and results.
 """
 
+import re
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ProviderType(str, Enum):
@@ -29,22 +30,55 @@ class PromptTemplate(BaseModel):
         description="Variable names and descriptions"
     )
 
+    @field_validator("template")
+    @classmethod
+    def validate_template(cls, v: str) -> str:
+        """
+        Validate template format strings to prevent potential injection attacks.
+
+        Only allows simple variable placeholders like {variable_name}.
+        Disallows format specs, attribute access, and indexing.
+        """
+        # Check for dangerous format string patterns
+        dangerous_patterns = [
+            r'\{[^}]*\.[^}]*\}',  # Attribute access: {obj.attr}
+            r'\{[^}]*\[[^}]*\]\}',  # Indexing: {obj[0]}
+            r'\{[^}]*![^}]*\}',  # Conversion: {var!r}
+            r'\{[^}]*:[^}]*\}',  # Format spec: {var:03d}
+        ]
+
+        for pattern in dangerous_patterns:
+            if re.search(pattern, v):
+                raise ValueError(
+                    "Template contains potentially unsafe format string pattern. "
+                    "Only simple variable names like {variable} are allowed."
+                )
+
+        return v
+
     def render(self, **kwargs: Any) -> str:
         """
         Render the template with provided variable values.
 
-        WARNING: Uses str.format() which could be vulnerable to format string
-        attacks if template strings come from untrusted sources. In this tool,
-        templates are expected to be defined by users in their configuration
-        files, so this is intentional behavior.
+        The template validation ensures only simple {variable} placeholders
+        are used, preventing format string injection attacks.
 
         Args:
             **kwargs: Variable values to substitute
 
         Returns:
             Rendered prompt string
+
+        Raises:
+            KeyError: If required template variable is not provided
         """
-        return self.template.format(**kwargs)
+        try:
+            return self.template.format(**kwargs)
+        except KeyError as e:
+            raise KeyError(
+                f"Missing required template variable: {e}. "
+                f"Available variables: {list(kwargs.keys())}"
+            ) from e
 
 
 class EvaluationRequest(BaseModel):

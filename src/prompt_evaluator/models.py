@@ -5,7 +5,7 @@ This module defines the core data structures used throughout the
 evaluation process, including prompts, responses, and results.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -60,7 +60,7 @@ class EvaluationResponse(BaseModel):
     response_text: str = Field(..., description="Generated text response")
     tokens_used: int | None = Field(None, description="Number of tokens used")
     latency_ms: float = Field(..., description="Response latency in milliseconds")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     error: str | None = Field(None, description="Error message if request failed")
 
 
@@ -73,7 +73,7 @@ class EvaluationResult(BaseModel):
         default_factory=list,
         description="All responses from this evaluation"
     )
-    start_time: datetime = Field(default_factory=datetime.utcnow)
+    start_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: datetime | None = Field(None)
 
     @property

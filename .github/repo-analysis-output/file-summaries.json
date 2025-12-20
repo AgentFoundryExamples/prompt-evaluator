@@ -1,0 +1,104 @@
+{
+  "schema_version": "2.0",
+  "total_files": 7,
+  "files": [
+    {
+      "schema_version": "2.0",
+      "path": "src/prompt_evaluator/__init__.py",
+      "language": "Python",
+      "role": "module-init",
+      "role_justification": "module initialization file '__init__'",
+      "summary": "Python module initialization (role: module-init)",
+      "summary_text": "Python module initialization (role: module-init)",
+      "metrics": {
+        "size_bytes": 933,
+        "loc": 12,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "src/prompt_evaluator/cli.py",
+      "language": "Python",
+      "role": "cli",
+      "role_justification": "CLI-related name 'cli'",
+      "summary": "Python command-line interface (role: cli)",
+      "summary_text": "Python command-line interface (role: cli)",
+      "metrics": {
+        "size_bytes": 1734,
+        "loc": 35,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "src/prompt_evaluator/config.py",
+      "language": "Python",
+      "role": "configuration",
+      "role_justification": "configuration file name 'config'",
+      "summary": "Python configuration file (role: configuration)",
+      "summary_text": "Python configuration file (role: configuration)",
+      "metrics": {
+        "size_bytes": 2575,
+        "loc": 46,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "src/prompt_evaluator/models.py",
+      "language": "Python",
+      "role": "model",
+      "role_justification": "model/schema name 'models'",
+      "summary": "Python data models (role: model)",
+      "summary_text": "Python data models (role: model)",
+      "metrics": {
+        "size_bytes": 4897,
+        "loc": 94,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "src/prompt_evaluator/provider.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python core implementation",
+      "summary_text": "Python core implementation",
+      "metrics": {
+        "size_bytes": 4443,
+        "loc": 98,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/__init__.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "located in 'tests' directory",
+      "summary": "Python test module initialization (role: test)",
+      "summary_text": "Python test module initialization (role: test)",
+      "metrics": {
+        "size_bytes": 619,
+        "loc": 1,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_basic.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 4624,
+        "loc": 90,
+        "todo_count": 0
+      }
+    }
+  ]
+}

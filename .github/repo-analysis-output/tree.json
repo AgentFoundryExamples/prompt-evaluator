@@ -1,6 +1,6 @@
 {
   "type": "directory",
-  "name": "agent-foundry-template",
+  "name": "prompt-evaluator",
   "children": [
     {
       "type": "directory",

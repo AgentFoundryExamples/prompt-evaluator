@@ -1,4 +1,4 @@
-# agent-foundry-template
+# prompt-evaluator
 
 ├── .github
   ├── af-config

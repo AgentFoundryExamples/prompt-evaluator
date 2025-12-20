@@ -50,6 +50,46 @@ The CLI entry point is available as `prompt-evaluator` after installation:
 prompt-evaluator --help
 ```
 
+### Configuration
+
+The prompt evaluator requires API credentials to connect to LLM providers. Configuration can be provided through environment variables or a config file.
+
+#### Required Environment Variables
+
+- `OPENAI_API_KEY` - Your OpenAI API key (required)
+
+#### Optional Environment Variables
+
+- `OPENAI_BASE_URL` - Custom base URL for OpenAI API (optional, uses default if not set)
+- `OPENAI_MODEL` - Default model to use (optional, defaults to `gpt-3.5-turbo`)
+
+#### Example Setup
+
+```bash
+export OPENAI_API_KEY="sk-your-api-key-here"
+export OPENAI_MODEL="gpt-4"
+```
+
+#### Config File Override
+
+You can optionally provide a config file (YAML or TOML format) to override environment variables:
+
+**config.yaml:**
+```yaml
+api_key: sk-your-api-key-here
+base_url: https://api.openai.com/v1
+model_name: gpt-4
+```
+
+**config.toml:**
+```toml
+api_key = "sk-your-api-key-here"
+base_url = "https://api.openai.com/v1"
+model_name = "gpt-4"
+```
+
+Config file values take precedence over environment variables. If the config file is missing, the tool will gracefully fall back to environment variables and defaults.
+
 ## Roadmap
 
 - [x] Project scaffolding and structure

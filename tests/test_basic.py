@@ -85,7 +85,7 @@ def test_prompt_template_render():
 
     template = PromptTemplate(
         template="Hello {name}, you are {age} years old.",
-        variables={"name": "User's name", "age": "User's age"}
+        variables={"name": "User's name", "age": "User's age"},
     )
 
     result = template.render(name="Alice", age=30)
@@ -97,18 +97,15 @@ def test_prompt_template_validation():
     from prompt_evaluator.models import PromptTemplate
 
     # Valid template should work
-    valid_template = PromptTemplate(
-        template="Hello {name}",
-        variables={"name": "User's name"}
-    )
+    valid_template = PromptTemplate(template="Hello {name}", variables={"name": "User's name"})
     assert valid_template.template == "Hello {name}"
 
     # Dangerous patterns should be rejected
     dangerous_templates = [
         "{obj.attr}",  # Attribute access
-        "{obj[0]}",    # Indexing
-        "{var!r}",     # Conversion
-        "{var:03d}",   # Format spec
+        "{obj[0]}",  # Indexing
+        "{var!r}",  # Conversion
+        "{var:03d}",  # Format spec
     ]
 
     for dangerous in dangerous_templates:
@@ -122,7 +119,7 @@ def test_prompt_template_missing_variable():
 
     template = PromptTemplate(
         template="Hello {name} and {friend}",
-        variables={"name": "User's name", "friend": "Friend's name"}
+        variables={"name": "User's name", "friend": "Friend's name"},
     )
 
     with pytest.raises(KeyError, match="Missing required template variable"):

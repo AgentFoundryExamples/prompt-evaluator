@@ -139,8 +139,7 @@ def get_provider(provider_name: str, api_key: str | None = None) -> BaseProvider
     provider_class = providers.get(provider_name.lower())
     if not provider_class:
         raise ValueError(
-            f"Unsupported provider: {provider_name}. "
-            f"Supported providers: {list(providers.keys())}"
+            f"Unsupported provider: {provider_name}. Supported providers: {list(providers.keys())}"
         )
 
     return provider_class(api_key=api_key)

@@ -33,6 +33,11 @@ class PromptTemplate(BaseModel):
         """
         Render the template with provided variable values.
 
+        WARNING: Uses str.format() which could be vulnerable to format string
+        attacks if template strings come from untrusted sources. In this tool,
+        templates are expected to be defined by users in their configuration
+        files, so this is intentional behavior.
+
         Args:
             **kwargs: Variable values to substitute
 

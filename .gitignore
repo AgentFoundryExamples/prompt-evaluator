@@ -141,6 +141,8 @@ cython_debug/
 runs/
 examples/*
 !examples/.gitkeep
+!examples/system_prompt.txt
+!examples/input.txt
 *.local.yaml
 *.local.yml
 *.local.json

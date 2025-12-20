@@ -1,8 +1,84 @@
-# Agent Foundry Template (replace with project name)
+# Prompt Evaluator
 
-Template README to persist license, contribution rules, and author throughout agent foundry projects. This sentence and the main title can be changed but permanents and below should be left alone.
+A Python tool for evaluating and comparing prompts across different LLM providers. This project enables systematic testing and comparison of prompt variations to help optimize prompt engineering workflows.
 
+## Overview
 
+The Prompt Evaluator provides a structured approach to:
+- Define and manage prompt templates
+- Configure multiple LLM providers (OpenAI, etc.)
+- Run evaluations with different prompt variations
+- Compare and analyze results
+
+## Project Structure
+
+```
+prompt-evaluator/
+├── src/
+│   └── prompt_evaluator/
+│       ├── __init__.py       # Package initialization
+│       ├── cli.py            # Command-line interface
+│       ├── config.py         # Configuration management
+│       ├── models.py         # Data models and schemas
+│       └── provider.py       # LLM provider integrations
+├── tests/                    # Test suite
+├── examples/                 # Example configurations (gitignored)
+├── runs/                     # Evaluation run outputs (gitignored)
+└── pyproject.toml           # Project metadata and dependencies
+```
+
+## Requirements
+
+- Python >= 3.10
+- Dependencies are managed via `pyproject.toml`
+
+## Installation
+
+```bash
+# Install in development mode
+pip install -e .
+
+# Install with development dependencies
+pip install -e ".[dev]"
+```
+
+## Usage
+
+The CLI entry point is available as `prompt-evaluator` after installation:
+
+```bash
+prompt-evaluator --help
+```
+
+## Roadmap
+
+- [x] Project scaffolding and structure
+- [ ] Configuration file format and loading
+- [ ] CLI commands for running evaluations
+- [ ] LLM provider integrations (OpenAI, etc.)
+- [ ] Evaluation metrics and reporting
+- [ ] Result comparison and analysis tools
+
+## Development
+
+### Testing
+
+```bash
+pytest
+```
+
+### Linting
+
+```bash
+ruff check .
+ruff format .
+```
+
+### Type Checking
+
+```bash
+mypy src/
+```
 
 # Permanents (License, Contributing, Author)
 

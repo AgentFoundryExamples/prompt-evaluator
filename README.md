@@ -42,6 +42,25 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
+## Quick Start
+
+After installation, try the tool with the provided example files:
+
+```bash
+# Set your OpenAI API key
+export OPENAI_API_KEY="sk-your-api-key-here"
+
+# Run a basic generation with example prompts
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+
+# View the generated output
+cat runs/<run-id>/output.txt
+```
+
+The tool will generate a completion, print it to stdout, and save both the output and metadata to a `runs/` directory with a unique run ID.
+
 ## Usage
 
 The CLI entry point is available as `prompt-evaluator` after installation:
@@ -95,42 +114,99 @@ Config file values take precedence over environment variables. If the config fil
 The `generate` command performs a single LLM completion with system and user prompts:
 
 ```bash
-# Basic usage with file inputs
+# Basic usage with example files
 prompt-evaluator generate \
-  --system-prompt prompts/system.txt \
-  --input prompts/user_input.txt
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
 
 # With model and parameter overrides
 prompt-evaluator generate \
-  --system-prompt prompts/system.txt \
-  --input prompts/user_input.txt \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
   --model gpt-4 \
   --temperature 0.5 \
   --max-tokens 500 \
   --seed 42
 
-# Using stdin for input
+# Using stdin for input (useful for piping or interactive use)
 echo "What is Python?" | prompt-evaluator generate \
-  --system-prompt prompts/system.txt \
+  --system-prompt examples/system_prompt.txt \
   --input -
 
 # With custom output directory
 prompt-evaluator generate \
-  --system-prompt prompts/system.txt \
-  --input prompts/user_input.txt \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
   --output-dir my-runs
 ```
 
-The command will:
-- Read system and user prompts from files (or stdin when input is `-`)
-- Call the OpenAI API with the specified model and parameters
-- Print the completion to stdout
-- Save the completion and metadata to `runs/<run_id>/` directory
-- Display a summary with run details to stderr
+#### How it Works
 
-Each run generates:
+The command will:
+1. Read system and user prompts from files (or stdin when input is `-`)
+2. Call the OpenAI API with the specified model and parameters
+3. Print the completion to stdout (can be redirected or piped)
+4. Save the completion and metadata to the output directory (default: `runs/<run_id>/`)
+5. Display a summary with run details to stderr
+
+#### Output Artifacts
+
+Each run generates artifacts in a unique run directory:
 - `runs/<run_id>/output.txt` - Raw completion text
 - `runs/<run_id>/metadata.json` - Run metadata including prompts, config, tokens, and latency
+
+**Note:** When using `--output-dir`, the directory will be created if it doesn't exist. Each run gets a unique UUID-based subdirectory to prevent conflicts.
+
+#### Using Stdin
+
+When `--input -` is specified, the tool reads user input from stdin. This is useful for:
+- Piping output from other commands
+- Interactive testing with echo or heredocs
+- Processing dynamic inputs in scripts
+
+```bash
+# Pipe from echo
+echo "Explain quantum computing" | prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input -
+
+# Use heredoc for multi-line input
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input - << EOF
+Please explain the following concepts:
+1. Machine learning
+2. Neural networks
+3. Deep learning
+EOF
+```
+
+### Error Handling
+
+The tool provides clear error messages for common issues:
+
+- **Missing API Key**: If `OPENAI_API_KEY` is not set, the tool will exit with an error message
+- **Missing Files**: If system prompt or input files don't exist, the tool reports the specific missing file
+- **Invalid Parameters**: Configuration errors (e.g., temperature out of range) are caught early with descriptive messages
+- **API Errors**: OpenAI API errors are caught and reported with relevant details
+
+Exit codes:
+- `0` - Success
+- `1` - Error (configuration, file not found, API failure, etc.)
+
+Example error handling:
+```bash
+# Check exit code
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+
+if [ $? -eq 0 ]; then
+  echo "Generation successful"
+else
+  echo "Generation failed"
+fi
+```
 
 ## Roadmap
 

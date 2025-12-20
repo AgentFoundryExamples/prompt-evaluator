@@ -21,6 +21,7 @@ LLM providers (OpenAI, Anthropic, etc.) and handles API communication.
 import logging
 import time
 from abc import ABC, abstractmethod
+from typing import Any
 
 from openai import OpenAI, OpenAIError
 
@@ -58,15 +59,16 @@ class BaseProvider(ABC):
 class OpenAIProvider(BaseProvider):
     """Provider implementation for OpenAI models."""
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None, base_url: str | None = None):
         """
         Initialize OpenAI provider.
 
         Args:
             api_key: OpenAI API key (if None, uses OPENAI_API_KEY env var)
+            base_url: Optional custom base URL for OpenAI API
         """
         super().__init__(api_key)
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
 
     def evaluate(self, request: EvaluationRequest) -> EvaluationResponse:
         """
@@ -93,7 +95,7 @@ class OpenAIProvider(BaseProvider):
             if request.max_tokens is not None:
                 params["max_tokens"] = request.max_tokens
 
-            completion = self.client.chat.completions.create(**params)
+            completion = self.client.chat.completions.create(**params)  # type: ignore[call-overload]
 
             response_text = completion.choices[0].message.content or ""
             tokens_used = completion.usage.total_tokens if completion.usage else None
@@ -118,13 +120,16 @@ class OpenAIProvider(BaseProvider):
         )
 
 
-def get_provider(provider_name: str, api_key: str | None = None) -> BaseProvider:
+def get_provider(
+    provider_name: str, api_key: str | None = None, base_url: str | None = None
+) -> BaseProvider:
     """
     Factory function to get a provider instance.
 
     Args:
         provider_name: Name of the provider (e.g., 'openai')
         api_key: Optional API key
+        base_url: Optional custom base URL for the provider
 
     Returns:
         Provider instance
@@ -142,4 +147,78 @@ def get_provider(provider_name: str, api_key: str | None = None) -> BaseProvider
             f"Unsupported provider: {provider_name}. Supported providers: {list(providers.keys())}"
         )
 
-    return provider_class(api_key=api_key)
+    # OpenAI provider supports base_url parameter
+    if provider_name.lower() == "openai":
+        return provider_class(api_key=api_key, base_url=base_url)
+
+    # For other providers that don't support base_url
+    return provider_class(api_key=api_key)  # type: ignore[call-arg]
+
+
+def generate_completion(
+    provider: OpenAIProvider,
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    seed: int | None = None,
+) -> tuple[str, dict[str, float | int | None]]:
+    """
+    Generate a completion using the OpenAI provider with system and user prompts.
+
+    Args:
+        provider: The OpenAI provider to use
+        system_prompt: System prompt to set context
+        user_prompt: User prompt/input
+        model: Model identifier
+        temperature: Sampling temperature (0.0-2.0)
+        max_tokens: Maximum tokens to generate
+        seed: Optional seed for reproducibility
+
+    Returns:
+        Tuple of (response_text, metadata) where metadata contains tokens_used and latency_ms
+
+    Raises:
+        OpenAIError: If the API call fails
+    """
+    start_time = time.time()
+
+    try:
+        # Build messages with system and user prompts
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        # Build API parameters
+        params: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+
+        # Add seed if provided
+        if seed is not None:
+            params["seed"] = seed
+
+        completion = provider.client.chat.completions.create(**params)  # type: ignore[call-overload]
+
+        response_text = completion.choices[0].message.content or ""
+        tokens_used = completion.usage.total_tokens if completion.usage else None
+        latency_ms = (time.time() - start_time) * 1000
+
+        metadata = {
+            "tokens_used": tokens_used,
+            "latency_ms": latency_ms,
+        }
+
+        return response_text, metadata
+
+    except OpenAIError as e:
+        logger.error("OpenAI API request failed: %s", e, exc_info=True)
+        raise
+    except Exception as e:
+        logger.error("Unexpected error during completion: %s", e, exc_info=True)
+        raise

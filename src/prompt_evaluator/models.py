@@ -19,8 +19,10 @@ evaluation process, including prompts, responses, and results.
 """
 
 import re
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -39,8 +41,7 @@ class PromptTemplate(BaseModel):
 
     template: str = Field(..., description="Prompt template with {variable} placeholders")
     variables: dict[str, str] = Field(
-        default_factory=dict,
-        description="Variable names and descriptions"
+        default_factory=dict, description="Variable names and descriptions"
     )
 
     @field_validator("template")
@@ -54,10 +55,10 @@ class PromptTemplate(BaseModel):
         """
         # Check for dangerous format string patterns
         dangerous_patterns = [
-            r'\{[^}]*\.[^}]+\}',  # Attribute access: {obj.attr}
-            r'\{[^}]*\[[^}]+\]\}',  # Indexing: {obj[0]}
-            r'\{[^}]*![^}]+\}',  # Conversion: {var!r}
-            r'\{[^}]+:[^}]+\}',  # Format spec: {var:03d} (requires both var and spec)
+            r"\{[^}]*\.[^}]+\}",  # Attribute access: {obj.attr}
+            r"\{[^}]*\[[^}]+\]\}",  # Indexing: {obj[0]}
+            r"\{[^}]*![^}]+\}",  # Conversion: {var!r}
+            r"\{[^}]+:[^}]+\}",  # Format spec: {var:03d} (requires both var and spec)
         ]
 
         for pattern in dangerous_patterns:
@@ -122,8 +123,7 @@ class EvaluationResult(BaseModel):
     run_id: str = Field(..., description="Unique identifier for this run")
     config_name: str = Field(..., description="Name of the evaluation configuration")
     responses: list[EvaluationResponse] = Field(
-        default_factory=list,
-        description="All responses from this evaluation"
+        default_factory=list, description="All responses from this evaluation"
     )
     start_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: datetime | None = Field(None)
@@ -134,3 +134,50 @@ class EvaluationResult(BaseModel):
         if self.end_time:
             return (self.end_time - self.start_time).total_seconds()
         return None
+
+
+@dataclass
+class GeneratorConfig:
+    """Configuration for LLM generation parameters."""
+
+    model_name: str = "gpt-3.5-turbo"
+    temperature: float = 0.7
+    max_tokens: int = 1024
+    seed: int | None = None
+
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        if not isinstance(self.max_tokens, int):
+            raise ValueError(f"max_tokens must be an integer, got {type(self.max_tokens).__name__}")
+        if self.temperature < 0.0 or self.temperature > 2.0:
+            raise ValueError(f"temperature must be between 0.0 and 2.0, got {self.temperature}")
+        if self.max_tokens <= 0:
+            raise ValueError(f"max_tokens must be positive, got {self.max_tokens}")
+
+
+@dataclass
+class PromptRun:
+    """Metadata for a single prompt evaluation run."""
+
+    id: str
+    timestamp: datetime
+    system_prompt_path: Path
+    input_path: Path
+    model_config: GeneratorConfig
+    raw_output_path: Path
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the PromptRun to a JSON-compatible dictionary.
+
+        Returns:
+            Dictionary representation suitable for JSON serialization
+        """
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat(),
+            "system_prompt_path": str(self.system_prompt_path),
+            "input_path": str(self.input_path),
+            "model_config": asdict(self.model_config),
+            "raw_output_path": str(self.raw_output_path),
+        }

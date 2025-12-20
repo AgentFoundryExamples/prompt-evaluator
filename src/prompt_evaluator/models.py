@@ -41,10 +41,10 @@ class PromptTemplate(BaseModel):
         """
         # Check for dangerous format string patterns
         dangerous_patterns = [
-            r'\{[^}]*\.[^}]*\}',  # Attribute access: {obj.attr}
-            r'\{[^}]*\[[^}]*\]\}',  # Indexing: {obj[0]}
-            r'\{[^}]*![^}]*\}',  # Conversion: {var!r}
-            r'\{[^}]*:[^}]*\}',  # Format spec: {var:03d}
+            r'\{[^}]*\.[^}]+\}',  # Attribute access: {obj.attr}
+            r'\{[^}]*\[[^}]+\]\}',  # Indexing: {obj[0]}
+            r'\{[^}]*![^}]+\}',  # Conversion: {var!r}
+            r'\{[^}]+:[^}]+\}',  # Format spec: {var:03d} (requires both var and spec)
         ]
 
         for pattern in dangerous_patterns:

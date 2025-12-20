@@ -8,6 +8,8 @@
   ├── repo-analysis-output
     ├── dependencies.json
     ├── dependencies.md
+    ├── file-summaries.json
+    ├── file-summaries.md
     ├── SUMMARY.md
     ├── tree.json
     └── tree.md
@@ -24,7 +26,8 @@
     └── provider.py
 ├── tests
   ├── __init__.py
-  └── test_basic.py
+  ├── test_basic.py
+  └── test_config_models.py
 ├── .gitignore
 ├── LICENSE
 ├── pyproject.toml

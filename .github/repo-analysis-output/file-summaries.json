@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 7,
+  "total_files": 8,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 1734,
-        "loc": 35,
+        "size_bytes": 1720,
+        "loc": 33,
         "todo_count": 0
       }
     },
@@ -39,8 +39,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 2575,
-        "loc": 46,
+        "size_bytes": 7651,
+        "loc": 154,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 4897,
-        "loc": 94,
+        "size_bytes": 6455,
+        "loc": 132,
         "todo_count": 0
       }
     },
@@ -67,8 +67,8 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 4443,
-        "loc": 98,
+        "size_bytes": 4427,
+        "loc": 97,
         "todo_count": 0
       }
     },
@@ -95,8 +95,22 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 4624,
-        "loc": 90,
+        "size_bytes": 4598,
+        "loc": 87,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_config_models.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 12215,
+        "loc": 232,
         "todo_count": 0
       }
     }

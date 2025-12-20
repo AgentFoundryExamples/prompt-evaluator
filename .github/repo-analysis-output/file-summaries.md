@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 7
+Total files: 8
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,8 @@ Total files: 7
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 1.69 KB  
-**LOC:** 35  
+**Size:** 1.68 KB  
+**LOC:** 33  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/config.py
@@ -29,8 +29,8 @@ Total files: 7
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 2.51 KB  
-**LOC:** 46  
+**Size:** 7.47 KB  
+**LOC:** 154  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/models.py
@@ -38,8 +38,8 @@ Total files: 7
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 4.78 KB  
-**LOC:** 94  
+**Size:** 6.30 KB  
+**LOC:** 132  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -47,8 +47,8 @@ Total files: 7
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 4.34 KB  
-**LOC:** 98  
+**Size:** 4.32 KB  
+**LOC:** 97  
 **TODOs/FIXMEs:** 0  
 
 ## tests/__init__.py
@@ -65,6 +65,15 @@ Total files: 7
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 4.52 KB  
-**LOC:** 90  
+**Size:** 4.49 KB  
+**LOC:** 87  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_config_models.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 11.93 KB  
+**LOC:** 232  
 **TODOs/FIXMEs:** 0  

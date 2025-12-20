@@ -26,12 +26,15 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "os",
           "pathlib.Path",
+          "tomllib",
           "typing.Any"
         ],
         "third-party": [
           "pydantic.BaseModel",
           "pydantic.Field",
+          "tomli",
           "yaml"
         ]
       }
@@ -42,9 +45,12 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "dataclasses.asdict",
+          "dataclasses.dataclass",
           "datetime.datetime",
           "datetime.timezone",
           "enum.Enum",
+          "pathlib.Path",
           "re",
           "typing.Any"
         ],
@@ -91,6 +97,21 @@
           "pytest"
         ]
       }
+    },
+    {
+      "id": "tests/test_config_models.py",
+      "path": "tests/test_config_models.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone",
+          "pathlib.Path"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
     }
   ],
   "edges": [
@@ -121,19 +142,31 @@
     {
       "source": "tests/test_basic.py",
       "target": "src/prompt_evaluator/provider.py"
+    },
+    {
+      "source": "tests/test_config_models.py",
+      "target": "src/prompt_evaluator/config.py"
+    },
+    {
+      "source": "tests/test_config_models.py",
+      "target": "src/prompt_evaluator/models.py"
     }
   ],
   "external_dependencies_summary": {
     "stdlib": [
       "abc.ABC",
       "abc.abstractmethod",
+      "dataclasses.asdict",
+      "dataclasses.dataclass",
       "datetime.datetime",
       "datetime.timezone",
       "enum.Enum",
       "logging",
+      "os",
       "pathlib.Path",
       "re",
       "time",
+      "tomllib",
       "typing.Any"
     ],
     "third-party": [
@@ -143,10 +176,11 @@
       "pydantic.Field",
       "pydantic.field_validator",
       "pytest",
+      "tomli",
       "typer",
       "yaml"
     ],
-    "stdlib_count": 10,
-    "third-party_count": 8
+    "stdlib_count": 14,
+    "third-party_count": 9
   }
 }

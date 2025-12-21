@@ -55,6 +55,7 @@
         "stdlib": [
           "dataclasses.asdict",
           "dataclasses.dataclass",
+          "dataclasses.field",
           "datetime.datetime",
           "datetime.timezone",
           "enum.Enum",
@@ -77,6 +78,7 @@
         "stdlib": [
           "abc.ABC",
           "abc.abstractmethod",
+          "json",
           "logging",
           "time",
           "typing.Any"
@@ -136,6 +138,22 @@
           "typer.testing.CliRunner"
         ]
       }
+    },
+    {
+      "id": "tests/test_judge_models.py",
+      "path": "tests/test_judge_models.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone",
+          "unittest.mock.MagicMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
     }
   ],
   "edges": [
@@ -190,6 +208,14 @@
     {
       "source": "tests/test_generate_cli.py",
       "target": "src/prompt_evaluator/cli.py"
+    },
+    {
+      "source": "tests/test_judge_models.py",
+      "target": "src/prompt_evaluator/models.py"
+    },
+    {
+      "source": "tests/test_judge_models.py",
+      "target": "src/prompt_evaluator/provider.py"
     }
   ],
   "external_dependencies_summary": {
@@ -198,6 +224,7 @@
       "abc.abstractmethod",
       "dataclasses.asdict",
       "dataclasses.dataclass",
+      "dataclasses.field",
       "datetime.datetime",
       "datetime.timezone",
       "enum.Enum",
@@ -210,6 +237,7 @@
       "time",
       "tomllib",
       "typing.Any",
+      "unittest.mock.MagicMock",
       "unittest.mock.patch",
       "uuid"
     ],
@@ -225,7 +253,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 18,
+    "stdlib_count": 20,
     "third-party_count": 10
   }
 }

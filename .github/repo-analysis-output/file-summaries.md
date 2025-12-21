@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 9
+Total files: 10
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -38,8 +38,8 @@ Total files: 9
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 6.38 KB  
-**LOC:** 132  
+**Size:** 12.06 KB  
+**LOC:** 266  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -47,8 +47,8 @@ Total files: 9
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 6.91 KB  
-**LOC:** 157  
+**Size:** 11.63 KB  
+**LOC:** 253  
 **TODOs/FIXMEs:** 0  
 
 ## tests/__init__.py
@@ -65,8 +65,8 @@ Total files: 9
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 4.49 KB  
-**LOC:** 87  
+**Size:** 5.14 KB  
+**LOC:** 105  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_config_models.py
@@ -74,7 +74,7 @@ Total files: 9
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 12.10 KB  
+**Size:** 12.08 KB  
 **LOC:** 232  
 **TODOs/FIXMEs:** 0  
 
@@ -85,4 +85,13 @@ Total files: 9
 **Summary:** Python test file (role: test)  
 **Size:** 8.67 KB  
 **LOC:** 204  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_judge_models.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 23.10 KB  
+**LOC:** 489  
 **TODOs/FIXMEs:** 0  

@@ -139,6 +139,10 @@
         {
           "type": "file",
           "name": "test_generate_cli.py"
+        },
+        {
+          "type": "file",
+          "name": "test_judge_models.py"
         }
       ]
     },

@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 9,
+  "total_files": 10,
   "files": [
     {
       "schema_version": "2.0",
@@ -53,8 +53,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 6537,
-        "loc": 132,
+        "size_bytes": 12349,
+        "loc": 266,
         "todo_count": 0
       }
     },
@@ -67,8 +67,8 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 7076,
-        "loc": 157,
+        "size_bytes": 11906,
+        "loc": 253,
         "todo_count": 0
       }
     },
@@ -95,8 +95,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 4598,
-        "loc": 87,
+        "size_bytes": 5266,
+        "loc": 105,
         "todo_count": 0
       }
     },
@@ -109,7 +109,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 12391,
+        "size_bytes": 12367,
         "loc": 232,
         "todo_count": 0
       }
@@ -125,6 +125,20 @@
       "metrics": {
         "size_bytes": 8873,
         "loc": 204,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_judge_models.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 23652,
+        "loc": 489,
         "todo_count": 0
       }
     }

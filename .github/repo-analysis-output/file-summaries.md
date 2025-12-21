@@ -20,8 +20,8 @@ Total files: 13
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 21.75 KB  
-**LOC:** 441  
+**Size:** 22.79 KB  
+**LOC:** 462  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/config.py
@@ -29,8 +29,8 @@ Total files: 13
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 15.98 KB  
-**LOC:** 322  
+**Size:** 15.99 KB  
+**LOC:** 323  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/models.py
@@ -38,8 +38,8 @@ Total files: 13
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 16.54 KB  
-**LOC:** 363  
+**Size:** 18.77 KB  
+**LOC:** 403  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -47,9 +47,9 @@ Total files: 13
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 12.51 KB  
-**LOC:** 266  
-**TODOs/FIXMEs:** 1  
+**Size:** 24.55 KB  
+**LOC:** 503  
+**TODOs/FIXMEs:** 0  
 
 ## tests/__init__.py
 **Language:** Python  
@@ -65,8 +65,8 @@ Total files: 13
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 13.12 KB  
-**LOC:** 313  
+**Size:** 14.59 KB  
+**LOC:** 351  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_config_models.py
@@ -74,8 +74,8 @@ Total files: 13
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 12.08 KB  
-**LOC:** 232  
+**Size:** 12.10 KB  
+**LOC:** 234  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_evaluate_single_cli.py
@@ -101,8 +101,8 @@ Total files: 13
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 30.16 KB  
-**LOC:** 644  
+**Size:** 49.80 KB  
+**LOC:** 1115  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_rubric_cli.py
@@ -110,8 +110,8 @@ Total files: 13
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 15.87 KB  
-**LOC:** 341  
+**Size:** 15.91 KB  
+**LOC:** 344  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_rubric_models.py

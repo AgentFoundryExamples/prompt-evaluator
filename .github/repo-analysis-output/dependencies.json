@@ -165,6 +165,7 @@
         "stdlib": [
           "datetime.datetime",
           "datetime.timezone",
+          "json",
           "unittest.mock.MagicMock",
           "unittest.mock.patch"
         ],
@@ -183,8 +184,6 @@
           "os",
           "pathlib.Path",
           "re",
-          "stat",
-          "unittest.mock.MagicMock",
           "unittest.mock.patch"
         ],
         "third-party": [
@@ -309,7 +308,6 @@
       "os",
       "pathlib.Path",
       "re",
-      "stat",
       "sys",
       "time",
       "tomllib",
@@ -330,7 +328,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 22,
+    "stdlib_count": 21,
     "third-party_count": 10
   }
 }

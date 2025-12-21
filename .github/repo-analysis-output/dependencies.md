@@ -10,14 +10,14 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 - **Total files**: 13
 - **Intra-repo dependencies**: 21
-- **External stdlib dependencies**: 22
+- **External stdlib dependencies**: 21
 - **External third-party dependencies**: 10
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 22 unique modules
+Total: 21 unique modules
 
 - `abc.ABC`
 - `abc.abstractmethod`
@@ -33,13 +33,13 @@ Total: 22 unique modules
 - `os`
 - `pathlib.Path`
 - `re`
-- `stat`
 - `sys`
 - `time`
 - `tomllib`
 - `typing.Any`
 - `unittest.mock.MagicMock`
-- ... and 2 more (see JSON for full list)
+- `unittest.mock.patch`
+- ... and 1 more (see JSON for full list)
 
 ### Third-Party Packages
 

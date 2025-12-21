@@ -450,6 +450,10 @@ def load_rubric(rubric_path: Path) -> "Rubric":  # type: ignore[name-defined] # 
         raise
 
 
+# Supported dataset file extensions
+DATASET_FILE_EXTENSIONS = [".jsonl", ".yaml", ".yml"]
+
+
 def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:  # type: ignore[name-defined] # noqa: F821
     """
     Load and validate a dataset from JSONL or YAML file.
@@ -475,10 +479,11 @@ def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:
         raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
 
     # Check file extension
-    if dataset_path.suffix not in [".jsonl", ".yaml", ".yml"]:
+    if dataset_path.suffix not in DATASET_FILE_EXTENSIONS:
+        supported_formats = ", ".join(DATASET_FILE_EXTENSIONS)
         raise ValueError(
             f"Unsupported dataset file format: {dataset_path.suffix}. "
-            "Supported formats: .jsonl, .yaml, .yml"
+            f"Supported formats: {supported_formats}"
         )
 
     # Read file content for hash computation

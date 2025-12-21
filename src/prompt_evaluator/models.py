@@ -514,6 +514,20 @@ class Rubric:
             )
 
 
+# TestCase defined field names (used for metadata passthrough)
+_TESTCASE_DEFINED_FIELDS = frozenset(
+    {
+        "id",
+        "input",
+        "description",
+        "task",
+        "expected_constraints",
+        "reference",
+        "metadata",
+    }
+)
+
+
 class TestCase(BaseModel):
     """
     A test case for dataset-driven evaluation.
@@ -550,26 +564,15 @@ class TestCase(BaseModel):
             raise ValueError("Field must not be empty or whitespace-only")
         return v
 
-    def __init__(self, **data: Any) -> None:
-        """
-        Custom initialization that moves extra fields to metadata.
-
-        This ensures that any extra fields not in the explicit schema are
-        preserved in the metadata dictionary for downstream use.
-        """
-        # Get all defined field names
-        defined_fields = {
-            "id",
-            "input",
-            "description",
-            "task",
-            "expected_constraints",
-            "reference",
-            "metadata",
+    @classmethod
+    def _move_extra_to_metadata(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Helper method to move extra fields to metadata."""
+        # Find extra fields (excluding private/protected attributes)
+        extra_fields = {
+            k: v
+            for k, v in data.items()
+            if k not in _TESTCASE_DEFINED_FIELDS and not k.startswith("_")
         }
-
-        # Find extra fields
-        extra_fields = {k: v for k, v in data.items() if k not in defined_fields}
 
         # If there are extra fields, move them to metadata
         if extra_fields:
@@ -586,6 +589,16 @@ class TestCase(BaseModel):
 
             data["metadata"] = merged_metadata
 
+        return data
+
+    def __init__(self, **data: Any) -> None:
+        """
+        Custom initialization that moves extra fields to metadata.
+
+        This ensures that any extra fields not in the explicit schema are
+        preserved in the metadata dictionary for downstream use.
+        """
+        data = self._move_extra_to_metadata(data)
         super().__init__(**data)
 
     @classmethod
@@ -597,34 +610,8 @@ class TestCase(BaseModel):
         preserved in the metadata dictionary for downstream use.
         """
         if isinstance(obj, dict):
-            # Get all defined field names
-            defined_fields = {
-                "id",
-                "input",
-                "description",
-                "task",
-                "expected_constraints",
-                "reference",
-                "metadata",
-            }
-
-            # Find extra fields
-            extra_fields = {k: v for k, v in obj.items() if k not in defined_fields}
-
-            # If there are extra fields, move them to metadata
-            if extra_fields:
-                obj_copy = obj.copy()
-                # Get existing metadata or create new dict
-                existing_metadata = obj_copy.get("metadata", {})
-                if not isinstance(existing_metadata, dict):
-                    existing_metadata = {}
-
-                # Merge extra fields into metadata
-                for key in extra_fields:
-                    if key not in existing_metadata:
-                        existing_metadata[key] = obj_copy.pop(key)
-
-                obj_copy["metadata"] = existing_metadata
-                return super().model_validate(obj_copy, **kwargs)
+            obj_copy = obj.copy()
+            obj_copy = cls._move_extra_to_metadata(obj_copy)
+            return super().model_validate(obj_copy, **kwargs)
 
         return super().model_validate(obj, **kwargs)

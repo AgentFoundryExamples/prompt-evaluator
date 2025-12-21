@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 10
+Total files: 11
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,8 @@ Total files: 10
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 8.45 KB  
-**LOC:** 161  
+**Size:** 19.68 KB  
+**LOC:** 400  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/config.py
@@ -38,8 +38,8 @@ Total files: 10
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 12.06 KB  
-**LOC:** 266  
+**Size:** 12.14 KB  
+**LOC:** 267  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -78,6 +78,15 @@ Total files: 10
 **LOC:** 232  
 **TODOs/FIXMEs:** 0  
 
+## tests/test_evaluate_single_cli.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 17.99 KB  
+**LOC:** 417  
+**TODOs/FIXMEs:** 0  
+
 ## tests/test_generate_cli.py
 **Language:** Python  
 **Role:** test  
@@ -92,6 +101,6 @@ Total files: 10
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 23.10 KB  
-**LOC:** 489  
+**Size:** 23.16 KB  
+**LOC:** 491  
 **TODOs/FIXMEs:** 0  

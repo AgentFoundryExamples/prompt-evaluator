@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 10,
+  "total_files": 11,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 8650,
-        "loc": 161,
+        "size_bytes": 20149,
+        "loc": 400,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 12349,
-        "loc": 266,
+        "size_bytes": 12429,
+        "loc": 267,
         "todo_count": 0
       }
     },
@@ -116,6 +116,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "tests/test_evaluate_single_cli.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 18426,
+        "loc": 417,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "tests/test_generate_cli.py",
       "language": "Python",
       "role": "test",
@@ -137,8 +151,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 23652,
-        "loc": 489,
+        "size_bytes": 23716,
+        "loc": 491,
         "todo_count": 0
       }
     }

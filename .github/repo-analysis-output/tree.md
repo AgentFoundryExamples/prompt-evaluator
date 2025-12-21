@@ -30,6 +30,7 @@
   ├── __init__.py
   ├── test_basic.py
   ├── test_config_models.py
+  ├── test_evaluate_single_cli.py
   ├── test_generate_cli.py
   └── test_judge_models.py
 ├── .gitignore

@@ -232,6 +232,7 @@ def judge_completion(
     judge_config: Any,
     judge_system_prompt: str,
     task_description: str | None = None,
+    rubric: Any | None = None,
 ) -> dict[str, Any]:
     """
     Call judge model to evaluate generator output and return structured results.
@@ -247,6 +248,7 @@ def judge_completion(
         judge_config: JudgeConfig with model settings
         judge_system_prompt: System prompt instructing judge on scoring
         task_description: Optional description of the task for context
+        rubric: Optional Rubric object for structured evaluation criteria
 
     Returns:
         Dictionary with keys:

@@ -210,6 +210,116 @@ def load_api_config(config_file_path: Path | None = None) -> APIConfig:
     return APIConfig(config_file_path=config_file_path)
 
 
+# Preset aliases for bundled rubrics
+RUBRIC_PRESETS = {
+    "default": "default.yaml",
+    "content-quality": "content_quality.yaml",
+    "code-review": "code_review.json",
+}
+
+
+def get_default_rubric_path() -> Path:
+    """
+    Get the path to the default bundled rubric file.
+
+    Returns:
+        Path to the default rubric file
+
+    Raises:
+        FileNotFoundError: If the default rubric file cannot be found
+    """
+    # Try to find the examples/rubrics directory relative to the package
+    # First, try relative to this file (for development mode)
+    config_dir = Path(__file__).parent
+    rubrics_dir = config_dir.parent.parent.parent / "examples" / "rubrics"
+    default_rubric = rubrics_dir / "default.yaml"
+
+    if default_rubric.exists():
+        return default_rubric
+
+    # If not found in development location, try relative to current working directory
+    cwd_rubrics = Path.cwd() / "examples" / "rubrics" / "default.yaml"
+    if cwd_rubrics.exists():
+        return cwd_rubrics
+
+    raise FileNotFoundError(
+        "Default rubric file not found. Expected location: examples/rubrics/default.yaml"
+    )
+
+
+def resolve_rubric_path(rubric_input: str | None) -> Path:
+    """
+    Resolve a rubric path from user input, handling preset aliases and file paths.
+
+    Args:
+        rubric_input: User-provided rubric identifier - can be:
+                     - None (use default)
+                     - A preset alias (e.g., "default", "content-quality", "code-review")
+                     - An absolute or relative file path
+
+    Returns:
+        Resolved absolute Path to the rubric file
+
+    Raises:
+        FileNotFoundError: If the rubric file doesn't exist
+        ValueError: If rubric_input points to a directory or is invalid
+    """
+    # If no input provided, use default
+    if rubric_input is None:
+        return get_default_rubric_path()
+
+    # Check if it's a preset alias
+    if rubric_input in RUBRIC_PRESETS:
+        # Resolve preset to bundled file
+        preset_filename = RUBRIC_PRESETS[rubric_input]
+
+        # Try to find rubrics directory
+        config_dir = Path(__file__).parent
+        rubrics_dir = config_dir.parent.parent.parent / "examples" / "rubrics"
+        preset_path = rubrics_dir / preset_filename
+
+        if preset_path.exists():
+            return preset_path
+
+        # If not found in development location, try relative to current working directory
+        cwd_preset_path = Path.cwd() / "examples" / "rubrics" / preset_filename
+        if cwd_preset_path.exists():
+            return cwd_preset_path
+
+        raise FileNotFoundError(
+            f"Preset rubric '{rubric_input}' not found. "
+            f"Expected file '{preset_filename}' in examples/rubrics/ directory. "
+            f"Available presets: {', '.join(sorted(RUBRIC_PRESETS.keys()))}"
+        )
+
+    # Treat as a file path (absolute or relative)
+    rubric_path = Path(rubric_input)
+
+    # Resolve to absolute path
+    if not rubric_path.is_absolute():
+        rubric_path = Path.cwd() / rubric_path
+
+    # Check if path exists
+    if not rubric_path.exists():
+        raise FileNotFoundError(
+            f"Rubric file not found: {rubric_path}. "
+            f"Please provide a valid file path or use a preset: {', '.join(sorted(RUBRIC_PRESETS.keys()))}"
+        )
+
+    # Check if it's a directory
+    if rubric_path.is_dir():
+        raise ValueError(
+            f"Rubric path points to a directory: {rubric_path}. "
+            "Please provide a path to a rubric file (.yaml, .yml, or .json)"
+        )
+
+    # Check if file is readable
+    if not os.access(rubric_path, os.R_OK):
+        raise ValueError(f"Rubric file is not readable: {rubric_path}")
+
+    return rubric_path
+
+
 def load_rubric(rubric_path: Path) -> "Rubric":  # type: ignore[name-defined] # noqa: F821
     """
     Load and validate a rubric from a YAML or JSON file.

@@ -325,23 +325,402 @@ Sample datasets are provided in the `examples/datasets/` directory:
 
 These demonstrate the schema and can serve as templates for creating your own datasets.
 
-## Future CLI Integration
+## Dataset Evaluation Workflow
 
-Datasets will be used by evaluation commands to run batch evaluations:
+The `evaluate-dataset` command evaluates all test cases in a dataset, producing comprehensive statistics and artifacts.
+
+### Basic Workflow
 
 ```bash
-# Future usage (not yet implemented)
+# 1. Prepare your dataset
+# Create or use an existing dataset file (YAML or JSONL format)
+
+# 2. Run a smoke test first (2 samples × 5 cases = ~20 API calls)
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt prompts/system.txt \
+  --max-cases 5 \
+  --quick
+
+# 3. Review smoke test results
+# Check runs/<run_id>/dataset_evaluation.json for issues
+
+# 4. Run full evaluation if smoke test passes
 prompt-evaluator evaluate-dataset \
   --dataset examples/datasets/sample.yaml \
   --system-prompt prompts/system.txt \
   --num-samples 5
+
+# 5. Analyze results and iterate
+# Review per-case statistics to identify problematic inputs
+# Adjust prompt or parameters based on variance and flag rates
 ```
 
-This will:
-1. Load all test cases from the dataset
-2. Generate and evaluate outputs for each test case
-3. Aggregate results across all test cases
-4. Produce a comprehensive evaluation report
+### Command Overview
+
+**Required flags:**
+- `--dataset`, `-d`: Path to dataset file (`.yaml`, `.yml`, or `.jsonl`)
+- `--system-prompt`, `-s`: Path to system prompt file
+
+**Key optional flags:**
+- `--num-samples`, `-n`: Samples per test case (default: 5)
+- `--quick`: Fast mode with 2 samples per case
+- `--case-ids`: Filter to specific test cases (comma-separated IDs)
+- `--max-cases`: Limit total number of test cases evaluated
+- `--rubric`: Evaluation rubric (default: `default`)
+- `--temperature`, `-t`: Generator temperature (default: 0.7)
+- `--seed`: Random seed for reproducibility
+- `--output-dir`, `-o`: Output directory (default: `runs/`)
+
+For complete command reference, see the README.md section on `evaluate-dataset`.
+
+### Runtime Expectations
+
+Evaluation time depends on dataset size, samples per case, and API performance:
+
+**Typical runtimes:**
+- **50 cases × 5 samples:** ~25-50 minutes
+- **100 cases × 5 samples:** ~50-100 minutes
+- **200 cases × 5 samples:** ~100-200 minutes (1.5-3.5 hours)
+
+**Formula:** `test_cases × num_samples × 2 (gen + judge) × 2-3 seconds per call`
+
+**Recommendation:** Always start with `--max-cases 5 --quick` for smoke testing (~40 seconds) before committing to multi-hour runs.
+
+### API Rate Limits
+
+⚠️ **Warning:** Large datasets can hit API rate limits, causing failures or significant slowdowns.
+
+**Strategies to avoid rate limits:**
+1. **Smoke test first:** Use `--max-cases 5 --quick` to verify prompt works
+2. **Filter strategically:** Test critical cases with `--case-ids case-001,case-002,...`
+3. **Batch processing:** Split large datasets using `--max-cases` in multiple runs
+4. **Monitor tier limits:** OpenAI Tier 1 (3 RPM) requires `--quick` mode; Tier 3+ (500+ RPM) handles full evaluations
+
+Example smoke test before full run:
+```bash
+# Quick check: 2 samples × 5 cases = 20 API calls ≈ 40 seconds
+prompt-evaluator evaluate-dataset -d data.yaml -s prompt.txt --max-cases 5 --quick
+
+# If successful, run full evaluation: 5 samples × 50 cases = 500 API calls ≈ 16-25 minutes  
+prompt-evaluator evaluate-dataset -d data.yaml -s prompt.txt --num-samples 5
+```
+
+## Interpreting Stability Metrics
+
+Dataset evaluation provides per-metric statistics to assess prompt consistency and identify issues.
+
+### Understanding Statistics
+
+For each metric on each test case, you get:
+- **mean:** Average score across samples
+- **std (standard deviation):** Measure of score variability/consistency
+- **min/max:** Score range (lowest and highest sample scores)
+- **count:** Number of valid samples (excludes failed samples)
+
+### What Standard Deviation Means
+
+Standard deviation (std) indicates how consistently the prompt performs:
+
+**Low std (<0.5):**
+- Prompt produces consistent outputs across samples
+- Behavior is stable and predictable
+- ✓ Good sign - prompt is reliable
+
+**Moderate std (0.5-1.0):**
+- Some variation, but generally acceptable
+- Minor differences between samples
+- Usually acceptable for most applications
+
+**High std (>1.0 or >20% of mean):**
+- ⚠️ High variability in prompt behavior
+- Outputs are inconsistent across samples
+- Indicates potential issues requiring investigation
+
+### Example Interpretation
+
+```
+Case: test-001
+  semantic_fidelity: mean=4.20, std=0.30, min=3.8, max=4.6
+    ✓ Low std (0.30) - consistent semantic preservation
+  
+  clarity: mean=4.50, std=1.20, min=2.5, max=5.0  ⚠️ HIGH VARIABILITY
+    ⚠️ High std (1.20) and wide range (2.5-5.0)
+    → Clarity is inconsistent - some outputs very clear, others confusing
+    → Action: Review samples with low clarity scores
+    → Consider: Lower temperature or add clarity guidelines to prompt
+```
+
+### Why High Variance Matters
+
+High standard deviation indicates your prompt's effectiveness is unpredictable:
+
+**Common causes:**
+1. **High temperature:** `temp=0.7` or higher increases randomness → try `temp=0.3`
+2. **Vague prompt:** Ambiguous instructions allow varied interpretations → add examples or constraints
+3. **Input sensitivity:** Prompt works well for some inputs but poorly for others → analyze per-case breakdown
+4. **Judge inconsistency:** Judge model may be unreliable (rare if using temp=0.0)
+
+**When to investigate:**
+- Std > 1.0 or std > 20% of mean
+- Wide min/max range (e.g., 2.0-5.0 on a 1-5 scale)
+- High variance on critical metrics (semantic_fidelity, accuracy, etc.)
+
+### Sample Size and Confidence
+
+More samples → more reliable statistics:
+
+| Samples | Confidence Level | Use Case |
+|---------|------------------|----------|
+| 2-5 | Low | Smoke testing, rapid iteration |
+| 5-10 | Moderate | Standard evaluation, std within ~15% of true value |
+| 10-20 | High | Critical prompts, std within ~10% of true value |
+| 50+ | Very High | Production validation, std within ~5% of true value |
+
+**Rule of thumb:** If std is high, increase sample count to confirm it's real variance, not sampling noise.
+
+### When to Rerun
+
+Rerun with more samples if:
+1. **High std with low sample count:** 2-5 samples may not capture true variance
+2. **Borderline metrics:** Mean is close to acceptance threshold
+3. **Critical prompts:** Production systems require high-confidence validation
+4. **After prompt changes:** Verify changes reduced variance as expected
+
+**Example progression:**
+```bash
+# Initial: Quick test with 2 samples (std may be unreliable)
+prompt-evaluator evaluate-dataset -d data.yaml -s prompt.txt --quick
+
+# If std > 1.0, increase to 10 samples to confirm
+prompt-evaluator evaluate-dataset -d data.yaml -s prompt.txt --num-samples 10
+
+# If still high std, adjust temperature and retest
+prompt-evaluator evaluate-dataset -d data.yaml -s prompt.txt --num-samples 10 --temperature 0.3
+```
+
+### Flag Rate Interpretation
+
+Flag statistics show how often specific conditions occur:
+
+```json
+{
+  "per_flag_stats": {
+    "omitted_constraints": {
+      "true_count": 12,
+      "false_count": 88,
+      "total_count": 100,
+      "true_proportion": 0.12
+    }
+  }
+}
+```
+
+**Interpreting true_proportion:**
+- **0.0 (0%):** Flag never triggered → good if flag indicates a problem
+- **0.05-0.20 (5-20%):** Flag occasionally triggered → review specific samples, may be acceptable
+- **0.20-0.50 (20-50%):** Flag frequently triggered → likely systemic issue
+- **>0.50 (>50%):** Flag triggered on majority → serious prompt problem
+
+**Example:**
+```
+omitted_constraints: true_proportion=0.15 (15%)
+  → 15% of samples omit required constraints
+  → Action: Review the 15 samples where flag=true
+  → Fix: Add explicit constraint checklist to system prompt
+```
+
+### Overall vs. Per-Case Statistics
+
+**Per-case statistics:**
+- Show performance on each individual test case
+- Help identify which inputs cause problems
+- Useful for debugging specific failure modes
+
+**Overall statistics:**
+- Summarize prompt performance across all test cases
+- "mean_of_means" is the average of per-case means
+- Provides big-picture view of prompt quality
+
+**When to use each:**
+1. **Overall mean is good but some per-case means are poor:**
+   - Prompt works well overall but fails on specific input types
+   - Use per-case breakdown to find problematic patterns
+   
+2. **Overall mean is poor:**
+   - Systemic prompt issue affecting most inputs
+   - Focus on improving core prompt before addressing per-case variance
+
+## Artifact Structure and Schema
+
+### Output Files
+
+Each `evaluate-dataset` run creates a directory with multiple artifacts:
+
+**Directory structure:**
+```
+runs/
+└── <run_id>/
+    ├── dataset_evaluation.json    # Main consolidated results
+    └── test_case_<id>.json        # Per-case results (streamed)
+```
+
+**Main artifact:** `dataset_evaluation.json`
+- Complete evaluation results with all test cases and samples
+- Per-case and overall statistics
+- Generator and judge configurations
+- Dataset and rubric metadata with hashes
+
+**Per-case artifacts:** `test_case_<id>.json`
+- Individual test case results
+- Streamed to disk as each case completes
+- Useful for recovering partial results if run is interrupted
+
+### JSON Schema
+
+The `dataset_evaluation.json` file contains:
+
+```json
+{
+  "run_id": "uuid",                    // Unique run identifier
+  "dataset_path": "absolute/path",      // Path to dataset file
+  "dataset_hash": "sha256:...",         // Dataset content hash
+  "dataset_count": 100,                 // Total test cases in dataset
+  "num_samples_per_case": 5,            // Samples per test case
+  "status": "completed",                // Run status (see below)
+  "timestamp_start": "ISO 8601",        // When run started (UTC)
+  "timestamp_end": "ISO 8601",          // When run ended (null if incomplete)
+  "system_prompt_path": "path",         // System prompt file path
+  "generator_config": { ... },          // Generator model settings
+  "judge_config": { ... },              // Judge model settings
+  "rubric_metadata": { ... },           // Rubric with hash for reproducibility
+  "test_case_results": [ ... ],         // Array of test case results
+  "overall_metric_stats": { ... },      // Mean of per-case means
+  "overall_flag_stats": { ... }         // Aggregated flag counts
+}
+```
+
+**Status field values:**
+- `"completed"`: All test cases succeeded
+- `"partial"`: Some test cases succeeded, some failed
+- `"failed"`: All test cases failed
+- `"running"`: Evaluation in progress
+- `"aborted"`: Run was interrupted
+
+**Sample status values (per sample within test case):**
+- `"completed"`: Generation and judging succeeded
+- `"judge_error"`: Generation succeeded but judge failed
+- `"judge_invalid_response"`: Judge returned unparseable response (excluded from stats)
+- `"generation_error"`: Generation failed
+- `"pending"`: Not yet processed
+
+For detailed schema with examples, see `examples/run-artifacts/run-sample.json`.
+
+### Content Hashing Rationale
+
+The evaluation tracks content changes using SHA-256 hashes:
+
+**dataset_hash:**
+- Hash of dataset file content (not path)
+- Detects if test cases have changed between runs
+- Allows comparing results across runs with confidence
+
+**rubric_hash:**
+- Hash of rubric file content
+- Detects if evaluation criteria changed
+- Ensures reproducible comparisons
+
+**Why hashing matters:**
+1. **Reproducibility:** Verify two runs used identical inputs
+2. **Change detection:** Quickly identify when dataset or rubric was modified
+3. **Filesystem portability:** Hashes are content-based, so results are comparable even if file paths differ across systems
+
+**Important:** Hashes include whitespace and line endings. Identical content with different line endings (Unix `\n` vs Windows `\r\n`) will produce different hashes. Normalize line endings if exact hash matching is critical.
+
+### Incomplete Runs and Resume
+
+**Detecting incomplete runs:**
+
+Check the `status` and `timestamp_end` fields:
+
+```json
+{
+  "status": "aborted",        // Run was interrupted
+  "timestamp_end": null,       // No end timestamp
+  "test_case_results": [
+    { "status": "completed" }, // These cases finished
+    { "status": "completed" },
+    { "status": "pending" }    // This case never started
+  ]
+}
+```
+
+**What gets saved on interruption:**
+- Per-case artifacts (`test_case_<id>.json`) for completed cases
+- Partial `dataset_evaluation.json` (may be incomplete)
+- Overall stats computed only from completed cases
+
+**⚠️ Resume Not Yet Supported:**
+
+Currently, if a run is interrupted:
+- You must restart from the beginning
+- Or manually filter to remaining cases using `--case-ids`
+- Or process in smaller batches using `--max-cases`
+
+**Workaround example:**
+```bash
+# Original run interrupted after test-001, test-002
+# Check which cases completed:
+cat runs/<run_id>/dataset_evaluation.json | jq '.test_case_results[].test_case_id'
+
+# Manually run remaining cases:
+prompt-evaluator evaluate-dataset \
+  --dataset dataset.yaml \
+  --system-prompt prompt.txt \
+  --case-ids test-003,test-004,test-005 \
+  --num-samples 5
+```
+
+**Future support:**
+- Resume functionality is planned for future versions
+- Will allow continuing from last completed test case
+- Will merge partial results into final artifact
+
+### Tracking Multiple Runs
+
+To track and compare multiple evaluation runs across time:
+
+1. **Manual tracking:** Create an index file with run summaries
+   - See `examples/run-artifacts/index.json` for example structure
+   - Track run_id, configuration, metrics, and notes
+
+2. **Version control:** Commit artifacts to git (or LFS for large files)
+   - Tag important baseline runs
+   - Compare metrics across branches or versions
+
+3. **Compare hashes:** Use dataset_hash and rubric_hash to ensure fair comparison
+   - Same hashes = identical evaluation setup
+   - Different hashes = results may not be directly comparable
+
+Example index structure:
+```json
+{
+  "runs": [
+    {
+      "run_id": "uuid-1",
+      "description": "Baseline with temp=0.7",
+      "dataset_hash": "sha256:...",
+      "overall_metrics": { "semantic_fidelity": { "mean_of_means": 4.2 } }
+    },
+    {
+      "run_id": "uuid-2", 
+      "description": "Optimized with temp=0.3",
+      "dataset_hash": "sha256:...",  // Same hash = same dataset
+      "overall_metrics": { "semantic_fidelity": { "mean_of_means": 4.5 } }
+    }
+  ]
+}
+```
 
 ## Best Practices
 

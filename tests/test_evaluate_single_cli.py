@@ -744,3 +744,211 @@ class TestEvaluateSingleCLI:
 
         # Should fail with clear error
         assert result.exit_code == 1
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    @patch("prompt_evaluator.cli.judge_completion")
+    def test_evaluate_single_with_rubric_metrics_and_flags(
+        self, mock_judge, mock_generate, cli_runner, tmp_path, monkeypatch
+    ):
+        """Test evaluate-single with rubric-based evaluation including metrics and flags."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create prompt files
+        system_prompt = tmp_path / "system.txt"
+        system_prompt.write_text("You are helpful.")
+
+        input_file = tmp_path / "input.txt"
+        input_file.write_text("Test question")
+
+        output_dir = tmp_path / "runs"
+
+        # Mock generator response
+        mock_generate.return_value = ("Answer", {"tokens_used": 5, "latency_ms": 50})
+
+        # Mock judge response with rubric-based metrics and flags
+        mock_judge.return_value = {
+            "status": "completed",
+            "judge_score": None,  # Legacy field not used with rubric
+            "judge_rationale": None,
+            "judge_raw_response": '{"metrics": {...}, "flags": {...}}',
+            "judge_metrics": {
+                "semantic_fidelity": {"score": 4.5, "rationale": "Excellent preservation"},
+                "decomposition_quality": {"score": 3.0, "rationale": "Adequate structure"},
+                "constraint_adherence": {"score": 5.0, "rationale": "Perfect adherence"},
+            },
+            "judge_flags": {
+                "invented_constraints": False,
+                "omitted_constraints": False,
+            },
+            "judge_overall_comment": "Good response overall",
+            "error": None,
+        }
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(system_prompt),
+                "--input",
+                str(input_file),
+                "--num-samples",
+                "2",
+                "--rubric",
+                "default",
+                "--output-dir",
+                str(output_dir),
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Check that output directory was created
+        assert output_dir.exists()
+
+        # Find the run directory
+        run_dirs = list(output_dir.iterdir())
+        assert len(run_dirs) == 1
+        run_dir = run_dirs[0]
+
+        # Check evaluation file
+        evaluation_file = run_dir / "evaluate-single.json"
+        assert evaluation_file.exists()
+
+        import json
+        evaluation = json.loads(evaluation_file.read_text())
+
+        # Verify rubric metadata is present
+        assert "rubric_metadata" in evaluation
+        assert "rubric_path" in evaluation["rubric_metadata"]
+        assert "rubric_hash" in evaluation["rubric_metadata"]
+        assert "rubric_definition" in evaluation["rubric_metadata"]
+
+        # Verify aggregate stats include metric_stats and flag_stats
+        assert "aggregate_stats" in evaluation
+        stats = evaluation["aggregate_stats"]
+
+        assert "metric_stats" in stats
+        assert "semantic_fidelity" in stats["metric_stats"]
+        assert stats["metric_stats"]["semantic_fidelity"]["mean"] == 4.5
+        assert stats["metric_stats"]["semantic_fidelity"]["count"] == 2
+
+        assert "flag_stats" in stats
+        assert "invented_constraints" in stats["flag_stats"]
+        assert stats["flag_stats"]["invented_constraints"]["true_count"] == 0
+        assert stats["flag_stats"]["invented_constraints"]["false_count"] == 2
+
+        # Verify samples have rubric fields populated
+        assert len(evaluation["samples"]) == 2
+        for sample in evaluation["samples"]:
+            assert "judge_metrics" in sample
+            assert "judge_flags" in sample
+            assert "judge_overall_comment" in sample
+            assert sample["judge_overall_comment"] == "Good response overall"
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    @patch("prompt_evaluator.cli.judge_completion")
+    def test_evaluate_single_rubric_aggregation_with_mixed_results(
+        self, mock_judge, mock_generate, cli_runner, tmp_path, monkeypatch
+    ):
+        """Test rubric aggregation with mix of successful and invalid responses."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        system_prompt = tmp_path / "system.txt"
+        system_prompt.write_text("You are helpful.")
+
+        input_file = tmp_path / "input.txt"
+        input_file.write_text("Test question")
+
+        output_dir = tmp_path / "runs"
+
+        # Mock generator responses
+        mock_generate.side_effect = [
+            ("Answer 1", {"tokens_used": 5, "latency_ms": 50}),
+            ("Answer 2", {"tokens_used": 5, "latency_ms": 50}),
+            ("Answer 3", {"tokens_used": 5, "latency_ms": 50}),
+        ]
+
+        # Mock judge responses - mix of successful and invalid
+        mock_judge.side_effect = [
+            {
+                "status": "completed",
+                "judge_score": None,
+                "judge_rationale": None,
+                "judge_raw_response": "{}",
+                "judge_metrics": {"test_metric": {"score": 4.0, "rationale": "Good"}},
+                "judge_flags": {"test_flag": True},
+                "judge_overall_comment": "Good",
+                "error": None,
+            },
+            {
+                "status": "judge_invalid_response",
+                "judge_score": None,
+                "judge_rationale": None,
+                "judge_raw_response": "Invalid JSON",
+                "judge_metrics": {},
+                "judge_flags": {},
+                "judge_overall_comment": None,
+                "error": "Failed to parse",
+            },
+            {
+                "status": "completed",
+                "judge_score": None,
+                "judge_rationale": None,
+                "judge_raw_response": "{}",
+                "judge_metrics": {"test_metric": {"score": 5.0, "rationale": "Excellent"}},
+                "judge_flags": {"test_flag": False},
+                "judge_overall_comment": "Excellent",
+                "error": None,
+            },
+        ]
+
+        # Create a minimal rubric for testing
+        rubric_file = tmp_path / "test_rubric.yaml"
+        rubric_file.write_text("""
+metrics:
+  - name: test_metric
+    description: Test metric
+    min_score: 1
+    max_score: 5
+    guidelines: Test guidelines
+flags:
+  - name: test_flag
+    description: Test flag
+    default: false
+""")
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(system_prompt),
+                "--input",
+                str(input_file),
+                "--num-samples",
+                "3",
+                "--rubric",
+                str(rubric_file),
+                "--output-dir",
+                str(output_dir),
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Check evaluation file
+        run_dirs = list(output_dir.iterdir())
+        evaluation_file = run_dirs[0] / "evaluate-single.json"
+
+        import json
+        evaluation = json.loads(evaluation_file.read_text())
+
+        # Check that invalid sample is excluded from aggregation
+        stats = evaluation["aggregate_stats"]
+        assert stats["metric_stats"]["test_metric"]["count"] == 2  # Only 2 valid samples
+        assert stats["metric_stats"]["test_metric"]["mean"] == 4.5  # (4.0 + 5.0) / 2
+        assert stats["flag_stats"]["test_flag"]["total_count"] == 2
+        assert stats["flag_stats"]["test_flag"]["true_count"] == 1
+        assert stats["flag_stats"]["test_flag"]["true_proportion"] == 0.5
+

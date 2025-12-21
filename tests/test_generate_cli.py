@@ -171,7 +171,7 @@ class TestGenerateCLI:
         call_kwargs = mock_generate.call_args[1]
         assert call_kwargs["model"] == "gpt-4"
         assert call_kwargs["temperature"] == 0.5
-        assert call_kwargs["max_tokens"] == 500
+        assert call_kwargs["max_completion_tokens"] == 500
         assert call_kwargs["seed"] == 42
 
     @patch("prompt_evaluator.cli.generate_completion")

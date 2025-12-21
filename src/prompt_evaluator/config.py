@@ -35,7 +35,7 @@ class ProviderConfig(BaseModel):
     api_key: str | None = Field(None, description="API key for the provider")
     model: str = Field(..., description="Model identifier")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
-    max_tokens: int | None = Field(None, gt=0, description="Maximum tokens to generate")
+    max_completion_tokens: int | None = Field(None, gt=0, description="Maximum tokens to generate")
 
 
 class EvaluationConfig(BaseModel):
@@ -109,7 +109,7 @@ class APIConfig:
         # Start with environment variables
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.base_url = base_url or os.environ.get("OPENAI_BASE_URL")
-        self.model_name = model_name or os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
+        self.model_name = model_name or os.environ.get("OPENAI_MODEL", "gpt-5.1")
 
         # Load from config file if provided and values are not explicitly set
         if config_file_path is not None:

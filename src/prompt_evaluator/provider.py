@@ -92,8 +92,8 @@ class OpenAIProvider(BaseProvider):
                 "messages": [{"role": "user", "content": request.prompt}],
                 "temperature": request.temperature,
             }
-            if request.max_tokens is not None:
-                params["max_tokens"] = request.max_tokens
+            if request.max_completion_tokens is not None:
+                params["max_completion_tokens"] = request.max_completion_tokens
 
             completion = self.client.chat.completions.create(**params)  # type: ignore[call-overload]
 
@@ -161,7 +161,7 @@ def generate_completion(
     user_prompt: str,
     model: str,
     temperature: float,
-    max_tokens: int,
+    max_completion_tokens: int,
     seed: int | None = None,
 ) -> tuple[str, dict[str, float | int | None]]:
     """
@@ -173,7 +173,7 @@ def generate_completion(
         user_prompt: User prompt/input
         model: Model identifier
         temperature: Sampling temperature (0.0-2.0)
-        max_tokens: Maximum tokens to generate
+        max_completion_tokens: Maximum tokens to generate
         seed: Optional seed for reproducibility
 
     Returns:
@@ -196,7 +196,7 @@ def generate_completion(
             "model": model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            "max_completion_tokens": max_completion_tokens,
         }
 
         # Add seed if provided

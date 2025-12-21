@@ -58,7 +58,7 @@ def generate(
     temperature: float | None = typer.Option(
         None, "--temperature", "-t", help="Temperature (0.0-2.0)"
     ),
-    max_tokens: int | None = typer.Option(None, "--max-tokens", help="Maximum tokens to generate"),
+    max_completion_tokens: int | None = typer.Option(None, "--max-tokens", help="Maximum tokens to generate"),
     seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
     output_dir: str = typer.Option("runs", "--output-dir", "-o", help="Output directory for runs"),
     config_file: str | None = typer.Option(
@@ -107,8 +107,8 @@ def generate(
             cli_overrides["model_name"] = model
         if temperature is not None:
             cli_overrides["temperature"] = temperature
-        if max_tokens is not None:
-            cli_overrides["max_tokens"] = max_tokens
+        if max_completion_tokens is not None:
+            cli_overrides["max_completion_tokens"] = max_completion_tokens
         if seed is not None:
             cli_overrides["seed"] = seed
 
@@ -116,7 +116,7 @@ def generate(
         generator_config = GeneratorConfig(
             model_name=cli_overrides.get("model_name", base_config.model_name),
             temperature=cli_overrides.get("temperature", base_config.temperature),
-            max_tokens=cli_overrides.get("max_tokens", base_config.max_tokens),
+            max_completion_tokens=cli_overrides.get("max_completion_tokens", base_config.max_completion_tokens),
             seed=cli_overrides.get("seed", base_config.seed),
         )
 
@@ -133,7 +133,7 @@ def generate(
             user_prompt=user_prompt_content,
             model=generator_config.model_name,
             temperature=generator_config.temperature,
-            max_tokens=generator_config.max_tokens,
+            max_completion_tokens=generator_config.max_completion_tokens,
             seed=generator_config.seed,
         )
 
@@ -179,7 +179,7 @@ def generate(
         typer.echo(f"Run ID: {run_id}", err=True)
         typer.echo(f"Model: {generator_config.model_name}", err=True)
         typer.echo(f"Temperature: {generator_config.temperature}", err=True)
-        typer.echo(f"Max tokens: {generator_config.max_tokens}", err=True)
+        typer.echo(f"Max tokens: {generator_config.max_completion_tokens}", err=True)
         if generator_config.seed is not None:
             typer.echo(f"Seed: {generator_config.seed}", err=True)
         typer.echo(f"Output file: {output_file}", err=True)

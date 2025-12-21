@@ -34,15 +34,15 @@ class TestGeneratorConfig:
         config = GeneratorConfig()
         assert config.model_name == "gpt-3.5-turbo"
         assert config.temperature == 0.7
-        assert config.max_tokens == 1024
+        assert config.max_completion_tokens == 1024
         assert config.seed is None
 
     def test_custom_values(self):
         """Test that GeneratorConfig accepts custom values."""
-        config = GeneratorConfig(model_name="gpt-4", temperature=0.5, max_tokens=2048, seed=42)
+        config = GeneratorConfig(model_name="gpt-4", temperature=0.5, max_completion_tokens=2048, seed=42)
         assert config.model_name == "gpt-4"
         assert config.temperature == 0.5
-        assert config.max_tokens == 2048
+        assert config.max_completion_tokens == 2048
         assert config.seed == 42
 
     def test_temperature_validation_negative(self):
@@ -63,20 +63,20 @@ class TestGeneratorConfig:
         config2 = GeneratorConfig(temperature=2.0)
         assert config2.temperature == 2.0
 
-    def test_max_tokens_validation_zero(self):
-        """Test that max_tokens=0 raises ValueError."""
-        with pytest.raises(ValueError, match="max_tokens must be positive"):
-            GeneratorConfig(max_tokens=0)
+    def test_max_completion_tokens_validation_zero(self):
+        """Test that max_completion_tokens=0 raises ValueError."""
+        with pytest.raises(ValueError, match="max_completion_tokens must be positive"):
+            GeneratorConfig(max_completion_tokens=0)
 
-    def test_max_tokens_validation_negative(self):
-        """Test that negative max_tokens raises ValueError."""
-        with pytest.raises(ValueError, match="max_tokens must be positive"):
-            GeneratorConfig(max_tokens=-100)
+    def test_max_completion_tokens_validation_negative(self):
+        """Test that negative max_completion_tokens raises ValueError."""
+        with pytest.raises(ValueError, match="max_completion_tokens must be positive"):
+            GeneratorConfig(max_completion_tokens=-100)
 
-    def test_max_tokens_validation_non_integer(self):
-        """Test that non-integer max_tokens raises ValueError."""
-        with pytest.raises(ValueError, match="max_tokens must be an integer"):
-            GeneratorConfig(max_tokens=100.5)  # type: ignore[arg-type]
+    def test_max_completion_tokens_validation_non_integer(self):
+        """Test that non-integer max_completion_tokens raises ValueError."""
+        with pytest.raises(ValueError, match="max_completion_tokens must be an integer"):
+            GeneratorConfig(max_completion_tokens=100.5)  # type: ignore[arg-type]
 
 
 class TestPromptRun:
@@ -124,7 +124,7 @@ class TestPromptRun:
         assert result["raw_output_path"] == "/output.txt"
         assert result["model_config"]["model_name"] == "gpt-4"
         assert result["model_config"]["temperature"] == 0.5
-        assert result["model_config"]["max_tokens"] == 1024
+        assert result["model_config"]["max_completion_tokens"] == 1024
         assert result["model_config"]["seed"] is None
 
     def test_prompt_run_to_dict_with_relative_paths(self):

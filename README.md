@@ -605,6 +605,186 @@ The judge completion function gracefully handles various error scenarios:
 - API exceptions → `judge_error` status with error details
 - Extra text around JSON → Automatic extraction of JSON object
 
+## Evaluation Rubrics
+
+The prompt evaluator supports configurable evaluation rubrics that define metrics and flags for assessing prompt outputs. Rubrics provide a structured, machine-readable way to specify evaluation criteria beyond the default semantic fidelity scoring.
+
+### Rubric Schema
+
+A rubric consists of:
+- **Metrics**: Scored evaluation dimensions with numeric ranges (e.g., 1-5 scale)
+- **Flags**: Binary checks for specific conditions (true/false)
+
+#### RubricMetric Fields
+
+Each metric defines a scored evaluation dimension:
+
+- `name` (required): Unique identifier for the metric (e.g., "semantic_fidelity")
+- `description` (required): Human-readable description of what this metric measures
+- `min_score` (required): Minimum score value (inclusive), must be numeric
+- `max_score` (required): Maximum score value (inclusive), must be numeric and >= min_score
+- `guidelines` (required): Detailed scoring guidelines explaining how to assign scores
+
+#### RubricFlag Fields
+
+Each flag defines a binary check:
+
+- `name` (required): Unique identifier for the flag (e.g., "invented_constraints")
+- `description` (required): Human-readable description of what this flag indicates
+- `default` (optional): Default value for this flag (defaults to `false`)
+
+### File Format
+
+Rubrics can be defined in YAML or JSON format. Both formats are supported and validated identically.
+
+**YAML Example (`rubric.yaml`):**
+
+```yaml
+metrics:
+  - name: semantic_fidelity
+    description: How well the output preserves the semantic meaning of the input
+    min_score: 1
+    max_score: 5
+    guidelines: |
+      Score 1: Completely unfaithful - Output contradicts or has no relation to input
+      Score 2: Mostly unfaithful - Major semantic deviations or omissions
+      Score 3: Partially faithful - Some key information preserved but with notable gaps
+      Score 4: Mostly faithful - Minor deviations but core semantics preserved
+      Score 5: Completely faithful - Perfect preservation of semantic meaning
+
+  - name: clarity
+    description: How clear and understandable the output is
+    min_score: 1.0
+    max_score: 5.0
+    guidelines: "Rate from 1 (confusing) to 5 (perfectly clear)"
+
+flags:
+  - name: invented_constraints
+    description: Output introduces constraints not present in the input
+    default: false
+
+  - name: requires_verification
+    description: Output contains claims that should be verified
+    default: true
+```
+
+**JSON Example (`rubric.json`):**
+
+```json
+{
+  "metrics": [
+    {
+      "name": "code_correctness",
+      "description": "Whether the code is syntactically correct and logically sound",
+      "min_score": 1,
+      "max_score": 5,
+      "guidelines": "Score 1: Broken code\nScore 5: Perfect correctness"
+    }
+  ],
+  "flags": [
+    {
+      "name": "uses_deprecated_apis",
+      "description": "Code uses deprecated or outdated APIs",
+      "default": false
+    }
+  ]
+}
+```
+
+### Loading Rubrics
+
+Use the `load_rubric()` function to load and validate rubric files:
+
+```python
+from pathlib import Path
+from prompt_evaluator.config import load_rubric
+
+# Load from file
+rubric = load_rubric(Path("examples/rubrics/default.yaml"))
+
+# Access metrics
+for metric in rubric.metrics:
+    print(f"{metric.name}: {metric.min_score}-{metric.max_score}")
+
+# Access flags
+for flag in rubric.flags:
+    print(f"{flag.name}: default={flag.default}")
+```
+
+### Validation Rules
+
+The loader enforces strict validation:
+
+1. **Required Fields**: All required fields must be present and non-empty
+2. **Numeric Ranges**: `min_score` must be ≤ `max_score`
+3. **Unique Names**: Metric and flag names must be unique (case-insensitive)
+4. **No Overlaps**: The same name cannot be used for both a metric and a flag
+5. **At Least One Metric**: Every rubric must define at least one metric
+6. **Type Validation**: Scores must be numeric, defaults must be boolean
+
+### Validation Errors
+
+The loader provides descriptive error messages for common issues:
+
+```python
+# Empty metrics
+ValueError: Rubric must contain at least one metric
+
+# Duplicate names
+ValueError: Rubric contains duplicate metric names: {'quality'}
+
+# Invalid range
+ValueError: Metric 'quality' min_score (10) cannot be greater than max_score (5)
+
+# Missing field
+ValueError: Metric at index 0 is missing required field: guidelines
+
+# Type error
+ValueError: Metric 'quality' min_score must be numeric, got str
+```
+
+### Packaged Rubrics
+
+The package includes several preset rubrics in `examples/rubrics/`:
+
+- **`default.yaml`**: Standard rubric with semantic_fidelity, decomposition_quality, and constraint_adherence metrics
+- **`code_review.json`**: Code evaluation rubric with correctness, clarity, and efficiency metrics
+- **`content_quality.yaml`**: Content assessment with factual_accuracy, completeness, and clarity metrics
+
+These can be used as-is or as templates for custom rubrics:
+
+```python
+from pathlib import Path
+from prompt_evaluator.config import load_rubric
+
+# Load default rubric
+default = load_rubric(Path("examples/rubrics/default.yaml"))
+
+# Load code review rubric
+code_rubric = load_rubric(Path("examples/rubrics/code_review.json"))
+```
+
+### Edge Cases
+
+The rubric system handles various edge cases:
+
+- **Empty Metrics Array**: Rejected with validation error
+- **No Flags Section**: Valid - rubric can have metrics only
+- **Negative Score Ranges**: Allowed (e.g., min_score=-10, max_score=10)
+- **Equal Min/Max**: Valid for fixed-score metrics
+- **Whitespace-Only Fields**: Treated as empty and rejected
+- **Case Sensitivity**: Name uniqueness is case-insensitive
+
+### Future Extensions
+
+The rubric system is designed for future enhancements:
+
+- Integration with judge prompts for multi-dimensional scoring
+- Automatic rubric-based evaluation report generation
+- Weighted metric aggregation
+- Custom validation rules per metric type
+- Rubric versioning and migration support
+
 ## Development
 
 ### Testing

@@ -349,3 +349,118 @@ def load_judge_prompt(prompt_path: Path | None = None) -> str:
         return content
     except (OSError, UnicodeDecodeError) as e:
         raise ValueError(f"Failed to read judge prompt file {prompt_path}: {str(e)}") from e
+
+
+@dataclass
+class RubricMetric:
+    """
+    A single evaluation metric in a rubric.
+
+    Attributes:
+        name: Unique identifier for this metric (e.g., "semantic_fidelity")
+        description: Human-readable description of what this metric measures
+        min_score: Minimum score value (inclusive)
+        max_score: Maximum score value (inclusive)
+        guidelines: Detailed scoring guidelines or rubric text
+    """
+
+    name: str
+    description: str
+    min_score: float
+    max_score: float
+    guidelines: str
+
+    def __post_init__(self) -> None:
+        """Validate metric fields."""
+        if not self.name or not self.name.strip():
+            raise ValueError("Metric name cannot be empty")
+        if not self.description or not self.description.strip():
+            raise ValueError(f"Metric '{self.name}' must have a non-empty description")
+        if not self.guidelines or not self.guidelines.strip():
+            raise ValueError(f"Metric '{self.name}' must have non-empty guidelines")
+        if not isinstance(self.min_score, (int, float)):
+            raise ValueError(
+                f"Metric '{self.name}' min_score must be numeric, "
+                f"got {type(self.min_score).__name__}"
+            )
+        if not isinstance(self.max_score, (int, float)):
+            raise ValueError(
+                f"Metric '{self.name}' max_score must be numeric, "
+                f"got {type(self.max_score).__name__}"
+            )
+        if self.min_score > self.max_score:
+            raise ValueError(
+                f"Metric '{self.name}' min_score ({self.min_score}) cannot be greater than "
+                f"max_score ({self.max_score})"
+            )
+
+
+@dataclass
+class RubricFlag:
+    """
+    A boolean flag in a rubric for binary checks.
+
+    Attributes:
+        name: Unique identifier for this flag (e.g., "invented_constraints")
+        description: Human-readable description of what this flag indicates
+        default: Default value for this flag (False by default)
+    """
+
+    name: str
+    description: str
+    default: bool = False
+
+    def __post_init__(self) -> None:
+        """Validate flag fields."""
+        if not self.name or not self.name.strip():
+            raise ValueError("Flag name cannot be empty")
+        if not self.description or not self.description.strip():
+            raise ValueError(f"Flag '{self.name}' must have a non-empty description")
+        if not isinstance(self.default, bool):
+            raise ValueError(
+                f"Flag '{self.name}' default must be boolean, got {type(self.default).__name__}"
+            )
+
+
+@dataclass
+class Rubric:
+    """
+    A complete evaluation rubric with metrics and flags.
+
+    Attributes:
+        metrics: List of RubricMetric objects defining scoring dimensions
+        flags: List of RubricFlag objects defining binary checks
+    """
+
+    metrics: list[RubricMetric] = field(default_factory=list)
+    flags: list[RubricFlag] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Validate rubric structure and enforce uniqueness constraints."""
+        # Check that metrics list is not None and contains at least one metric
+        if not self.metrics:
+            raise ValueError("Rubric must contain at least one metric")
+
+        # Validate metric name uniqueness (case-insensitive)
+        metric_names = [m.name.lower() for m in self.metrics]
+        if len(metric_names) != len(set(metric_names)):
+            duplicates = [name for name in metric_names if metric_names.count(name) > 1]
+            raise ValueError(
+                f"Rubric contains duplicate metric names (case-insensitive): {set(duplicates)}"
+            )
+
+        # Validate flag name uniqueness (case-insensitive)
+        flag_names = [f.name.lower() for f in self.flags]
+        if len(flag_names) != len(set(flag_names)):
+            duplicates = [name for name in flag_names if flag_names.count(name) > 1]
+            raise ValueError(
+                f"Rubric contains duplicate flag names (case-insensitive): {set(duplicates)}"
+            )
+
+        # Ensure no overlap between metric and flag names
+        all_names = metric_names + flag_names
+        if len(all_names) != len(set(all_names)):
+            overlaps = set(metric_names) & set(flag_names)
+            raise ValueError(
+                f"Rubric contains names used in both metrics and flags: {overlaps}"
+            )

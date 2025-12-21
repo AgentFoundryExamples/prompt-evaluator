@@ -113,9 +113,10 @@ class TestEvaluateSingleCLI:
     def test_evaluate_single_invalid_num_samples(
         self, cli_runner, temp_prompts, monkeypatch
     ):
-        """Test error handling when num_samples is non-positive."""
+        """Test error handling when num_samples is non-positive (zero or negative)."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
+        # Test with zero
         result = cli_runner.invoke(
             app,
             [
@@ -126,6 +127,22 @@ class TestEvaluateSingleCLI:
                 str(temp_prompts["input"]),
                 "--num-samples",
                 "0",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "must be positive" in result.stdout
+
+        # Test with negative value
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "-5",
             ],
         )
         assert result.exit_code == 1
@@ -564,27 +581,6 @@ class TestEvaluateSingleCLI:
         assert result.exit_code == 0
         assert mock_generate.call_count == 1
 
-    def test_evaluate_single_negative_num_samples(
-        self, cli_runner, temp_prompts, monkeypatch
-    ):
-        """Test that negative num-samples is rejected."""
-        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-
-        result = cli_runner.invoke(
-            app,
-            [
-                "evaluate-single",
-                "--system-prompt",
-                str(temp_prompts["system"]),
-                "--input",
-                str(temp_prompts["input"]),
-                "--num-samples",
-                "-5",
-            ],
-        )
-        assert result.exit_code == 1
-        assert "must be positive" in result.stdout
-
     @patch("prompt_evaluator.cli.generate_completion")
     @patch("prompt_evaluator.cli.judge_completion")
     def test_evaluate_single_seed_parameter_wiring(
@@ -713,9 +709,12 @@ class TestEvaluateSingleCLI:
         assert gen_kwargs["max_completion_tokens"] == 750
         assert gen_kwargs["seed"] == 999
 
-        judge_kwargs = mock_judge.call_args[1]
-        # Judge config model name is passed through judge_config
+        # Verify judge was called and check judge_config details
         assert mock_judge.called
+        judge_kwargs = mock_judge.call_args[1]
+        judge_config = judge_kwargs["judge_config"]
+        assert judge_config.model_name == "test-judge-model"
+        assert judge_config.temperature == 0.0  # Judge uses deterministic temperature
 
     def test_evaluate_single_unreadable_prompt_path(
         self, cli_runner, tmp_path, monkeypatch

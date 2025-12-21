@@ -343,10 +343,17 @@ def judge_completion(
         error_msg = f"Judge API call failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
 
+        # Try to preserve any raw response data from the exception
+        raw_response = None
+        if hasattr(e, "response"):
+            response_obj = getattr(e, "response")
+            if hasattr(response_obj, "text"):
+                raw_response = getattr(response_obj, "text")
+
         return {
             "status": "judge_error",
             "judge_score": None,
             "judge_rationale": None,
-            "judge_raw_response": None,
+            "judge_raw_response": raw_response,
             "error": error_msg,
         }

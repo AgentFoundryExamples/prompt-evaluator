@@ -251,7 +251,7 @@ class TestAggregationStatistics:
         assert max(successful_scores) == 4.0
 
     def test_aggregation_zero_successful_samples(self):
-        """Test statistics when all samples fail."""
+        """Test statistics when all samples fail using actual CLI aggregation logic."""
         from prompt_evaluator.models import Sample
 
         samples = [
@@ -269,19 +269,31 @@ class TestAggregationStatistics:
             ),
         ]
 
+        # Use same aggregation logic as CLI (from cli.py lines 418-440)
         successful_scores = [
-            s.judge_score for s in samples if s.status == "completed" and s.judge_score is not None
+            s.judge_score for s in samples
+            if s.status == "completed" and s.judge_score is not None
         ]
 
         assert len(successful_scores) == 0
-        # When no successful scores, stats should be None
-        stats = {
-            "mean_score": None if not successful_scores else sum(successful_scores) / len(successful_scores),
-            "min_score": None if not successful_scores else min(successful_scores),
-            "max_score": None if not successful_scores else max(successful_scores),
-            "num_successful": len(successful_scores),
-            "num_failed": len(samples) - len(successful_scores),
-        }
+
+        # Apply same conditional logic as CLI
+        if successful_scores:
+            stats = {
+                "mean_score": sum(successful_scores) / len(successful_scores),
+                "min_score": min(successful_scores),
+                "max_score": max(successful_scores),
+                "num_successful": len(successful_scores),
+                "num_failed": len(samples) - len(successful_scores),
+            }
+        else:
+            stats = {
+                "mean_score": None,
+                "min_score": None,
+                "max_score": None,
+                "num_successful": 0,
+                "num_failed": len(samples),
+            }
 
         assert stats["mean_score"] is None
         assert stats["min_score"] is None

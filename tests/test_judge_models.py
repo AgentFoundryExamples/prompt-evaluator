@@ -760,3 +760,32 @@ class TestJudgeCompletion:
         assert result["judge_raw_response"] == raw_text
         assert result["judge_score"] is None
         assert result["judge_rationale"] is None
+
+    def test_judge_completion_api_exception_with_response(self):
+        """Test that raw response from exception is preserved when available."""
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        # Create exception with response attribute
+        exception = Exception("API error")
+        mock_response = MagicMock()
+        mock_response.text = "Raw response from failed API call"
+        exception.response = mock_response
+
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            side_effect=exception,
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="test",
+                generator_output="test",
+                judge_config=judge_config,
+                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+            )
+
+        assert result["status"] == "judge_error"
+        assert result["judge_score"] is None
+        assert result["judge_rationale"] is None
+        assert result["judge_raw_response"] == "Raw response from failed API call"
+        assert "Judge API call failed" in result["error"]

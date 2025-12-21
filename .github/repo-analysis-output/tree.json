@@ -75,6 +75,24 @@
       "name": "examples",
       "children": [
         {
+          "type": "directory",
+          "name": "rubrics",
+          "children": [
+            {
+              "type": "file",
+              "name": "code_review.json"
+            },
+            {
+              "type": "file",
+              "name": "content_quality.yaml"
+            },
+            {
+              "type": "file",
+              "name": "default.yaml"
+            }
+          ]
+        },
+        {
           "type": "file",
           "name": ".gitkeep"
         },
@@ -147,6 +165,10 @@
         {
           "type": "file",
           "name": "test_judge_models.py"
+        },
+        {
+          "type": "file",
+          "name": "test_rubric_models.py"
         }
       ]
     },

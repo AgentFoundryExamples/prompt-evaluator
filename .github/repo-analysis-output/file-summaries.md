@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 11
+Total files: 12
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -29,8 +29,8 @@ Total files: 11
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 7.48 KB  
-**LOC:** 154  
+**Size:** 12.05 KB  
+**LOC:** 247  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/models.py
@@ -38,8 +38,8 @@ Total files: 11
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 12.14 KB  
-**LOC:** 267  
+**Size:** 16.54 KB  
+**LOC:** 363  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -103,4 +103,13 @@ Total files: 11
 **Summary:** Python test file (role: test)  
 **Size:** 30.16 KB  
 **LOC:** 644  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_rubric_models.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 25.38 KB  
+**LOC:** 678  
 **TODOs/FIXMEs:** 0  

@@ -34,6 +34,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "json",
           "os",
           "pathlib.Path",
           "tomllib",
@@ -53,6 +54,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "collections.Counter",
           "dataclasses.asdict",
           "dataclasses.dataclass",
           "dataclasses.field",
@@ -169,6 +171,19 @@
           "pytest"
         ]
       }
+    },
+    {
+      "id": "tests/test_rubric_models.py",
+      "path": "tests/test_rubric_models.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "pathlib.Path"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
     }
   ],
   "edges": [
@@ -187,6 +202,10 @@
     {
       "source": "src/prompt_evaluator/cli.py",
       "target": "src/prompt_evaluator/__init__.py"
+    },
+    {
+      "source": "src/prompt_evaluator/config.py",
+      "target": "src/prompt_evaluator/models.py"
     },
     {
       "source": "src/prompt_evaluator/provider.py",
@@ -235,12 +254,21 @@
     {
       "source": "tests/test_judge_models.py",
       "target": "src/prompt_evaluator/provider.py"
+    },
+    {
+      "source": "tests/test_rubric_models.py",
+      "target": "src/prompt_evaluator/config.py"
+    },
+    {
+      "source": "tests/test_rubric_models.py",
+      "target": "src/prompt_evaluator/models.py"
     }
   ],
   "external_dependencies_summary": {
     "stdlib": [
       "abc.ABC",
       "abc.abstractmethod",
+      "collections.Counter",
       "dataclasses.asdict",
       "dataclasses.dataclass",
       "dataclasses.field",
@@ -272,7 +300,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 20,
+    "stdlib_count": 21,
     "third-party_count": 10
   }
 }

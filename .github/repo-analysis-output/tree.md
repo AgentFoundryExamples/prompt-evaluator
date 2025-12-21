@@ -16,6 +16,10 @@
   └── workflows
     └── af_maintenance.yml
 ├── examples
+  ├── rubrics
+    ├── code_review.json
+    ├── content_quality.yaml
+    └── default.yaml
   ├── .gitkeep
   ├── input.txt
   └── system_prompt.txt
@@ -32,7 +36,8 @@
   ├── test_config_models.py
   ├── test_evaluate_single_cli.py
   ├── test_generate_cli.py
-  └── test_judge_models.py
+  ├── test_judge_models.py
+  └── test_rubric_models.py
 ├── .gitignore
 ├── LICENSE
 ├── pyproject.toml

@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 11,
+  "total_files": 12,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 7656,
-        "loc": 154,
+        "size_bytes": 12339,
+        "loc": 247,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 12429,
-        "loc": 267,
+        "size_bytes": 16942,
+        "loc": 363,
         "todo_count": 0
       }
     },
@@ -153,6 +153,20 @@
       "metrics": {
         "size_bytes": 30886,
         "loc": 644,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_rubric_models.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 25989,
+        "loc": 678,
         "todo_count": 0
       }
     }

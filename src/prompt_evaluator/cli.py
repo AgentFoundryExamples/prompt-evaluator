@@ -793,7 +793,7 @@ def evaluate_dataset(
     This command loads a dataset, generates N samples for each test case,
     judges each sample, and computes per-case and overall statistics.
     Results are streamed to disk as JSON files.
-    
+
     Supports filtering by case IDs, limiting total cases, quick mode for testing,
     and resuming from interrupted runs.
     """
@@ -812,7 +812,7 @@ def evaluate_dataset(
             # Default if neither quick nor explicit num_samples provided
             num_samples = 5
             typer.echo(f"Using default --num-samples={num_samples}", err=True)
-        
+
         # Validate num_samples
         if num_samples <= 0:
             typer.echo("Error: --num-samples must be positive", err=True)
@@ -838,7 +838,7 @@ def evaluate_dataset(
         if case_ids:
             requested_ids = [cid.strip() for cid in case_ids.split(",")]
             available_ids = {tc.id for tc in test_cases}
-            
+
             # Validate all requested IDs exist
             unknown_ids = [cid for cid in requested_ids if cid not in available_ids]
             if unknown_ids:
@@ -851,7 +851,7 @@ def evaluate_dataset(
                     err=True
                 )
                 raise typer.Exit(1)
-            
+
             # Filter test cases
             test_cases = [tc for tc in test_cases if tc.id in requested_ids]
             typer.echo(f"Filtered to {len(test_cases)} test cases by --case-ids", err=True)
@@ -861,7 +861,7 @@ def evaluate_dataset(
             if max_cases <= 0:
                 typer.echo("Error: --max-cases must be positive", err=True)
                 raise typer.Exit(1)
-            
+
             if len(test_cases) > max_cases:
                 test_cases = test_cases[:max_cases]
                 typer.echo(f"Limited to first {max_cases} test cases by --max-cases", err=True)
@@ -999,20 +999,26 @@ def evaluate_dataset(
                 if tc.status in ("completed", "partial") and tc.per_metric_stats:
                     typer.echo(f"\n  Case: {tc.test_case_id}", err=True)
                     for metric_name, metric_data in tc.per_metric_stats.items():
-                        if metric_data.get("count", 0) > 0:
+                        count_val = metric_data.get("count", 0)
+                        if isinstance(count_val, int) and count_val > 0:
                             mean = metric_data.get("mean")
                             std = metric_data.get("std")
-                            count = metric_data.get("count")
-                            
+
                             # Highlight high standard deviation (> 1.0 or > 20% of mean)
                             std_warning = ""
-                            if std is not None and mean is not None and count and count > 1:
+                            if (
+                                std is not None
+                                and mean is not None
+                                and isinstance(std, (int, float))
+                                and isinstance(mean, (int, float))
+                                and count_val > 1
+                            ):
                                 if std > 1.0 or (mean > 0 and std / mean > 0.2):
                                     std_warning = " ⚠️ HIGH VARIABILITY"
-                            
+
                             std_str = f"std={std:.2f}" if std is not None else "std=N/A"
                             mean_str = f"mean={mean:.2f}" if mean is not None else "mean=N/A"
-                            
+
                             typer.echo(
                                 f"    {metric_name}: {mean_str}, {std_str}{std_warning}",
                                 err=True

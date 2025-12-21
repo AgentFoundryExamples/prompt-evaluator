@@ -52,6 +52,12 @@ app = typer.Typer(
     add_completion=False,
 )
 
+# Configuration constants for evaluate-dataset command
+DEFAULT_NUM_SAMPLES = 5  # Default number of samples per test case
+QUICK_MODE_NUM_SAMPLES = 2  # Number of samples in quick mode
+HIGH_STD_ABSOLUTE_THRESHOLD = 1.0  # Absolute std threshold for high variability warning
+HIGH_STD_RELATIVE_THRESHOLD = 0.2  # Relative std/mean threshold for high variability warning
+
 
 def compute_rubric_metadata(rubric: Rubric | None, rubric_path: Path | None) -> dict[str, Any]:
     """
@@ -806,11 +812,11 @@ def evaluate_dataset(
                 err=True
             )
         elif quick:
-            num_samples = 2
-            typer.echo("Quick mode: Using --num-samples=2", err=True)
+            num_samples = QUICK_MODE_NUM_SAMPLES
+            typer.echo(f"Quick mode: Using --num-samples={num_samples}", err=True)
         elif num_samples is None:
             # Default if neither quick nor explicit num_samples provided
-            num_samples = 5
+            num_samples = DEFAULT_NUM_SAMPLES
             typer.echo(f"Using default --num-samples={num_samples}", err=True)
 
         # Validate num_samples
@@ -1004,7 +1010,7 @@ def evaluate_dataset(
                             mean = metric_data.get("mean")
                             std = metric_data.get("std")
 
-                            # Highlight high standard deviation (> 1.0 or > 20% of mean)
+                            # Highlight high standard deviation
                             std_warning = ""
                             if (
                                 std is not None
@@ -1013,7 +1019,9 @@ def evaluate_dataset(
                                 and isinstance(mean, (int, float))
                                 and count_val > 1
                             ):
-                                if std > 1.0 or (mean > 0 and std / mean > 0.2):
+                                if std > HIGH_STD_ABSOLUTE_THRESHOLD or (
+                                    mean > 0 and std / mean > HIGH_STD_RELATIVE_THRESHOLD
+                                ):
                                     std_warning = " ⚠️ HIGH VARIABILITY"
 
                             std_str = f"std={std:.2f}" if std is not None else "std=N/A"

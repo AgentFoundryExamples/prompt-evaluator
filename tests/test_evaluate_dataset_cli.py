@@ -19,7 +19,6 @@ quick mode, resume functionality, and output generation.
 """
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -90,7 +89,7 @@ def temp_prompts(tmp_path):
     """Fixture to create temporary prompt files."""
     system_prompt = tmp_path / "system.txt"
     system_prompt.write_text("You are a helpful assistant.")
-    
+
     return {
         "system": system_prompt,
         "output_dir": tmp_path / "runs",
@@ -178,7 +177,7 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
             assert "Using default --num-samples=5" in result.stdout
             # Verify the evaluation was called with num_samples=5
@@ -214,7 +213,7 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
             assert "Quick mode: Using --num-samples=2" in result.stdout
             # Verify the evaluation was called with num_samples=2
@@ -252,7 +251,7 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
             assert "Warning: Both --quick and --num-samples provided" in result.stdout
             assert "Using explicit --num-samples=10" in result.stdout
@@ -330,10 +329,10 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
             assert "Filtered to 2 test cases by --case-ids" in result.stdout
-            
+
             # Verify only filtered test cases were passed
             call_kwargs = mock_eval.call_args.kwargs
             test_cases = call_kwargs["test_cases"]
@@ -360,7 +359,7 @@ class TestEvaluateDatasetCLI:
                 "2",
             ],
         )
-        
+
         assert result.exit_code == 1
         assert "Unknown test case IDs" in result.stdout
         assert "unknown-id" in result.stdout
@@ -399,10 +398,10 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
             assert "Limited to first 2 test cases by --max-cases" in result.stdout
-            
+
             # Verify only first 2 test cases were passed
             call_kwargs = mock_eval.call_args.kwargs
             test_cases = call_kwargs["test_cases"]
@@ -485,11 +484,11 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
             assert "Filtered to 2 test cases by --case-ids" in result.stdout
             assert "Limited to first 1 test cases by --max-cases" in result.stdout
-            
+
             # Verify only 1 test case was passed
             call_kwargs = mock_eval.call_args.kwargs
             test_cases = call_kwargs["test_cases"]
@@ -525,7 +524,7 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
             assert "Loaded 2 test cases" in result.stdout
 
@@ -561,7 +560,7 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
             assert "Using rubric:" in result.stdout
 
@@ -597,9 +596,9 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
-            
+
             # Verify JSON output in stdout
             try:
                 output_lines = result.stdout.strip().split("\n")
@@ -609,7 +608,7 @@ class TestEvaluateDatasetCLI:
                     if line.strip() == "{":
                         json_start = i
                         break
-                
+
                 if json_start >= 0:
                     json_str = "\n".join(output_lines[json_start:])
                     parsed = json.loads(json_str)
@@ -666,7 +665,7 @@ class TestEvaluateDatasetCLI:
                     str(temp_prompts["output_dir"]),
                 ],
             )
-            
+
             assert result.exit_code == 0
             # Check for high variability warning on accuracy
             assert "accuracy" in result.stdout

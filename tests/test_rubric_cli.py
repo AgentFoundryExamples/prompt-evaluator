@@ -226,14 +226,12 @@ class TestEvaluateSingleWithRubric:
         assert "--rubric" in clean_output
         assert "preset alias" in clean_output or "preset" in clean_output.lower()
 
-    @patch("prompt_evaluator.cli.get_provider")
     @patch("prompt_evaluator.cli.generate_completion")
     @patch("prompt_evaluator.cli.judge_completion")
     def test_evaluate_single_with_default_rubric(
         self,
         mock_judge,
         mock_generate,
-        mock_provider,
         cli_runner,
         tmp_path,
         monkeypatch,
@@ -248,9 +246,7 @@ class TestEvaluateSingleWithRubric:
         user_input.write_text("What is Python?")
         output_dir = tmp_path / "runs"
 
-        # Mock provider and responses
-        mock_provider_instance = MagicMock()
-        mock_provider.return_value = mock_provider_instance
+        # Mock responses
         mock_generate.return_value = ("Sample output", {"latency_ms": 100, "tokens_used": 50})
         mock_judge.return_value = {
             "status": "completed",
@@ -278,14 +274,12 @@ class TestEvaluateSingleWithRubric:
         # Check that command succeeded
         assert result.exit_code == 0, f"Command failed with: {result.stdout}"
 
-    @patch("prompt_evaluator.cli.get_provider")
     @patch("prompt_evaluator.cli.generate_completion")
     @patch("prompt_evaluator.cli.judge_completion")
     def test_evaluate_single_with_preset_rubric(
         self,
         mock_judge,
         mock_generate,
-        mock_provider,
         cli_runner,
         tmp_path,
         monkeypatch,
@@ -300,9 +294,7 @@ class TestEvaluateSingleWithRubric:
         user_input.write_text("What is Python?")
         output_dir = tmp_path / "runs"
 
-        # Mock provider and responses
-        mock_provider_instance = MagicMock()
-        mock_provider.return_value = mock_provider_instance
+        # Mock responses
         mock_generate.return_value = ("Sample output", {"latency_ms": 100, "tokens_used": 50})
         mock_judge.return_value = {
             "status": "completed",
@@ -337,14 +329,12 @@ class TestEvaluateSingleWithRubric:
         assert "rubric" in call_kwargs
         assert call_kwargs["rubric"] is not None
 
-    @patch("prompt_evaluator.provider.get_provider")
-    @patch("prompt_evaluator.provider.generate_completion")
-    @patch("prompt_evaluator.provider.judge_completion")
+    @patch("prompt_evaluator.cli.generate_completion")
+    @patch("prompt_evaluator.cli.judge_completion")
     def test_evaluate_single_with_custom_rubric_file(
         self,
         mock_judge,
         mock_generate,
-        mock_provider,
         cli_runner,
         tmp_path,
         temp_rubric,
@@ -360,9 +350,7 @@ class TestEvaluateSingleWithRubric:
         user_input.write_text("What is Python?")
         output_dir = tmp_path / "runs"
 
-        # Mock provider and responses
-        mock_provider_instance = MagicMock()
-        mock_provider.return_value = mock_provider_instance
+        # Mock responses
         mock_generate.return_value = ("Sample output", {"latency_ms": 100, "tokens_used": 50})
         mock_judge.return_value = {
             "status": "completed",

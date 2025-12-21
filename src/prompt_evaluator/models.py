@@ -19,7 +19,7 @@ evaluation process, including prompts, responses, and results.
 """
 
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -298,12 +298,7 @@ class SingleEvaluationRun:
     num_samples: int
     generator_config: GeneratorConfig
     judge_config: JudgeConfig
-    samples: list[Sample] = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        """Initialize samples list if not provided."""
-        if self.samples is None:
-            self.samples = []
+    samples: list[Sample] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """

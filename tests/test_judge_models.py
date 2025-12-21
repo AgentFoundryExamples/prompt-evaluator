@@ -581,7 +581,8 @@ class TestJudgeCompletion:
         assert result["judge_score"] is None
         assert result["judge_rationale"] is None
         assert "Judge API call failed" in result["error"]
-        assert "API connection failed" in result["judge_raw_response"]
+        assert "API connection failed" in result["error"]
+        assert result["judge_raw_response"] is None
 
     def test_judge_completion_non_numeric_score(self):
         """Test that non-numeric semantic_fidelity results in judge_error."""

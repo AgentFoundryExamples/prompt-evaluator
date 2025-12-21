@@ -18,6 +18,7 @@ This module provides a unified interface for interacting with different
 LLM providers (OpenAI, Anthropic, etc.) and handles API communication.
 """
 
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -255,9 +256,6 @@ def judge_completion(
         - judge_raw_response: str with raw model output
         - error: str with error details if status is "judge_error", None otherwise
     """
-    import json
-    import re
-
     # Build user message with input, output, and optional task description
     user_parts = []
 
@@ -291,12 +289,14 @@ def judge_completion(
                 parsed = json.loads(response_text)
             except json.JSONDecodeError:
                 # Try to extract JSON object from text that may have additional content
-                json_match = re.search(
-                    r'\{[^{}]*"semantic_fidelity"[^{}]*\}', response_text, re.DOTALL
-                )
-                if not json_match:
+                # Find first { and last } to capture the entire JSON object
+                start_index = response_text.find("{")
+                end_index = response_text.rfind("}")
+                if start_index == -1 or end_index == -1 or end_index < start_index:
                     raise ValueError("No JSON object found in response")
-                parsed = json.loads(json_match.group(0))
+
+                json_str = response_text[start_index : end_index + 1]
+                parsed = json.loads(json_str)
 
             # Validate required fields
             if "semantic_fidelity" not in parsed:
@@ -347,6 +347,6 @@ def judge_completion(
             "status": "judge_error",
             "judge_score": None,
             "judge_rationale": None,
-            "judge_raw_response": str(e),
+            "judge_raw_response": None,
             "error": error_msg,
         }

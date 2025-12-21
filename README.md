@@ -253,7 +253,7 @@ The judge returns a JSON object with exactly two fields:
 }
 ```
 
-This structured format allows for programmatic analysis of evaluation results. If the judge fails to return valid JSON or the score is out of range, the sample is marked with a `judge_error` status and the raw response is preserved for debugging.
+The `semantic_fidelity` field is extracted and stored as `judge_score` in the evaluation results. This structured format allows for programmatic analysis of evaluation results. If the judge fails to return valid JSON or the score is out of range, the sample is marked with a `judge_error` status and the raw response is preserved for debugging.
 
 ### Evaluate-Single Command
 
@@ -295,9 +295,9 @@ prompt-evaluator evaluate-single \
 
 **Optional Parameters:**
 
-- `--generator-model`: Override the generator model (default: from config or `gpt-5.1`)
-- `--judge-model`: Override the judge model (default: from config or `gpt-5.1`)
-- `--judge-system-prompt`: Path to custom judge prompt file (default: uses built-in semantic fidelity prompt)
+- `--generator-model`: Override the generator model (default: `gpt-5.1`, or from `OPENAI_MODEL` environment variable, or from config file)
+- `--judge-model`: Override the judge model (default: same as generator model)
+- `--judge-system-prompt`: Path to custom judge prompt file (default: uses built-in semantic fidelity prompt). **Note:** Custom judge prompts must still return a JSON object with `semantic_fidelity` (numeric score 1-5) and `rationale` (string) keys to be parsed correctly.
 - `--seed`: Random seed for generator reproducibility (default: no seed)
 - `--temperature`, `-t`: Generator sampling temperature 0.0-2.0 (default: `0.7`)
 - `--max-tokens`: Maximum completion tokens for generator (default: `1024`)
@@ -479,7 +479,7 @@ Common causes of judge errors:
 To recover, consider:
 - Using a more capable judge model (e.g., `gpt-4` instead of `gpt-3.5-turbo`)
 - Adjusting the judge system prompt to emphasize JSON formatting
-- Checking the judge's `max_completion_tokens` (default: 512) - may need to increase for verbose rationales
+- **Note:** The judge's `max_completion_tokens` is set to 512 by default and cannot be adjusted via CLI flags. If you need more tokens for verbose rationales, you would need to modify the `JudgeConfig` in code or request this as a feature enhancement.
 
 #### Error Handling and Resilience
 

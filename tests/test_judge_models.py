@@ -607,3 +607,156 @@ class TestJudgeCompletion:
 
         assert result["status"] == "judge_error"
         assert "Failed to parse judge response" in result["error"]
+
+    def test_judge_completion_integer_score(self):
+        """Test that integer scores are converted to float correctly."""
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        integer_score_json = '{"semantic_fidelity": 4, "rationale": "Good answer"}'
+
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            return_value=(integer_score_json, {"tokens_used": 100, "latency_ms": 500}),
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="test",
+                generator_output="test",
+                judge_config=judge_config,
+                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+            )
+
+        assert result["status"] == "completed"
+        assert result["judge_score"] == 4.0
+        assert isinstance(result["judge_score"], float)
+
+    def test_judge_completion_json_with_extra_fields(self):
+        """Test that JSON with extra fields is handled correctly."""
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        json_with_extras = (
+            '{"semantic_fidelity": 3.5, "rationale": "Acceptable", '
+            '"confidence": 0.9, "metadata": {"source": "test"}}'
+        )
+
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            return_value=(json_with_extras, {"tokens_used": 100, "latency_ms": 500}),
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="test",
+                generator_output="test",
+                judge_config=judge_config,
+                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+            )
+
+        assert result["status"] == "completed"
+        assert result["judge_score"] == 3.5
+        assert result["judge_rationale"] == "Acceptable"
+
+    def test_judge_completion_malformed_nested_json(self):
+        """Test that malformed nested JSON results in judge_error."""
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        malformed_json = '{"semantic_fidelity": {"value": 4.0}, "rationale": "Test"}'
+
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            return_value=(malformed_json, {"tokens_used": 100, "latency_ms": 500}),
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="test",
+                generator_output="test",
+                judge_config=judge_config,
+                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+            )
+
+        assert result["status"] == "judge_error"
+        assert "Failed to parse judge response" in result["error"]
+
+    def test_judge_completion_empty_response(self):
+        """Test that empty response results in judge_error."""
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            return_value=("", {"tokens_used": 0, "latency_ms": 100}),
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="test",
+                generator_output="test",
+                judge_config=judge_config,
+                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+            )
+
+        assert result["status"] == "judge_error"
+        assert result["judge_raw_response"] == ""
+        assert "Failed to parse judge response" in result["error"]
+
+    def test_judge_completion_score_at_exact_boundaries(self):
+        """Test scores at exact 1.0 and 5.0 boundaries."""
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        # Test exact 1.0
+        json_min = '{"semantic_fidelity": 1.0, "rationale": "Minimum score"}'
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            return_value=(json_min, {"tokens_used": 100, "latency_ms": 500}),
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="test",
+                generator_output="test",
+                judge_config=judge_config,
+                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+            )
+        assert result["status"] == "completed"
+        assert result["judge_score"] == 1.0
+
+        # Test exact 5.0
+        json_max = '{"semantic_fidelity": 5.0, "rationale": "Maximum score"}'
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            return_value=(json_max, {"tokens_used": 100, "latency_ms": 500}),
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="test",
+                generator_output="test",
+                judge_config=judge_config,
+                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+            )
+        assert result["status"] == "completed"
+        assert result["judge_score"] == 5.0
+
+    def test_judge_completion_preserves_raw_response_on_error(self):
+        """Test that raw response is preserved even when parsing fails."""
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        raw_text = "This is not JSON but should be preserved for debugging"
+
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            return_value=(raw_text, {"tokens_used": 50, "latency_ms": 200}),
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="test input",
+                generator_output="test output",
+                judge_config=judge_config,
+                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+            )
+
+        assert result["status"] == "judge_error"
+        assert result["judge_raw_response"] == raw_text
+        assert result["judge_score"] is None
+        assert result["judge_rationale"] is None

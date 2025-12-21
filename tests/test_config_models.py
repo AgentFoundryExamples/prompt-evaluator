@@ -32,7 +32,7 @@ class TestGeneratorConfig:
     def test_default_values(self):
         """Test that GeneratorConfig has sensible defaults."""
         config = GeneratorConfig()
-        assert config.model_name == "gpt-3.5-turbo"
+        assert config.model_name == "gpt-5.1"
         assert config.temperature == 0.7
         assert config.max_completion_tokens == 1024
         assert config.seed is None
@@ -176,7 +176,7 @@ class TestAPIConfig:
 
         config = APIConfig()
 
-        assert config.model_name == "gpt-3.5-turbo"
+        assert config.model_name == "gpt-5.1"
 
     def test_api_config_with_yaml_file(self, monkeypatch, tmp_path):
         """Test that APIConfig reads from YAML config file."""
@@ -215,7 +215,7 @@ model_name = "gpt-4-vision"
     def test_api_config_file_overrides_env(self, monkeypatch, tmp_path):
         """Test that config file values override environment variables."""
         monkeypatch.setenv("OPENAI_API_KEY", "env-key")
-        monkeypatch.setenv("OPENAI_MODEL", "gpt-3.5-turbo")
+        monkeypatch.setenv("OPENAI_MODEL", "gpt-5.1")
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("""
@@ -237,7 +237,7 @@ model_name: gpt-4
         config = APIConfig(config_file_path=non_existent_file)
 
         assert config.api_key == "fallback-key"
-        assert config.model_name == "gpt-3.5-turbo"
+        assert config.model_name == "gpt-5.1"
 
     def test_api_config_malformed_yaml_raises_error(self, monkeypatch, tmp_path):
         """Test that malformed YAML raises clear error."""

@@ -148,3 +148,6 @@ examples/*
 *.local.yml
 *.local.json
 .DS_Store
+
+# Private prompts
+private/

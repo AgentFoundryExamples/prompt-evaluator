@@ -21,6 +21,7 @@ prompt evaluations, managing configurations, and viewing results.
 import json
 import sys
 import uuid
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -537,28 +538,9 @@ def show_rubric(
         rubric_path = resolve_rubric_path(rubric)
         loaded_rubric = load_rubric(rubric_path)
 
-        # Convert rubric to dictionary for JSON output
-        rubric_dict = {
-            "rubric_path": str(rubric_path),
-            "metrics": [
-                {
-                    "name": metric.name,
-                    "description": metric.description,
-                    "min_score": metric.min_score,
-                    "max_score": metric.max_score,
-                    "guidelines": metric.guidelines,
-                }
-                for metric in loaded_rubric.metrics
-            ],
-            "flags": [
-                {
-                    "name": flag.name,
-                    "description": flag.description,
-                    "default": flag.default,
-                }
-                for flag in loaded_rubric.flags
-            ],
-        }
+        # Convert rubric to dictionary for JSON output using dataclass serialization
+        rubric_dict = asdict(loaded_rubric)
+        rubric_dict["rubric_path"] = str(rubric_path)
 
         # Print the rubric as formatted JSON to stdout
         typer.echo(json.dumps(rubric_dict, indent=2))

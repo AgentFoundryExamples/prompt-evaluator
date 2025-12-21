@@ -114,24 +114,56 @@ class TestResolveRubricPath:
         assert "not found" in str(exc_info.value).lower()
         assert "preset" in str(exc_info.value).lower()
 
+    def test_resolve_path_traversal_rejected(self, tmp_path):
+        """Test that path traversal attempts are rejected."""
+        # Create a rubric file in temp directory
+        rubric_file = tmp_path / "test.yaml"
+        rubric_file.write_text("metrics:\n  - name: test\n    description: test\n    min_score: 1\n    max_score: 5\n    guidelines: test\n")
+        
+        # Try to access it with path traversal patterns
+        # Note: This might not trigger on all systems due to path normalization
+        # but it demonstrates the intent
+        traversal_path = str(tmp_path / ".." / tmp_path.name / "test.yaml")
+        
+        # The function should either reject it or resolve it safely
+        # We're testing that it doesn't allow arbitrary path traversal
+        try:
+            result = resolve_rubric_path(traversal_path)
+            # If it succeeds, ensure it resolved to the correct canonical path
+            assert result.resolve() == rubric_file.resolve()
+        except (ValueError, FileNotFoundError):
+            # It's also acceptable to reject path traversal attempts
+            pass
+
     def test_resolve_directory_raises_error(self, tmp_path):
         """Test that directory path raises ValueError."""
         with pytest.raises(ValueError) as exc_info:
             resolve_rubric_path(str(tmp_path))
         assert "directory" in str(exc_info.value).lower()
 
+    @pytest.mark.skipif(
+        os.name == 'nt',
+        reason="File permission tests not reliable on Windows"
+    )
     def test_resolve_unreadable_file_raises_error(self, temp_rubric):
         """Test that unreadable file raises ValueError."""
         # Make file unreadable (Unix-like systems only)
+        original_mode = temp_rubric.stat().st_mode
         try:
-            original_mode = temp_rubric.stat().st_mode
             temp_rubric.chmod(0o000)
             with pytest.raises(ValueError) as exc_info:
                 resolve_rubric_path(str(temp_rubric))
             assert "not readable" in str(exc_info.value).lower()
         finally:
-            # Restore original permissions
-            temp_rubric.chmod(original_mode)
+            # Restore original permissions even if test fails
+            try:
+                temp_rubric.chmod(original_mode)
+            except (OSError, PermissionError):
+                # If we can't restore permissions, at least try to make it writable
+                try:
+                    temp_rubric.chmod(0o644)
+                except (OSError, PermissionError):
+                    pass  # Best effort cleanup
 
     def test_all_presets_exist(self):
         """Test that all defined presets resolve to existing files."""

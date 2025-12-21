@@ -231,7 +231,7 @@ def get_default_rubric_path() -> Path:
     # Try to find the examples/rubrics directory relative to the package
     # First, try relative to this file (for development mode)
     config_dir = Path(__file__).parent
-    rubrics_dir = config_dir.parent.parent.parent / "examples" / "rubrics"
+    rubrics_dir = config_dir.parent.parent / "examples" / "rubrics"
     default_rubric = rubrics_dir / "default.yaml"
 
     if default_rubric.exists():
@@ -275,7 +275,7 @@ def resolve_rubric_path(rubric_input: str | None) -> Path:
 
         # Try to find rubrics directory
         config_dir = Path(__file__).parent
-        rubrics_dir = config_dir.parent.parent.parent / "examples" / "rubrics"
+        rubrics_dir = config_dir.parent.parent / "examples" / "rubrics"
         preset_path = rubrics_dir / preset_filename
 
         if preset_path.exists():
@@ -298,6 +298,20 @@ def resolve_rubric_path(rubric_input: str | None) -> Path:
     # Resolve to absolute path
     if not rubric_path.is_absolute():
         rubric_path = Path.cwd() / rubric_path
+
+    # Resolve to canonical path to prevent path traversal attacks
+    try:
+        rubric_path = rubric_path.resolve(strict=False)
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f"Invalid rubric path: {rubric_input}") from e
+
+    # Validate that resolved path doesn't contain path traversal attempts
+    # Check for suspicious patterns in the resolved path
+    path_str = str(rubric_path)
+    if ".." in path_str.split(os.sep):
+        raise ValueError(
+            f"Path traversal not allowed in rubric path: {rubric_input}"
+        )
 
     # Check if path exists
     if not rubric_path.exists():

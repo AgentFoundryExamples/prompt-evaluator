@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 17,
+  "total_files": 18,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 40216,
-        "loc": 791,
+        "size_bytes": 45190,
+        "loc": 872,
         "todo_count": 0
       }
     },
@@ -167,6 +167,20 @@
       "metrics": {
         "size_bytes": 22701,
         "loc": 483,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_evaluate_dataset_cli.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 23857,
+        "loc": 571,
         "todo_count": 0
       }
     },

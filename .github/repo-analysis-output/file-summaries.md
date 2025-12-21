@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 17
+Total files: 18
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,8 @@ Total files: 17
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 39.27 KB  
-**LOC:** 791  
+**Size:** 44.13 KB  
+**LOC:** 872  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/config.py
@@ -112,6 +112,15 @@ Total files: 17
 **Summary:** Python test file (role: test)  
 **Size:** 22.17 KB  
 **LOC:** 483  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_evaluate_dataset_cli.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 23.30 KB  
+**LOC:** 571  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_evaluate_single_cli.py

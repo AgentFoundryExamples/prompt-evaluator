@@ -512,3 +512,109 @@ class Rubric:
             raise ValueError(
                 f"Rubric contains names used in both metrics and flags: {overlaps}"
             )
+
+
+# TestCase defined field names (used for metadata passthrough)
+_TESTCASE_DEFINED_FIELDS = frozenset(
+    {
+        "id",
+        "input",
+        "description",
+        "task",
+        "expected_constraints",
+        "reference",
+        "metadata",
+    }
+)
+
+
+class TestCase(BaseModel):
+    """
+    A test case for dataset-driven evaluation.
+
+    Attributes:
+        id: Unique identifier for this test case (required, non-empty)
+        input: Input text for the test case (required, non-empty)
+        description: Optional description of the test case
+        task: Optional task description providing context
+        expected_constraints: Optional constraints that should be satisfied
+        reference: Optional reference output or expected result
+        metadata: Dictionary storing any additional fields not explicitly defined
+    """
+
+    id: str = Field(..., description="Unique identifier for this test case", min_length=1)
+    input: str = Field(..., description="Input text for the test case", min_length=1)
+    description: str | None = Field(None, description="Optional description of the test case")
+    task: str | None = Field(None, description="Optional task description providing context")
+    expected_constraints: str | None = Field(
+        None, description="Optional constraints that should be satisfied"
+    )
+    reference: str | None = Field(None, description="Optional reference output or expected result")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional fields not explicitly defined"
+    )
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("id", "input")
+    @classmethod
+    def validate_non_empty_strings(cls, v: str) -> str:
+        """Validate that id and input are not whitespace-only."""
+        if not v or not v.strip():
+            raise ValueError("Field must not be empty or whitespace-only")
+        return v
+
+    @classmethod
+    def _move_extra_to_metadata(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Helper method to move extra fields to metadata."""
+        # Find extra fields (excluding private/protected attributes)
+        extra_fields = {
+            k: v
+            for k, v in data.items()
+            if k not in _TESTCASE_DEFINED_FIELDS and not k.startswith("_")
+        }
+
+        # If there are extra fields, move them to metadata
+        if extra_fields:
+            # Get existing metadata or create new dict
+            existing_metadata = data.get("metadata", {})
+            if not isinstance(existing_metadata, dict):
+                existing_metadata = {}
+
+            # Create a new metadata dict, starting with extra fields
+            merged_metadata = {}
+            for key, value in extra_fields.items():
+                merged_metadata[key] = value
+                data.pop(key)  # Unconditionally pop from data
+
+            # Update with existing metadata, which will overwrite duplicates, giving it precedence
+            merged_metadata.update(existing_metadata)
+
+            data["metadata"] = merged_metadata
+
+        return data
+
+    def __init__(self, **data: Any) -> None:
+        """
+        Custom initialization that moves extra fields to metadata.
+
+        This ensures that any extra fields not in the explicit schema are
+        preserved in the metadata dictionary for downstream use.
+        """
+        data = self._move_extra_to_metadata(data)
+        super().__init__(**data)
+
+    @classmethod
+    def model_validate(cls, obj: Any, **kwargs: Any) -> "TestCase":
+        """
+        Custom validation that moves extra fields to metadata.
+
+        This ensures that any extra fields not in the explicit schema are
+        preserved in the metadata dictionary for downstream use.
+        """
+        if isinstance(obj, dict):
+            obj_copy = obj.copy()
+            obj_copy = cls._move_extra_to_metadata(obj_copy)
+            return super().model_validate(obj_copy, **kwargs)
+
+        return super().model_validate(obj, **kwargs)

@@ -1,0 +1,22 @@
+# Sample dataset in YAML format
+# Each entry represents a test case with required and optional fields
+
+- id: test-001
+  input: Explain what Python is in simple terms.
+  description: Basic Python explanation
+  task: Explain programming language
+  expected_constraints: Keep it under 100 words, use simple language
+  reference: Python is a popular programming language known for its readability and ease of use.
+  difficulty: easy
+  topic: programming
+
+- id: test-002
+  input: Write a function to calculate factorial of a number.
+  task: Code generation
+  expected_constraints: Use recursion, include docstring
+  custom_tag: algorithms
+
+- id: test-003
+  input: Summarize the water cycle.
+  description: Science education test case
+  metadata_field: example

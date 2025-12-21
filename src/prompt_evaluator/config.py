@@ -448,3 +448,165 @@ def load_rubric(rubric_path: Path) -> "Rubric":  # type: ignore[name-defined] # 
     except KeyboardInterrupt:
         # Let interrupts propagate naturally
         raise
+
+
+# Supported dataset file extensions
+DATASET_FILE_EXTENSIONS = [".jsonl", ".yaml", ".yml"]
+
+
+def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:  # type: ignore[name-defined] # noqa: F821
+    """
+    Load and validate a dataset from JSONL or YAML file.
+
+    Args:
+        dataset_path: Path to dataset file (.jsonl or .yaml/.yml)
+
+    Returns:
+        Tuple of (list of TestCase objects, dataset metadata dict)
+        Metadata includes: path, hash, count, format
+
+    Raises:
+        FileNotFoundError: If dataset file doesn't exist
+        ValueError: If dataset is invalid, has duplicate IDs, missing required fields,
+                   or unsupported file extension
+    """
+    import hashlib
+    import json
+
+    from pydantic import ValidationError
+
+    from prompt_evaluator.models import TestCase
+
+    if not dataset_path.exists():
+        raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
+
+    # Check file extension
+    if dataset_path.suffix not in DATASET_FILE_EXTENSIONS:
+        supported_formats = ", ".join(DATASET_FILE_EXTENSIONS)
+        raise ValueError(
+            f"Unsupported dataset file format: {dataset_path.suffix}. "
+            f"Supported formats: {supported_formats}"
+        )
+
+    # Read file content once for both hash computation and parsing
+    try:
+        with open(dataset_path, "rb") as f:
+            file_content = f.read()
+        dataset_hash = hashlib.sha256(file_content).hexdigest()
+        # Decode to string for parsing
+        file_content_str = file_content.decode("utf-8")
+    except OSError as e:
+        raise ValueError(f"Failed to read dataset file {dataset_path}: {str(e)}") from e
+    except UnicodeDecodeError as e:
+        raise ValueError(f"Failed to decode dataset file {dataset_path}: {str(e)}") from e
+
+    # Parse dataset based on format
+    test_cases = []
+    seen_ids = set()
+
+    try:
+        if dataset_path.suffix == ".jsonl":
+            # JSONL format: one JSON object per line, parse from memory
+            for line_num, line in enumerate(file_content_str.splitlines(), start=1):
+                # Skip empty lines
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError as e:
+                    raise ValueError(
+                        f"Invalid JSON at line {line_num} in {dataset_path}: {str(e)}"
+                    ) from e
+
+                if not isinstance(record, dict):
+                    raise ValueError(
+                        f"Record at line {line_num} must be a JSON object, "
+                        f"got {type(record).__name__}"
+                    )
+
+                # Validate required fields
+                if "id" not in record:
+                    raise ValueError(f"Record at line {line_num} is missing required field: id")
+                if "input" not in record:
+                    raise ValueError(
+                        f"Record at line {line_num} is missing required field: input"
+                    )
+
+                # Check for duplicate IDs
+                record_id = record["id"]
+                if record_id in seen_ids:
+                    raise ValueError(
+                        f"Duplicate test case ID '{record_id}' found at line {line_num}"
+                    )
+                seen_ids.add(record_id)
+
+                # Parse into TestCase, handling extra fields
+                try:
+                    test_case = TestCase(**record)
+                    test_cases.append(test_case)
+                except ValidationError as e:
+                    raise ValueError(
+                        f"Invalid test case at line {line_num}: {str(e)}"
+                    ) from e
+
+        else:
+            # YAML format: list of objects, parse from memory
+            try:
+                dataset_data = yaml.safe_load(file_content_str)
+            except yaml.YAMLError as e:
+                raise ValueError(
+                    f"Failed to parse YAML dataset file {dataset_path}: {str(e)}"
+                ) from e
+
+            if dataset_data is None:
+                # Empty YAML file
+                dataset_data = []
+
+            if not isinstance(dataset_data, list):
+                raise ValueError(
+                    f"YAML dataset must contain a list of objects, "
+                    f"got {type(dataset_data).__name__}"
+                )
+
+            for index, record in enumerate(dataset_data):
+                if not isinstance(record, dict):
+                    raise ValueError(
+                        f"Record at index {index} must be an object, got {type(record).__name__}"
+                    )
+
+                # Validate required fields
+                if "id" not in record:
+                    raise ValueError(f"Record at index {index} is missing required field: id")
+                if "input" not in record:
+                    raise ValueError(f"Record at index {index} is missing required field: input")
+
+                # Check for duplicate IDs
+                record_id = record["id"]
+                if record_id in seen_ids:
+                    raise ValueError(
+                        f"Duplicate test case ID '{record_id}' found at index {index}"
+                    )
+                seen_ids.add(record_id)
+
+                # Parse into TestCase, handling extra fields
+                try:
+                    test_case = TestCase(**record)
+                    test_cases.append(test_case)
+                except ValidationError as e:
+                    raise ValueError(f"Invalid test case at index {index}: {str(e)}") from e
+
+    except (FileNotFoundError, ValueError):
+        # Let these propagate naturally
+        raise
+
+    # Build metadata
+    metadata = {
+        "path": str(dataset_path.absolute()),
+        "hash": dataset_hash,
+        "count": len(test_cases),
+        "format": dataset_path.suffix,
+    }
+
+    return test_cases, metadata

@@ -144,6 +144,7 @@ examples/*
 !examples/system_prompt.txt
 !examples/input.txt
 !examples/rubrics/
+!examples/datasets/
 *.local.yaml
 *.local.yml
 *.local.json

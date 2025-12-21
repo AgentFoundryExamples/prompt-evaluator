@@ -512,3 +512,119 @@ class Rubric:
             raise ValueError(
                 f"Rubric contains names used in both metrics and flags: {overlaps}"
             )
+
+
+class TestCase(BaseModel):
+    """
+    A test case for dataset-driven evaluation.
+
+    Attributes:
+        id: Unique identifier for this test case (required, non-empty)
+        input: Input text for the test case (required, non-empty)
+        description: Optional description of the test case
+        task: Optional task description providing context
+        expected_constraints: Optional constraints that should be satisfied
+        reference: Optional reference output or expected result
+        metadata: Dictionary storing any additional fields not explicitly defined
+    """
+
+    id: str = Field(..., description="Unique identifier for this test case", min_length=1)
+    input: str = Field(..., description="Input text for the test case", min_length=1)
+    description: str | None = Field(None, description="Optional description of the test case")
+    task: str | None = Field(None, description="Optional task description providing context")
+    expected_constraints: str | None = Field(
+        None, description="Optional constraints that should be satisfied"
+    )
+    reference: str | None = Field(None, description="Optional reference output or expected result")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional fields not explicitly defined"
+    )
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("id", "input")
+    @classmethod
+    def validate_non_empty_strings(cls, v: str) -> str:
+        """Validate that id and input are not whitespace-only."""
+        if not v or not v.strip():
+            raise ValueError("Field must not be empty or whitespace-only")
+        return v
+
+    def __init__(self, **data: Any) -> None:
+        """
+        Custom initialization that moves extra fields to metadata.
+
+        This ensures that any extra fields not in the explicit schema are
+        preserved in the metadata dictionary for downstream use.
+        """
+        # Get all defined field names
+        defined_fields = {
+            "id",
+            "input",
+            "description",
+            "task",
+            "expected_constraints",
+            "reference",
+            "metadata",
+        }
+
+        # Find extra fields
+        extra_fields = {k: v for k, v in data.items() if k not in defined_fields}
+
+        # If there are extra fields, move them to metadata
+        if extra_fields:
+            # Get existing metadata or create new dict
+            existing_metadata = data.get("metadata", {})
+            if not isinstance(existing_metadata, dict):
+                existing_metadata = {}
+
+            # Merge extra fields into metadata
+            merged_metadata = existing_metadata.copy()
+            for key in extra_fields:
+                if key not in merged_metadata:
+                    merged_metadata[key] = data.pop(key)
+
+            data["metadata"] = merged_metadata
+
+        super().__init__(**data)
+
+    @classmethod
+    def model_validate(cls, obj: Any, **kwargs: Any) -> "TestCase":
+        """
+        Custom validation that moves extra fields to metadata.
+
+        This ensures that any extra fields not in the explicit schema are
+        preserved in the metadata dictionary for downstream use.
+        """
+        if isinstance(obj, dict):
+            # Get all defined field names
+            defined_fields = {
+                "id",
+                "input",
+                "description",
+                "task",
+                "expected_constraints",
+                "reference",
+                "metadata",
+            }
+
+            # Find extra fields
+            extra_fields = {k: v for k, v in obj.items() if k not in defined_fields}
+
+            # If there are extra fields, move them to metadata
+            if extra_fields:
+                obj_copy = obj.copy()
+                # Get existing metadata or create new dict
+                existing_metadata = obj_copy.get("metadata", {})
+                if not isinstance(existing_metadata, dict):
+                    existing_metadata = {}
+
+                # Merge extra fields into metadata
+                for key in extra_fields:
+                    if key not in existing_metadata:
+                        existing_metadata[key] = obj_copy.pop(key)
+
+                obj_copy["metadata"] = existing_metadata
+                return super().model_validate(obj_copy, **kwargs)
+
+        return super().model_validate(obj, **kwargs)

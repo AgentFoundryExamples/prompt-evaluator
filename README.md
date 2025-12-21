@@ -1032,6 +1032,89 @@ The rubric system is designed for future enhancements:
 - Custom validation rules per metric type
 - Rubric versioning and migration support
 
+## Datasets
+
+The Prompt Evaluator supports dataset-driven evaluation, allowing you to define reusable collections of test cases for systematic prompt testing.
+
+### Dataset Schema
+
+Each test case in a dataset includes:
+
+**Required Fields:**
+- `id` (string): Unique identifier for the test case
+- `input` (string): Input text to be evaluated
+
+**Optional Fields:**
+- `description` (string): Description of the test case
+- `task` (string): Task description for evaluation context
+- `expected_constraints` (string): Constraints that should be satisfied
+- `reference` (string): Reference output or expected result
+- `metadata` (dict): Any additional custom fields are automatically preserved here
+
+### Supported Formats
+
+Datasets can be provided in two formats with identical semantics:
+
+**JSONL Format** (`.jsonl`): One JSON object per line
+
+```jsonl
+{"id": "test-001", "input": "Explain what Python is.", "task": "Explain programming language", "difficulty": "easy"}
+{"id": "test-002", "input": "Write a factorial function.", "task": "Code generation", "topic": "algorithms"}
+```
+
+**YAML Format** (`.yaml` or `.yml`): List of objects
+
+```yaml
+- id: test-001
+  input: Explain what Python is.
+  task: Explain programming language
+  difficulty: easy
+
+- id: test-002
+  input: Write a factorial function.
+  task: Code generation
+  topic: algorithms
+```
+
+### Loading Datasets
+
+```python
+from pathlib import Path
+from prompt_evaluator.config import load_dataset
+
+# Load dataset
+test_cases, metadata = load_dataset(Path("examples/datasets/sample.yaml"))
+
+# Access test cases
+for test_case in test_cases:
+    print(f"ID: {test_case.id}")
+    print(f"Input: {test_case.input}")
+    print(f"Custom fields: {test_case.metadata}")
+
+# Access dataset metadata
+print(f"Path: {metadata['path']}")
+print(f"Hash: {metadata['hash']}")
+print(f"Count: {metadata['count']}")
+```
+
+### Key Features
+
+- **Validation**: Enforces unique IDs, non-empty required fields, and rejects unsupported formats
+- **Metadata Passthrough**: Custom fields (e.g., `difficulty`, `topic`, `priority`) are preserved in the `metadata` dict
+- **Error Context**: Validation errors reference specific line numbers (JSONL) or indices (YAML)
+- **Efficient**: Supports streaming for large datasets (200+ test cases)
+- **Order Preservation**: Test cases are processed in file order
+
+### Example Datasets
+
+Sample datasets are provided in `examples/datasets/`:
+- `sample.jsonl` - JSONL format example
+- `sample.yaml` - YAML format example
+
+### Detailed Documentation
+
+For comprehensive information about dataset formats, schema, validation rules, and best practices, see [docs/datasets.md](docs/datasets.md).
+
 ## Development
 
 ### Testing

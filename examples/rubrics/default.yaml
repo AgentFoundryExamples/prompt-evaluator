@@ -1,0 +1,45 @@
+# Default evaluation rubric for prompt evaluation
+# This rubric defines standard metrics and flags for assessing prompt outputs
+
+metrics:
+  - name: semantic_fidelity
+    description: How well the output preserves the semantic meaning and intent of the input
+    min_score: 1
+    max_score: 5
+    guidelines: |
+      Score 1: Completely unfaithful - Output contradicts or has no relation to the input
+      Score 2: Mostly unfaithful - Major semantic deviations or omissions
+      Score 3: Partially faithful - Some key information preserved but with notable gaps
+      Score 4: Mostly faithful - Minor deviations but core semantics preserved
+      Score 5: Completely faithful - Perfect preservation of semantic meaning and intent
+
+  - name: decomposition_quality
+    description: How effectively the output breaks down complex concepts into clear, logical components
+    min_score: 1
+    max_score: 5
+    guidelines: |
+      Score 1: Poor decomposition - Concepts remain tangled or unclear
+      Score 2: Weak decomposition - Some structure but still confusing
+      Score 3: Adequate decomposition - Basic logical breakdown present
+      Score 4: Good decomposition - Clear logical structure with minor issues
+      Score 5: Excellent decomposition - Perfectly organized, clear hierarchy and flow
+
+  - name: constraint_adherence
+    description: How well the output respects and follows constraints specified in the input
+    min_score: 1
+    max_score: 5
+    guidelines: |
+      Score 1: No adherence - Multiple constraints violated or ignored
+      Score 2: Poor adherence - Several constraints violated
+      Score 3: Moderate adherence - Some constraints followed, some violated
+      Score 4: Good adherence - Most constraints followed with minor violations
+      Score 5: Perfect adherence - All constraints strictly followed
+
+flags:
+  - name: invented_constraints
+    description: Output introduces constraints or requirements not present in the input
+    default: false
+
+  - name: omitted_constraints
+    description: Output fails to address constraints explicitly stated in the input
+    default: false

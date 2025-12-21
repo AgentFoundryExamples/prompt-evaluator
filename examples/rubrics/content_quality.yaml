@@ -1,0 +1,46 @@
+metrics:
+  - name: factual_accuracy
+    description: Correctness of factual claims and information presented
+    min_score: 1.0
+    max_score: 5.0
+    guidelines: |
+      Score 1.0: Multiple factual errors or misleading information
+      Score 2.0: Several inaccuracies that affect understanding
+      Score 3.0: Mostly accurate with minor errors
+      Score 4.0: Accurate with very minor quibbles
+      Score 5.0: Completely accurate and verifiable
+
+  - name: completeness
+    description: How thoroughly the output covers the requested topic
+    min_score: 1.0
+    max_score: 5.0
+    guidelines: |
+      Score 1.0: Missing major aspects of the topic
+      Score 2.0: Covers only basic points, many gaps
+      Score 3.0: Adequate coverage of main points
+      Score 4.0: Comprehensive with minor omissions
+      Score 5.0: Exhaustive and complete coverage
+
+  - name: clarity
+    description: How clear and understandable the explanation is
+    min_score: 1.0
+    max_score: 5.0
+    guidelines: |
+      Score 1.0: Confusing or incomprehensible
+      Score 2.0: Difficult to follow, unclear structure
+      Score 3.0: Understandable but could be clearer
+      Score 4.0: Clear and well-structured
+      Score 5.0: Exceptionally clear and easy to understand
+
+flags:
+  - name: contains_bias
+    description: Output exhibits noticeable bias or unfair representation
+    default: false
+
+  - name: inappropriate_tone
+    description: Tone is unsuitable for the context or audience
+    default: false
+
+  - name: requires_verification
+    description: Contains claims that should be verified before use
+    default: true

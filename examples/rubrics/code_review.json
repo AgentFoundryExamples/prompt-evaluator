@@ -1,0 +1,37 @@
+{
+  "metrics": [
+    {
+      "name": "code_correctness",
+      "description": "Whether the generated code is syntactically correct and logically sound",
+      "min_score": 1,
+      "max_score": 5,
+      "guidelines": "Score 1: Syntax errors or fundamentally broken logic\nScore 2: Runs but produces incorrect results\nScore 3: Mostly correct with some edge case failures\nScore 4: Correct with minor style issues\nScore 5: Perfect correctness and best practices"
+    },
+    {
+      "name": "code_clarity",
+      "description": "How readable and maintainable the code is",
+      "min_score": 1,
+      "max_score": 5,
+      "guidelines": "Score 1: Unreadable or obfuscated code\nScore 2: Difficult to understand, poor naming\nScore 3: Readable with some unclear sections\nScore 4: Clear with good structure\nScore 5: Exceptionally clear, self-documenting code"
+    },
+    {
+      "name": "efficiency",
+      "description": "Time and space complexity of the solution",
+      "min_score": 1,
+      "max_score": 5,
+      "guidelines": "Score 1: Highly inefficient algorithm\nScore 2: Suboptimal complexity\nScore 3: Acceptable but not optimal\nScore 4: Near-optimal solution\nScore 5: Optimal time and space complexity"
+    }
+  ],
+  "flags": [
+    {
+      "name": "uses_deprecated_apis",
+      "description": "Code uses deprecated or outdated APIs",
+      "default": false
+    },
+    {
+      "name": "missing_error_handling",
+      "description": "Code lacks appropriate error handling",
+      "default": false
+    }
+  ]
+}

@@ -143,6 +143,7 @@ examples/*
 !examples/.gitkeep
 !examples/system_prompt.txt
 !examples/input.txt
+!examples/rubrics/
 *.local.yaml
 *.local.yml
 *.local.json

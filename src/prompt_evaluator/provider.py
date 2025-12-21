@@ -225,6 +225,251 @@ def generate_completion(
         raise
 
 
+def build_rubric_judge_prompt(rubric: Any) -> str:
+    """
+    Build a rubric-aware judge system prompt that enumerates all metrics and flags.
+
+    Args:
+        rubric: Rubric object with metrics and flags
+
+    Returns:
+        System prompt string instructing judge to evaluate based on rubric
+    """
+    prompt_parts = [
+        "You are an expert evaluator assessing AI-generated responses using a structured rubric.",
+        "",
+        "Your task is to evaluate the generated output based on multiple metrics and flags defined below.",
+        "",
+        "## METRICS",
+        "",
+    ]
+
+    # Enumerate each metric
+    for metric in rubric.metrics:
+        prompt_parts.append(f"### {metric.name}")
+        prompt_parts.append(f"**Description:** {metric.description}")
+        prompt_parts.append(
+            f"**Score Range:** {metric.min_score} (minimum) to {metric.max_score} (maximum)"
+        )
+        prompt_parts.append("**Guidelines:**")
+        prompt_parts.append(metric.guidelines)
+        prompt_parts.append("")
+
+    # Enumerate flags if present
+    if rubric.flags:
+        prompt_parts.append("## FLAGS")
+        prompt_parts.append("")
+        for flag in rubric.flags:
+            prompt_parts.append(f"### {flag.name}")
+            prompt_parts.append(f"**Description:** {flag.description}")
+            prompt_parts.append(f"**Type:** Boolean (true/false)")
+            prompt_parts.append("")
+
+    # Build JSON schema
+    metrics_schema = {}
+    for metric in rubric.metrics:
+        metrics_schema[metric.name] = {
+            "score": f"<number between {metric.min_score} and {metric.max_score}>",
+            "rationale": "<string explaining your score in 1-3 sentences>",
+        }
+
+    flags_schema = {flag.name: "<boolean true or false>" for flag in rubric.flags}
+
+    schema_example = {
+        "metrics": metrics_schema,
+        "flags": flags_schema,
+        "overall_comment": "<string with overall assessment>",
+    }
+
+    # Add response format instructions
+    prompt_parts.append("## RESPONSE FORMAT")
+    prompt_parts.append("")
+    prompt_parts.append("You must respond with a valid JSON object containing exactly three fields:")
+    prompt_parts.append("")
+    prompt_parts.append("```json")
+    prompt_parts.append(json.dumps(schema_example, indent=2))
+    prompt_parts.append("```")
+    prompt_parts.append("")
+    prompt_parts.append("**Requirements:**")
+    prompt_parts.append("1. Each metric must have a numeric 'score' within the specified range")
+    prompt_parts.append("2. Each metric must have a 'rationale' explaining the score")
+    prompt_parts.append("3. Each flag must have a boolean value (true or false)")
+    prompt_parts.append("4. Include an 'overall_comment' summarizing your evaluation")
+    prompt_parts.append("5. Do not include any text before or after the JSON object")
+
+    return "\n".join(prompt_parts)
+
+
+def parse_rubric_judge_response(
+    response_text: str, rubric: Any
+) -> dict[str, Any]:
+    """
+    Parse and validate judge response against rubric schema.
+
+    Args:
+        response_text: Raw JSON response from judge model
+        rubric: Rubric object with expected metrics and flags
+
+    Returns:
+        Dictionary with:
+        - status: "completed" or "judge_invalid_response"
+        - judge_metrics: dict[str, dict] with score/rationale per metric (if valid)
+        - judge_flags: dict[str, bool] with boolean per flag (if valid)
+        - judge_overall_comment: str with overall comment (if valid)
+        - judge_raw_response: str with raw response
+        - error: str with error details (if invalid)
+    """
+    raw_response = response_text
+
+    try:
+        # Try to extract JSON from response
+        try:
+            parsed = json.loads(response_text)
+        except json.JSONDecodeError:
+            # Try to extract JSON object from text with markdown fencing or extra content
+            # Remove markdown code fences
+            cleaned = response_text
+            if "```json" in cleaned:
+                cleaned = cleaned.split("```json")[1].split("```")[0]
+            elif "```" in cleaned:
+                cleaned = cleaned.split("```")[1].split("```")[0]
+
+            # Find first { and last } to capture the entire JSON object
+            start_index = cleaned.find("{")
+            end_index = cleaned.rfind("}")
+            if start_index == -1 or end_index == -1 or end_index < start_index:
+                raise ValueError("No JSON object found in response")
+
+            json_str = cleaned[start_index : end_index + 1]
+            parsed = json.loads(json_str)
+
+        # Validate top-level structure
+        if not isinstance(parsed, dict):
+            raise ValueError(f"Response must be a JSON object, got {type(parsed).__name__}")
+
+        # Validate metrics field
+        if "metrics" not in parsed:
+            raise ValueError("Missing required field: metrics")
+
+        metrics_data = parsed["metrics"]
+        if not isinstance(metrics_data, dict):
+            raise ValueError(f"metrics must be a dictionary, got {type(metrics_data).__name__}")
+
+        # Validate all expected metrics are present
+        expected_metric_names = {m.name for m in rubric.metrics}
+        provided_metric_names = set(metrics_data.keys())
+
+        missing_metrics = expected_metric_names - provided_metric_names
+        if missing_metrics:
+            raise ValueError(f"Missing required metrics: {', '.join(sorted(missing_metrics))}")
+
+        extra_metrics = provided_metric_names - expected_metric_names
+        if extra_metrics:
+            raise ValueError(f"Unknown metrics provided: {', '.join(sorted(extra_metrics))}")
+
+        # Validate each metric
+        judge_metrics = {}
+        for metric in rubric.metrics:
+            metric_name = metric.name
+            metric_value = metrics_data[metric_name]
+
+            if not isinstance(metric_value, dict):
+                raise ValueError(
+                    f"Metric '{metric_name}' must be a dictionary with 'score' and 'rationale'"
+                )
+
+            if "score" not in metric_value:
+                raise ValueError(f"Metric '{metric_name}' missing required field: score")
+            if "rationale" not in metric_value:
+                raise ValueError(f"Metric '{metric_name}' missing required field: rationale")
+
+            # Validate score is numeric and in range
+            try:
+                score = float(metric_value["score"])
+            except (TypeError, ValueError) as e:
+                raise ValueError(
+                    f"Metric '{metric_name}' score must be numeric, got {type(metric_value['score']).__name__}"
+                ) from e
+
+            if score < metric.min_score or score > metric.max_score:
+                raise ValueError(
+                    f"Metric '{metric_name}' score {score} is out of range "
+                    f"[{metric.min_score}, {metric.max_score}]"
+                )
+
+            # Validate rationale is a string
+            rationale = str(metric_value["rationale"])
+
+            judge_metrics[metric_name] = {"score": score, "rationale": rationale}
+
+        # Validate flags field (optional if no flags in rubric)
+        judge_flags = {}
+        if rubric.flags:
+            if "flags" not in parsed:
+                raise ValueError("Missing required field: flags")
+
+            flags_data = parsed["flags"]
+            if not isinstance(flags_data, dict):
+                raise ValueError(f"flags must be a dictionary, got {type(flags_data).__name__}")
+
+            # Validate all expected flags are present
+            expected_flag_names = {f.name for f in rubric.flags}
+            provided_flag_names = set(flags_data.keys())
+
+            missing_flags = expected_flag_names - provided_flag_names
+            if missing_flags:
+                raise ValueError(f"Missing required flags: {', '.join(sorted(missing_flags))}")
+
+            extra_flags = provided_flag_names - expected_flag_names
+            if extra_flags:
+                raise ValueError(f"Unknown flags provided: {', '.join(sorted(extra_flags))}")
+
+            # Validate each flag
+            for flag in rubric.flags:
+                flag_name = flag.name
+                flag_value = flags_data[flag_name]
+
+                if not isinstance(flag_value, bool):
+                    raise ValueError(
+                        f"Flag '{flag_name}' must be a boolean, got {type(flag_value).__name__}"
+                    )
+
+                judge_flags[flag_name] = flag_value
+
+        # Validate overall_comment
+        if "overall_comment" not in parsed:
+            raise ValueError("Missing required field: overall_comment")
+
+        overall_comment = str(parsed["overall_comment"])
+
+        return {
+            "status": "completed",
+            "judge_metrics": judge_metrics,
+            "judge_flags": judge_flags,
+            "judge_overall_comment": overall_comment,
+            "judge_raw_response": raw_response,
+            "judge_score": None,  # Legacy field, not used with rubric
+            "judge_rationale": None,  # Legacy field, not used with rubric
+            "error": None,
+        }
+
+    except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
+        # Parsing or validation failed
+        error_msg = f"Failed to parse or validate judge response: {str(e)}"
+        logger.warning("%s. Raw response: %s", error_msg, raw_response[:200])
+
+        return {
+            "status": "judge_invalid_response",
+            "judge_metrics": {},
+            "judge_flags": {},
+            "judge_overall_comment": None,
+            "judge_raw_response": raw_response,
+            "judge_score": None,
+            "judge_rationale": None,
+            "error": error_msg,
+        }
+
+
 def judge_completion(
     provider: OpenAIProvider,
     input_text: str,
@@ -265,8 +510,13 @@ def judge_completion(
         multi-dimensional scoring. When fully implemented, it will be used to
         dynamically generate judge prompts based on rubric metrics and flags.
     """
+    # Use rubric-aware prompt if rubric is provided
+    if rubric is not None:
+        system_prompt = build_rubric_judge_prompt(rubric)
+    else:
+        system_prompt = judge_system_prompt
+
     # Build user message with input, output, and optional task description
-    # TODO: Integrate rubric metrics into judge prompt for multi-dimensional scoring
     user_parts = []
 
     if task_description:
@@ -274,7 +524,11 @@ def judge_completion(
 
     user_parts.append(f"Original Input:\n{input_text}\n")
     user_parts.append(f"Generated Output:\n{generator_output}\n")
-    user_parts.append("Please evaluate the semantic fidelity of the generated output.")
+
+    if rubric is not None:
+        user_parts.append("Please evaluate the generated output according to the rubric.")
+    else:
+        user_parts.append("Please evaluate the semantic fidelity of the generated output.")
 
     user_message = "\n".join(user_parts)
 
@@ -282,7 +536,7 @@ def judge_completion(
     try:
         response_text, metadata = generate_completion(
             provider=provider,
-            system_prompt=judge_system_prompt,
+            system_prompt=system_prompt,
             user_prompt=user_message,
             model=judge_config.model_name,
             temperature=judge_config.temperature,
@@ -291,6 +545,10 @@ def judge_completion(
         )
 
         raw_response = response_text
+
+        # Use rubric-aware parsing if rubric is provided
+        if rubric is not None:
+            return parse_rubric_judge_response(response_text, rubric)
 
         # Try to extract and parse JSON from response
         try:
@@ -332,6 +590,9 @@ def judge_completion(
                 "judge_score": score,
                 "judge_rationale": rationale,
                 "judge_raw_response": raw_response,
+                "judge_metrics": {},  # Empty for legacy mode
+                "judge_flags": {},  # Empty for legacy mode
+                "judge_overall_comment": None,  # Not used in legacy mode
                 "error": None,
             }
 
@@ -345,6 +606,9 @@ def judge_completion(
                 "judge_score": None,
                 "judge_rationale": None,
                 "judge_raw_response": raw_response,
+                "judge_metrics": {},
+                "judge_flags": {},
+                "judge_overall_comment": None,
                 "error": error_msg,
             }
 
@@ -365,5 +629,8 @@ def judge_completion(
             "judge_score": None,
             "judge_rationale": None,
             "judge_raw_response": raw_response,
+            "judge_metrics": {},
+            "judge_flags": {},
+            "judge_overall_comment": None,
             "error": error_msg,
         }

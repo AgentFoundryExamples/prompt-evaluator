@@ -17,6 +17,7 @@ Tests for judge models and evaluation data structures.
 Tests validate JudgeConfig, Sample, SingleEvaluationRun, and judge functionality.
 """
 
+import json
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -121,10 +122,7 @@ class TestSample:
 
     def test_sample_status_validation_invalid(self):
         """Test that invalid status raises ValueError."""
-        expected_msg = (
-            "status must be 'pending', 'completed', 'judge_error', or 'generation_error'"
-        )
-        with pytest.raises(ValueError, match=expected_msg):
+        with pytest.raises(ValueError, match="status must be one of"):
             Sample(
                 sample_id="sample-3",
                 input_text="test",
@@ -134,7 +132,13 @@ class TestSample:
 
     def test_sample_status_validation_valid(self):
         """Test that all valid status values are accepted."""
-        for status in ["pending", "completed", "judge_error", "generation_error"]:
+        for status in [
+            "pending",
+            "completed",
+            "judge_error",
+            "generation_error",
+            "judge_invalid_response",
+        ]:
             sample = Sample(
                 sample_id=f"sample-{status}",
                 input_text="test",
@@ -789,3 +793,452 @@ class TestJudgeCompletion:
         assert result["judge_rationale"] is None
         assert result["judge_raw_response"] == "Raw response from failed API call"
         assert "Judge API call failed" in result["error"]
+
+
+class TestRubricAwareJudge:
+    """Tests for rubric-aware judge functionality."""
+
+    def test_build_rubric_judge_prompt(self):
+        """Test that rubric-aware prompt is generated correctly."""
+        from prompt_evaluator.models import Rubric, RubricFlag, RubricMetric
+        from prompt_evaluator.provider import build_rubric_judge_prompt
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="semantic_fidelity",
+                    description="Semantic preservation",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate 1-5 based on meaning",
+                ),
+                RubricMetric(
+                    name="clarity",
+                    description="Output clarity",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate clarity 1-5",
+                ),
+            ],
+            flags=[
+                RubricFlag(name="invented_constraints", description="Added constraints"),
+            ],
+        )
+
+        prompt = build_rubric_judge_prompt(rubric)
+
+        # Check that prompt contains metric information
+        assert "semantic_fidelity" in prompt
+        assert "Semantic preservation" in prompt
+        assert "1.0 (minimum) to 5.0 (maximum)" in prompt
+        assert "Rate 1-5 based on meaning" in prompt
+
+        assert "clarity" in prompt
+        assert "Output clarity" in prompt
+
+        # Check that prompt contains flag information
+        assert "invented_constraints" in prompt
+        assert "Added constraints" in prompt
+
+        # Check that prompt contains schema
+        assert "metrics" in prompt
+        assert "flags" in prompt
+        assert "overall_comment" in prompt
+        assert "JSON" in prompt or "json" in prompt
+
+    def test_parse_rubric_judge_response_valid(self):
+        """Test parsing valid multi-metric response."""
+        from prompt_evaluator.models import Rubric, RubricFlag, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="semantic_fidelity",
+                    description="Semantic preservation",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate 1-5",
+                ),
+                RubricMetric(
+                    name="clarity",
+                    description="Clarity",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate 1-5",
+                ),
+            ],
+            flags=[
+                RubricFlag(name="has_issues", description="Has issues"),
+            ],
+        )
+
+        response_json = json.dumps(
+            {
+                "metrics": {
+                    "semantic_fidelity": {"score": 4.5, "rationale": "Good preservation"},
+                    "clarity": {"score": 3.0, "rationale": "Acceptable clarity"},
+                },
+                "flags": {"has_issues": False},
+                "overall_comment": "Overall good response",
+            }
+        )
+
+        result = parse_rubric_judge_response(response_json, rubric)
+
+        assert result["status"] == "completed"
+        assert result["judge_metrics"]["semantic_fidelity"]["score"] == 4.5
+        assert result["judge_metrics"]["semantic_fidelity"]["rationale"] == "Good preservation"
+        assert result["judge_metrics"]["clarity"]["score"] == 3.0
+        assert result["judge_flags"]["has_issues"] is False
+        assert result["judge_overall_comment"] == "Overall good response"
+        assert result["error"] is None
+
+    def test_parse_rubric_judge_response_with_markdown(self):
+        """Test parsing response wrapped in markdown code fences."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate quality",
+                ),
+            ],
+        )
+
+        response_with_markdown = (
+            "Here is my evaluation:\n```json\n"
+            + json.dumps(
+                {
+                    "metrics": {"quality": {"score": 4.0, "rationale": "Good"}},
+                    "flags": {},
+                    "overall_comment": "Well done",
+                }
+            )
+            + "\n```\nHope this helps!"
+        )
+
+        result = parse_rubric_judge_response(response_with_markdown, rubric)
+
+        assert result["status"] == "completed"
+        assert result["judge_metrics"]["quality"]["score"] == 4.0
+
+    def test_parse_rubric_judge_response_missing_metric(self):
+        """Test that missing metrics are rejected."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="metric1",
+                    description="M1",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Test",
+                ),
+                RubricMetric(
+                    name="metric2",
+                    description="M2",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Test",
+                ),
+            ],
+        )
+
+        # Response missing metric2
+        response_json = json.dumps(
+            {
+                "metrics": {"metric1": {"score": 3.0, "rationale": "Good"}},
+                "flags": {},
+                "overall_comment": "Comment",
+            }
+        )
+
+        result = parse_rubric_judge_response(response_json, rubric)
+
+        assert result["status"] == "judge_invalid_response"
+        assert "Missing required metrics: metric2" in result["error"]
+
+    def test_parse_rubric_judge_response_extra_metric(self):
+        """Test that extra unknown metrics are rejected."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="metric1",
+                    description="M1",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Test",
+                ),
+            ],
+        )
+
+        # Response with extra unknown metric
+        response_json = json.dumps(
+            {
+                "metrics": {
+                    "metric1": {"score": 3.0, "rationale": "Good"},
+                    "unknown_metric": {"score": 2.0, "rationale": "Bad"},
+                },
+                "flags": {},
+                "overall_comment": "Comment",
+            }
+        )
+
+        result = parse_rubric_judge_response(response_json, rubric)
+
+        assert result["status"] == "judge_invalid_response"
+        assert "Unknown metrics provided: unknown_metric" in result["error"]
+
+    def test_parse_rubric_judge_response_out_of_range_score(self):
+        """Test that out-of-range scores are rejected."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate 1-5",
+                ),
+            ],
+        )
+
+        # Score outside valid range
+        response_json = json.dumps(
+            {
+                "metrics": {"quality": {"score": 6.5, "rationale": "Excellent"}},
+                "flags": {},
+                "overall_comment": "Comment",
+            }
+        )
+
+        result = parse_rubric_judge_response(response_json, rubric)
+
+        assert result["status"] == "judge_invalid_response"
+        assert "out of range" in result["error"]
+        assert "6.5" in result["error"]
+
+    def test_parse_rubric_judge_response_non_numeric_score(self):
+        """Test that non-numeric scores are rejected."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate 1-5",
+                ),
+            ],
+        )
+
+        # Non-numeric score
+        response_json = json.dumps(
+            {
+                "metrics": {"quality": {"score": "high", "rationale": "Good"}},
+                "flags": {},
+                "overall_comment": "Comment",
+            }
+        )
+
+        result = parse_rubric_judge_response(response_json, rubric)
+
+        assert result["status"] == "judge_invalid_response"
+        assert "score must be numeric" in result["error"]
+
+    def test_parse_rubric_judge_response_missing_flag(self):
+        """Test that missing flags are rejected."""
+        from prompt_evaluator.models import Rubric, RubricFlag, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate 1-5",
+                ),
+            ],
+            flags=[
+                RubricFlag(name="flag1", description="Flag 1"),
+                RubricFlag(name="flag2", description="Flag 2"),
+            ],
+        )
+
+        # Response missing flag2
+        response_json = json.dumps(
+            {
+                "metrics": {"quality": {"score": 4.0, "rationale": "Good"}},
+                "flags": {"flag1": True},
+                "overall_comment": "Comment",
+            }
+        )
+
+        result = parse_rubric_judge_response(response_json, rubric)
+
+        assert result["status"] == "judge_invalid_response"
+        assert "Missing required flags: flag2" in result["error"]
+
+    def test_parse_rubric_judge_response_non_boolean_flag(self):
+        """Test that non-boolean flag values are rejected."""
+        from prompt_evaluator.models import Rubric, RubricFlag, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate 1-5",
+                ),
+            ],
+            flags=[RubricFlag(name="has_issues", description="Has issues")],
+        )
+
+        # Flag as string instead of boolean
+        response_json = json.dumps(
+            {
+                "metrics": {"quality": {"score": 4.0, "rationale": "Good"}},
+                "flags": {"has_issues": "false"},
+                "overall_comment": "Comment",
+            }
+        )
+
+        result = parse_rubric_judge_response(response_json, rubric)
+
+        assert result["status"] == "judge_invalid_response"
+        assert "must be a boolean" in result["error"]
+
+    def test_parse_rubric_judge_response_missing_overall_comment(self):
+        """Test that missing overall_comment is rejected."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate 1-5",
+                ),
+            ],
+        )
+
+        # Response without overall_comment
+        response_json = json.dumps(
+            {"metrics": {"quality": {"score": 4.0, "rationale": "Good"}}, "flags": {}}
+        )
+
+        result = parse_rubric_judge_response(response_json, rubric)
+
+        assert result["status"] == "judge_invalid_response"
+        assert "Missing required field: overall_comment" in result["error"]
+
+    def test_judge_completion_with_rubric(self):
+        """Test judge_completion with rubric uses rubric-aware logic."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate quality 1-5",
+                ),
+            ],
+        )
+
+        valid_json = json.dumps(
+            {
+                "metrics": {"quality": {"score": 4.0, "rationale": "Good quality"}},
+                "flags": {},
+                "overall_comment": "Well executed",
+            }
+        )
+
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            return_value=(valid_json, {"tokens_used": 100, "latency_ms": 500}),
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="Test input",
+                generator_output="Test output",
+                judge_config=judge_config,
+                judge_system_prompt="<ignored when rubric provided>",
+                rubric=rubric,
+            )
+
+        assert result["status"] == "completed"
+        assert result["judge_metrics"]["quality"]["score"] == 4.0
+        assert result["judge_metrics"]["quality"]["rationale"] == "Good quality"
+        assert result["judge_overall_comment"] == "Well executed"
+        assert result["judge_score"] is None  # Not used in rubric mode
+        assert result["judge_rationale"] is None  # Not used in rubric mode
+
+    def test_judge_completion_with_rubric_invalid_response(self):
+        """Test that invalid rubric response sets judge_invalid_response status."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate quality 1-5",
+                ),
+            ],
+        )
+
+        # Invalid JSON - missing metrics field
+        invalid_json = json.dumps({"flags": {}, "overall_comment": "Comment"})
+
+        with patch(
+            "prompt_evaluator.provider.generate_completion",
+            return_value=(invalid_json, {"tokens_used": 100, "latency_ms": 500}),
+        ):
+            result = judge_completion(
+                provider=provider,
+                input_text="Test input",
+                generator_output="Test output",
+                judge_config=judge_config,
+                judge_system_prompt="<ignored>",
+                rubric=rubric,
+            )
+
+        assert result["status"] == "judge_invalid_response"
+        assert "Missing required field: metrics" in result["error"]
+        assert result["judge_raw_response"] == invalid_json

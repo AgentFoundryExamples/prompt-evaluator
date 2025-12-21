@@ -21,9 +21,8 @@ and integration with evaluate-single command.
 import json
 import os
 import re
-import stat
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -118,13 +117,17 @@ class TestResolveRubricPath:
         """Test that path traversal attempts are rejected."""
         # Create a rubric file in temp directory
         rubric_file = tmp_path / "test.yaml"
-        rubric_file.write_text("metrics:\n  - name: test\n    description: test\n    min_score: 1\n    max_score: 5\n    guidelines: test\n")
-        
+        rubric_content = (
+            "metrics:\n  - name: test\n    description: test\n"
+            "    min_score: 1\n    max_score: 5\n    guidelines: test\n"
+        )
+        rubric_file.write_text(rubric_content)
+
         # Try to access it with path traversal patterns
         # Note: This might not trigger on all systems due to path normalization
         # but it demonstrates the intent
         traversal_path = str(tmp_path / ".." / tmp_path.name / "test.yaml")
-        
+
         # The function should either reject it or resolve it safely
         # We're testing that it doesn't allow arbitrary path traversal
         try:

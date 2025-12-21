@@ -39,7 +39,9 @@ class TestGeneratorConfig:
 
     def test_custom_values(self):
         """Test that GeneratorConfig accepts custom values."""
-        config = GeneratorConfig(model_name="gpt-4", temperature=0.5, max_completion_tokens=2048, seed=42)
+        config = GeneratorConfig(
+            model_name="gpt-4", temperature=0.5, max_completion_tokens=2048, seed=42
+        )
         assert config.model_name == "gpt-4"
         assert config.temperature == 0.5
         assert config.max_completion_tokens == 2048

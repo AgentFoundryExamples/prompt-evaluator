@@ -411,3 +411,47 @@ class TestAggregationStatistics:
         assert sum(successful_scores) / len(successful_scores) == 4.0
         assert min(successful_scores) == 4.0
         assert max(successful_scores) == 4.0
+
+    def test_aggregation_excludes_invalid_judge_responses(self):
+        """Test that samples with judge_invalid_response status are excluded from aggregation."""
+        from prompt_evaluator.models import Sample
+
+        samples = [
+            Sample(
+                sample_id="s1",
+                input_text="test",
+                generator_output="output1",
+                judge_score=4.0,
+                status="completed",
+            ),
+            Sample(
+                sample_id="s2",
+                input_text="test",
+                generator_output="output2",
+                status="judge_invalid_response",
+            ),
+            Sample(
+                sample_id="s3",
+                input_text="test",
+                generator_output="output3",
+                judge_score=5.0,
+                status="completed",
+            ),
+            Sample(
+                sample_id="s4",
+                input_text="test",
+                generator_output="output4",
+                status="judge_invalid_response",
+            ),
+        ]
+
+        # Use same aggregation logic as CLI
+        successful_scores = [
+            s.judge_score for s in samples if s.status == "completed" and s.judge_score is not None
+        ]
+
+        # Only the 2 completed samples should be included
+        assert len(successful_scores) == 2
+        assert sum(successful_scores) / len(successful_scores) == 4.5
+        assert min(successful_scores) == 4.0
+        assert max(successful_scores) == 5.0

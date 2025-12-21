@@ -243,7 +243,11 @@ def evaluate_single(
     rubric: str | None = typer.Option(
         None,
         "--rubric",
-        help="Rubric to use for evaluation. Can be a preset alias (default, content-quality, code-review) or a path to a rubric file (.yaml/.json). Defaults to 'default' if not specified.",
+        help=(
+            "Rubric to use for evaluation. Can be a preset alias "
+            "(default, content-quality, code-review) or a path to a rubric file "
+            "(.yaml/.json). Defaults to 'default' if not specified."
+        ),
     ),
     seed: int | None = typer.Option(
         None, "--seed", help="Random seed for generator reproducibility"
@@ -407,16 +411,31 @@ def evaluate_single(
                     judge_raw_response=judge_result.get("judge_raw_response"),
                     status=judge_result["status"],
                     task_description=task_description,
+                    judge_metrics=judge_result.get("judge_metrics", {}),
+                    judge_flags=judge_result.get("judge_flags", {}),
+                    judge_overall_comment=judge_result.get("judge_overall_comment"),
                 )
 
                 samples.append(sample)
 
                 # Display progress
                 if sample.status == "completed":
-                    typer.echo(
-                        f"    ✓ Generated and judged (score: {sample.judge_score:.1f}/5.0)",
-                        err=True
-                    )
+                    if sample.judge_score is not None:
+                        # Legacy single-metric mode
+                        typer.echo(
+                            f"    ✓ Generated and judged (score: {sample.judge_score:.1f}/5.0)",
+                            err=True
+                        )
+                    else:
+                        # Rubric mode - show summary of metrics
+                        num_metrics = len(sample.judge_metrics)
+                        typer.echo(
+                            f"    ✓ Generated and judged ({num_metrics} metrics evaluated)",
+                            err=True
+                        )
+                elif sample.status == "judge_invalid_response":
+                    error_msg = judge_result.get('error', 'Invalid judge response')
+                    typer.echo(f"    ⚠ Generated but judge response invalid: {error_msg}", err=True)
                 else:
                     error_msg = judge_result.get('error')
                     typer.echo(f"    ⚠ Generated but judge error: {error_msg}", err=True)
@@ -522,7 +541,11 @@ def show_rubric(
     rubric: str | None = typer.Option(
         None,
         "--rubric",
-        help="Rubric to display. Can be a preset alias (default, content-quality, code-review) or a path to a rubric file (.yaml/.json). Defaults to 'default' if not specified.",
+        help=(
+            "Rubric to display. Can be a preset alias "
+            "(default, content-quality, code-review) or a path to a rubric file "
+            "(.yaml/.json). Defaults to 'default' if not specified."
+        ),
     ),
 ) -> None:
     """

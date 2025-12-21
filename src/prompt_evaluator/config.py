@@ -310,7 +310,8 @@ def resolve_rubric_path(rubric_input: str | None) -> Path:
     if not rubric_path.exists():
         raise FileNotFoundError(
             f"Rubric file not found: {rubric_path}. "
-            f"Please provide a valid file path or use a preset: {', '.join(sorted(RUBRIC_PRESETS.keys()))}"
+            f"Please provide a valid file path or use a preset: "
+            f"{', '.join(sorted(RUBRIC_PRESETS.keys()))}"
         )
 
     # Check if it's a directory

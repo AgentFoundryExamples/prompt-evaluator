@@ -115,18 +115,19 @@ def compute_aggregate_statistics(
 
     stats: dict[str, Any] = {}
 
+    # Calculate num_successful based on "completed" status, which is mode-agnostic
+    num_successful = sum(1 for s in samples if s.status == "completed")
+    stats["num_successful"] = num_successful
+    stats["num_failed"] = len(samples) - num_successful
+
     if successful_scores:
         stats["mean_score"] = sum(successful_scores) / len(successful_scores)
         stats["min_score"] = min(successful_scores)
         stats["max_score"] = max(successful_scores)
-        stats["num_successful"] = len(successful_scores)
-        stats["num_failed"] = len(samples) - len(successful_scores)
     else:
         stats["mean_score"] = None
         stats["min_score"] = None
         stats["max_score"] = None
-        stats["num_successful"] = 0
-        stats["num_failed"] = len(samples)
 
     # If rubric is provided, compute per-metric and per-flag statistics
     if rubric is not None:

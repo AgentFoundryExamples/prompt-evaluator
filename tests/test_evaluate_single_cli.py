@@ -944,6 +944,20 @@ flags:
         import json
         evaluation = json.loads(evaluation_file.read_text())
 
+        # Verify rubric metadata is present
+        assert "rubric_metadata" in evaluation
+        assert "rubric_path" in evaluation["rubric_metadata"]
+        assert "rubric_hash" in evaluation["rubric_metadata"]
+        assert "rubric_definition" in evaluation["rubric_metadata"]
+        # Verify rubric definition contains expected structure
+        rubric_def = evaluation["rubric_metadata"]["rubric_definition"]
+        assert "metrics" in rubric_def
+        assert "flags" in rubric_def
+        assert len(rubric_def["metrics"]) == 1
+        assert rubric_def["metrics"][0]["name"] == "test_metric"
+        assert len(rubric_def["flags"]) == 1
+        assert rubric_def["flags"][0]["name"] == "test_flag"
+
         # Check that invalid sample is excluded from aggregation
         stats = evaluation["aggregate_stats"]
         assert stats["metric_stats"]["test_metric"]["count"] == 2  # Only 2 valid samples

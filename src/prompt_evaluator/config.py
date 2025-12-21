@@ -208,3 +208,125 @@ def load_api_config(config_file_path: Path | None = None) -> APIConfig:
         ValueError: If API key is missing or configuration is invalid
     """
     return APIConfig(config_file_path=config_file_path)
+
+
+def load_rubric(rubric_path: Path) -> "Rubric":  # type: ignore[name-defined] # noqa: F821
+    """
+    Load and validate a rubric from a YAML or JSON file.
+
+    Args:
+        rubric_path: Path to rubric file (.yaml, .yml, or .json)
+
+    Returns:
+        Validated Rubric instance
+
+    Raises:
+        FileNotFoundError: If rubric file doesn't exist
+        ValueError: If rubric is invalid or malformed
+    """
+    from prompt_evaluator.models import Rubric, RubricFlag, RubricMetric
+
+    if not rubric_path.exists():
+        raise FileNotFoundError(f"Rubric file not found: {rubric_path}")
+
+    try:
+        # Load file based on extension
+        if rubric_path.suffix in [".yaml", ".yml"]:
+            with open(rubric_path, encoding="utf-8") as f:
+                rubric_data = yaml.safe_load(f)
+        elif rubric_path.suffix == ".json":
+            import json
+
+            with open(rubric_path, encoding="utf-8") as f:
+                rubric_data = json.load(f)
+        else:
+            raise ValueError(
+                f"Unsupported rubric file format: {rubric_path.suffix}. "
+                "Supported formats: .yaml, .yml, .json"
+            )
+
+        if not isinstance(rubric_data, dict):
+            raise ValueError(
+                f"Rubric file must contain a dictionary, got {type(rubric_data).__name__}"
+            )
+
+        # Parse metrics
+        metrics_data = rubric_data.get("metrics", [])
+        if not isinstance(metrics_data, list):
+            raise ValueError(f"Metrics must be a list, got {type(metrics_data).__name__}")
+
+        if not metrics_data:
+            raise ValueError("Rubric must contain at least one metric")
+
+        metrics = []
+        for i, metric_data in enumerate(metrics_data):
+            if not isinstance(metric_data, dict):
+                raise ValueError(f"Metric at index {i} must be a dictionary")
+
+            # Validate required fields
+            required_fields = {"name", "description", "min_score", "max_score", "guidelines"}
+            missing_fields = required_fields - set(metric_data.keys())
+            if missing_fields:
+                raise ValueError(
+                    f"Metric at index {i} is missing required fields: "
+                    f"{', '.join(sorted(missing_fields))}"
+                )
+
+            try:
+                metric = RubricMetric(
+                    name=metric_data["name"],
+                    description=metric_data["description"],
+                    min_score=metric_data["min_score"],
+                    max_score=metric_data["max_score"],
+                    guidelines=metric_data["guidelines"],
+                )
+                metrics.append(metric)
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"Invalid metric at index {i}: {str(e)}") from e
+
+        # Parse flags (optional)
+        flags_data = rubric_data.get("flags", [])
+        if not isinstance(flags_data, list):
+            raise ValueError(f"Flags must be a list, got {type(flags_data).__name__}")
+
+        flags = []
+        for i, flag_data in enumerate(flags_data):
+            if not isinstance(flag_data, dict):
+                raise ValueError(f"Flag at index {i} must be a dictionary")
+
+            # Validate required fields
+            if "name" not in flag_data:
+                raise ValueError(f"Flag at index {i} is missing required field: name")
+            if "description" not in flag_data:
+                raise ValueError(f"Flag at index {i} is missing required field: description")
+
+            try:
+                flag = RubricFlag(
+                    name=flag_data["name"],
+                    description=flag_data["description"],
+                    default=flag_data.get("default", False),
+                )
+                flags.append(flag)
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"Invalid flag at index {i}: {str(e)}") from e
+
+        # Create and validate rubric
+        try:
+            rubric = Rubric(metrics=metrics, flags=flags)
+        except ValueError as e:
+            raise ValueError(f"Rubric validation failed: {str(e)}") from e
+
+        return rubric
+
+    except (OSError, UnicodeDecodeError) as e:
+        raise ValueError(f"Failed to read rubric file {rubric_path}: {str(e)}") from e
+    except yaml.YAMLError as e:
+        raise ValueError(f"Failed to parse YAML rubric file {rubric_path}: {str(e)}") from e
+    except (FileNotFoundError, ValueError):
+        raise
+    except ImportError:
+        # Let import errors propagate naturally (e.g., missing json module)
+        raise
+    except KeyboardInterrupt:
+        # Let interrupts propagate naturally
+        raise

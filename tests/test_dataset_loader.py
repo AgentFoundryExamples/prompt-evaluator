@@ -119,6 +119,19 @@ class TestTestCaseModel:
         assert test_case.metadata["custom"] == "value"
         assert test_case.metadata["nested"]["key"] == "val"
 
+    def test_testcase_metadata_precedence(self):
+        """Test that explicit metadata takes precedence over extra fields."""
+        test_case = TestCase(
+            id="test-001",
+            input="What is Python?",
+            difficulty="easy",  # Extra field
+            metadata={"difficulty": "hard", "other": "value"},  # Explicit metadata with overlap
+        )
+
+        # Explicit metadata should take precedence
+        assert test_case.metadata["difficulty"] == "hard"
+        assert test_case.metadata["other"] == "value"
+
     def test_testcase_to_dict(self):
         """Test that TestCase can be serialized to dict."""
         test_case = TestCase(

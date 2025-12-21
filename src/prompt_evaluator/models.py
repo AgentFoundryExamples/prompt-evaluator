@@ -581,11 +581,14 @@ class TestCase(BaseModel):
             if not isinstance(existing_metadata, dict):
                 existing_metadata = {}
 
-            # Merge extra fields into metadata
-            merged_metadata = existing_metadata.copy()
-            for key in extra_fields:
-                if key not in merged_metadata:
-                    merged_metadata[key] = data.pop(key)
+            # Create a new metadata dict, starting with extra fields
+            merged_metadata = {}
+            for key, value in extra_fields.items():
+                merged_metadata[key] = value
+                data.pop(key)  # Unconditionally pop from data
+
+            # Update with existing metadata, which will overwrite duplicates, giving it precedence
+            merged_metadata.update(existing_metadata)
 
             data["metadata"] = merged_metadata
 

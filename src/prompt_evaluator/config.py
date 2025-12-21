@@ -473,6 +473,8 @@ def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:
     import hashlib
     import json
 
+    from pydantic import ValidationError
+
     from prompt_evaluator.models import TestCase
 
     if not dataset_path.exists():
@@ -486,13 +488,17 @@ def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:
             f"Supported formats: {supported_formats}"
         )
 
-    # Read file content for hash computation
+    # Read file content once for both hash computation and parsing
     try:
         with open(dataset_path, "rb") as f:
             file_content = f.read()
         dataset_hash = hashlib.sha256(file_content).hexdigest()
+        # Decode to string for parsing
+        file_content_str = file_content.decode("utf-8")
     except OSError as e:
         raise ValueError(f"Failed to read dataset file {dataset_path}: {str(e)}") from e
+    except UnicodeDecodeError as e:
+        raise ValueError(f"Failed to decode dataset file {dataset_path}: {str(e)}") from e
 
     # Parse dataset based on format
     test_cases = []
@@ -500,56 +506,59 @@ def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:
 
     try:
         if dataset_path.suffix == ".jsonl":
-            # JSONL format: one JSON object per line
-            with open(dataset_path, encoding="utf-8") as f:
-                for line_num, line in enumerate(f, start=1):
-                    # Skip empty lines
-                    line = line.strip()
-                    if not line:
-                        continue
+            # JSONL format: one JSON object per line, parse from memory
+            for line_num, line in enumerate(file_content_str.splitlines(), start=1):
+                # Skip empty lines
+                line = line.strip()
+                if not line:
+                    continue
 
-                    try:
-                        record = json.loads(line)
-                    except json.JSONDecodeError as e:
-                        raise ValueError(
-                            f"Invalid JSON at line {line_num} in {dataset_path}: {str(e)}"
-                        ) from e
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError as e:
+                    raise ValueError(
+                        f"Invalid JSON at line {line_num} in {dataset_path}: {str(e)}"
+                    ) from e
 
-                    if not isinstance(record, dict):
-                        raise ValueError(
-                            f"Record at line {line_num} must be a JSON object, "
-                            f"got {type(record).__name__}"
-                        )
+                if not isinstance(record, dict):
+                    raise ValueError(
+                        f"Record at line {line_num} must be a JSON object, "
+                        f"got {type(record).__name__}"
+                    )
 
-                    # Validate required fields
-                    if "id" not in record:
-                        raise ValueError(f"Record at line {line_num} is missing required field: id")
-                    if "input" not in record:
-                        raise ValueError(
-                            f"Record at line {line_num} is missing required field: input"
-                        )
+                # Validate required fields
+                if "id" not in record:
+                    raise ValueError(f"Record at line {line_num} is missing required field: id")
+                if "input" not in record:
+                    raise ValueError(
+                        f"Record at line {line_num} is missing required field: input"
+                    )
 
-                    # Check for duplicate IDs
-                    record_id = record["id"]
-                    if record_id in seen_ids:
-                        raise ValueError(
-                            f"Duplicate test case ID '{record_id}' found at line {line_num}"
-                        )
-                    seen_ids.add(record_id)
+                # Check for duplicate IDs
+                record_id = record["id"]
+                if record_id in seen_ids:
+                    raise ValueError(
+                        f"Duplicate test case ID '{record_id}' found at line {line_num}"
+                    )
+                seen_ids.add(record_id)
 
-                    # Parse into TestCase, handling extra fields
-                    try:
-                        test_case = TestCase(**record)
-                        test_cases.append(test_case)
-                    except Exception as e:
-                        raise ValueError(
-                            f"Invalid test case at line {line_num}: {str(e)}"
-                        ) from e
+                # Parse into TestCase, handling extra fields
+                try:
+                    test_case = TestCase(**record)
+                    test_cases.append(test_case)
+                except ValidationError as e:
+                    raise ValueError(
+                        f"Invalid test case at line {line_num}: {str(e)}"
+                    ) from e
 
         else:
-            # YAML format: list of objects
-            with open(dataset_path, encoding="utf-8") as f:
-                dataset_data = yaml.safe_load(f)
+            # YAML format: list of objects, parse from memory
+            try:
+                dataset_data = yaml.safe_load(file_content_str)
+            except yaml.YAMLError as e:
+                raise ValueError(
+                    f"Failed to parse YAML dataset file {dataset_path}: {str(e)}"
+                ) from e
 
             if dataset_data is None:
                 # Empty YAML file
@@ -585,13 +594,12 @@ def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:
                 try:
                     test_case = TestCase(**record)
                     test_cases.append(test_case)
-                except Exception as e:
+                except ValidationError as e:
                     raise ValueError(f"Invalid test case at index {index}: {str(e)}") from e
 
-    except (OSError, UnicodeDecodeError) as e:
-        raise ValueError(f"Failed to read dataset file {dataset_path}: {str(e)}") from e
-    except yaml.YAMLError as e:
-        raise ValueError(f"Failed to parse YAML dataset file {dataset_path}: {str(e)}") from e
+    except (FileNotFoundError, ValueError):
+        # Let these propagate naturally
+        raise
 
     # Build metadata
     metadata = {

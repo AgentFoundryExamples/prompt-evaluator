@@ -496,7 +496,7 @@ metrics:
 """
         )
 
-        with pytest.raises(ValueError, match="missing required field: name"):
+        with pytest.raises(ValueError, match="missing required fields: name"):
             load_rubric(rubric_file)
 
     def test_load_rubric_metric_missing_description(self, tmp_path):
@@ -512,7 +512,7 @@ metrics:
 """
         )
 
-        with pytest.raises(ValueError, match="missing required field: description"):
+        with pytest.raises(ValueError, match="missing required fields: description"):
             load_rubric(rubric_file)
 
     def test_load_rubric_metric_missing_min_score(self, tmp_path):
@@ -528,7 +528,7 @@ metrics:
 """
         )
 
-        with pytest.raises(ValueError, match="missing required field: min_score"):
+        with pytest.raises(ValueError, match="missing required fields: min_score"):
             load_rubric(rubric_file)
 
     def test_load_rubric_metric_missing_max_score(self, tmp_path):
@@ -544,7 +544,7 @@ metrics:
 """
         )
 
-        with pytest.raises(ValueError, match="missing required field: max_score"):
+        with pytest.raises(ValueError, match="missing required fields: max_score"):
             load_rubric(rubric_file)
 
     def test_load_rubric_metric_missing_guidelines(self, tmp_path):
@@ -560,7 +560,7 @@ metrics:
 """
         )
 
-        with pytest.raises(ValueError, match="missing required field: guidelines"):
+        with pytest.raises(ValueError, match="missing required fields: guidelines"):
             load_rubric(rubric_file)
 
     def test_load_rubric_metric_invalid_type(self, tmp_path):

@@ -264,10 +264,13 @@ def load_rubric(rubric_path: Path) -> "Rubric":  # type: ignore[name-defined] # 
                 raise ValueError(f"Metric at index {i} must be a dictionary")
 
             # Validate required fields
-            required_fields = ["name", "description", "min_score", "max_score", "guidelines"]
-            for field_name in required_fields:
-                if field_name not in metric_data:
-                    raise ValueError(f"Metric at index {i} is missing required field: {field_name}")
+            required_fields = {"name", "description", "min_score", "max_score", "guidelines"}
+            missing_fields = required_fields - set(metric_data.keys())
+            if missing_fields:
+                raise ValueError(
+                    f"Metric at index {i} is missing required fields: "
+                    f"{', '.join(sorted(missing_fields))}"
+                )
 
             try:
                 metric = RubricMetric(
@@ -319,7 +322,11 @@ def load_rubric(rubric_path: Path) -> "Rubric":  # type: ignore[name-defined] # 
         raise ValueError(f"Failed to read rubric file {rubric_path}: {str(e)}") from e
     except yaml.YAMLError as e:
         raise ValueError(f"Failed to parse YAML rubric file {rubric_path}: {str(e)}") from e
-    except Exception as e:
-        if isinstance(e, (FileNotFoundError, ValueError)):
-            raise
-        raise ValueError(f"Unexpected error loading rubric from {rubric_path}: {str(e)}") from e
+    except (FileNotFoundError, ValueError):
+        raise
+    except ImportError:
+        # Let import errors propagate naturally (e.g., missing json module)
+        raise
+    except KeyboardInterrupt:
+        # Let interrupts propagate naturally
+        raise

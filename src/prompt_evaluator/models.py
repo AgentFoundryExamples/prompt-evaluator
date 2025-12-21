@@ -19,6 +19,7 @@ evaluation process, including prompts, responses, and results.
 """
 
 import re
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -443,18 +444,20 @@ class Rubric:
 
         # Validate metric name uniqueness (case-insensitive)
         metric_names = [m.name.lower() for m in self.metrics]
-        if len(metric_names) != len(set(metric_names)):
-            duplicates = [name for name in metric_names if metric_names.count(name) > 1]
+        metric_name_counts = Counter(metric_names)
+        duplicate_metrics = {name for name, count in metric_name_counts.items() if count > 1}
+        if duplicate_metrics:
             raise ValueError(
-                f"Rubric contains duplicate metric names (case-insensitive): {set(duplicates)}"
+                f"Rubric contains duplicate metric names (case-insensitive): {duplicate_metrics}"
             )
 
         # Validate flag name uniqueness (case-insensitive)
         flag_names = [f.name.lower() for f in self.flags]
-        if len(flag_names) != len(set(flag_names)):
-            duplicates = [name for name in flag_names if flag_names.count(name) > 1]
+        flag_name_counts = Counter(flag_names)
+        duplicate_flags = {name for name, count in flag_name_counts.items() if count > 1}
+        if duplicate_flags:
             raise ValueError(
-                f"Rubric contains duplicate flag names (case-insensitive): {set(duplicates)}"
+                f"Rubric contains duplicate flag names (case-insensitive): {duplicate_flags}"
             )
 
         # Ensure no overlap between metric and flag names

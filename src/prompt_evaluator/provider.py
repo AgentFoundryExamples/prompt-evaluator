@@ -232,6 +232,7 @@ def judge_completion(
     judge_config: Any,
     judge_system_prompt: str,
     task_description: str | None = None,
+    rubric: Any | None = None,
 ) -> dict[str, Any]:
     """
     Call judge model to evaluate generator output and return structured results.
@@ -247,6 +248,9 @@ def judge_completion(
         judge_config: JudgeConfig with model settings
         judge_system_prompt: System prompt instructing judge on scoring
         task_description: Optional description of the task for context
+        rubric: Optional Rubric object for structured evaluation criteria.
+               Currently passed through but not yet integrated into judge prompt.
+               Reserved for future enhancement to support multi-dimensional scoring.
 
     Returns:
         Dictionary with keys:
@@ -255,8 +259,14 @@ def judge_completion(
         - judge_rationale: str if status is "completed", None otherwise
         - judge_raw_response: str with raw model output
         - error: str with error details if status is "judge_error", None otherwise
+
+    Note:
+        The rubric parameter is currently reserved for future implementation of
+        multi-dimensional scoring. When fully implemented, it will be used to
+        dynamically generate judge prompts based on rubric metrics and flags.
     """
     # Build user message with input, output, and optional task description
+    # TODO: Integrate rubric metrics into judge prompt for multi-dimensional scoring
     user_parts = []
 
     if task_description:

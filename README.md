@@ -298,6 +298,7 @@ prompt-evaluator evaluate-single \
 - `--generator-model`: Override the generator model (default: `gpt-5.1`, or from `OPENAI_MODEL` environment variable, or from config file)
 - `--judge-model`: Override the judge model (default: same as generator model)
 - `--judge-system-prompt`: Path to custom judge prompt file (default: uses built-in semantic fidelity prompt). **Note:** Custom judge prompts must still return a JSON object with `semantic_fidelity` (numeric score 1-5) and `rationale` (string) keys to be parsed correctly.
+- `--rubric`: Rubric to use for evaluation. Can be a preset alias (`default`, `content-quality`, `code-review`) or a path to a rubric file (`.yaml`/`.json`). Defaults to `default` if not specified. See [Using Rubrics with the CLI](#using-rubrics-with-the-cli) for details.
 - `--seed`: Random seed for generator reproducibility (default: no seed)
 - `--temperature`, `-t`: Generator sampling temperature 0.0-2.0 (default: `0.7`)
 - `--max-tokens`: Maximum completion tokens for generator (default: `1024`)
@@ -762,6 +763,142 @@ default = load_rubric(Path("examples/rubrics/default.yaml"))
 
 # Load code review rubric
 code_rubric = load_rubric(Path("examples/rubrics/code_review.json"))
+```
+
+### Using Rubrics with the CLI
+
+The CLI provides built-in support for using rubrics with evaluation commands through the `--rubric` option and the `show-rubric` command.
+
+#### The --rubric Option
+
+The `--rubric` option on the `evaluate-single` command allows you to specify which rubric to use for evaluation:
+
+```bash
+# Use the default rubric (automatic if --rubric is omitted)
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 5
+
+# Use a preset rubric by alias
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 5 \
+  --rubric content-quality
+
+# Use a custom rubric file (absolute or relative path)
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 5 \
+  --rubric path/to/my_rubric.yaml
+```
+
+**Preset Aliases:**
+
+The following preset aliases are available and resolve to bundled rubric files:
+
+- `default` → `examples/rubrics/default.yaml` (semantic fidelity, decomposition quality, constraint adherence)
+- `content-quality` → `examples/rubrics/content_quality.yaml` (factual accuracy, completeness, clarity)
+- `code-review` → `examples/rubrics/code_review.json` (code correctness, clarity, efficiency)
+
+**File Paths:**
+
+You can also provide a path to your own rubric file:
+- Absolute paths: `/absolute/path/to/rubric.yaml`
+- Relative paths: `my-rubrics/custom.yaml` (resolved from current working directory)
+- Supported formats: `.yaml`, `.yml`, or `.json`
+
+**Default Behavior:**
+
+If `--rubric` is not specified, the CLI automatically uses the `default` preset rubric (`examples/rubrics/default.yaml`).
+
+#### The show-rubric Command
+
+The `show-rubric` command displays the effective rubric as formatted JSON for inspection and validation. This is useful for:
+- Verifying rubric files before running evaluations
+- Understanding the structure of preset rubrics
+- Debugging custom rubrics
+- Documenting evaluation criteria
+
+```bash
+# Show the default rubric
+prompt-evaluator show-rubric
+
+# Show a preset rubric
+prompt-evaluator show-rubric --rubric content-quality
+
+# Show a custom rubric file
+prompt-evaluator show-rubric --rubric my-rubrics/custom.yaml
+```
+
+**Example Output:**
+
+```json
+{
+  "rubric_path": "/path/to/examples/rubrics/default.yaml",
+  "metrics": [
+    {
+      "name": "semantic_fidelity",
+      "description": "How well the output preserves the semantic meaning and intent of the input",
+      "min_score": 1,
+      "max_score": 5,
+      "guidelines": "Score 1: Completely unfaithful...\nScore 5: Completely faithful..."
+    },
+    {
+      "name": "decomposition_quality",
+      "description": "How effectively the output breaks down complex concepts...",
+      "min_score": 1,
+      "max_score": 5,
+      "guidelines": "Score 1: Poor decomposition...\nScore 5: Excellent decomposition..."
+    }
+  ],
+  "flags": [
+    {
+      "name": "invented_constraints",
+      "description": "Output introduces constraints or requirements not present in the input",
+      "default": false
+    }
+  ]
+}
+```
+
+**Key Features:**
+
+- **No API Key Required**: The `show-rubric` command does not require API credentials - it only loads and displays the rubric file
+- **Validation**: The command validates the rubric file and reports errors if the rubric is malformed
+- **JSON Output**: Output is always formatted JSON, suitable for piping to other tools (e.g., `jq`)
+
+#### Error Handling
+
+The CLI provides clear error messages for rubric-related issues:
+
+**Invalid Preset:**
+```bash
+$ prompt-evaluator show-rubric --rubric invalid-preset
+Error loading rubric: Rubric file not found: /path/to/invalid-preset. 
+Please provide a valid file path or use a preset: code-review, content-quality, default
+```
+
+**Missing File:**
+```bash
+$ prompt-evaluator evaluate-single --rubric missing.yaml -s sys.txt -i in.txt -n 1
+Error loading rubric: Rubric file not found: /path/to/missing.yaml. 
+Please provide a valid file path or use a preset: code-review, content-quality, default
+```
+
+**Directory Instead of File:**
+```bash
+$ prompt-evaluator show-rubric --rubric examples/rubrics/
+Error loading rubric: Rubric path points to a directory: /path/to/examples/rubrics. 
+Please provide a path to a rubric file (.yaml, .yml, or .json)
+```
+
+**Malformed Rubric File:**
+```bash
+$ prompt-evaluator show-rubric --rubric bad-rubric.yaml
+Error loading rubric: Rubric must contain at least one metric
 ```
 
 ### Edge Cases

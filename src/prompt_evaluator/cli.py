@@ -21,6 +21,7 @@ prompt evaluations, managing configurations, and viewing results.
 import json
 import sys
 import uuid
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -239,6 +240,11 @@ def evaluate_single(
     judge_system_prompt: str | None = typer.Option(
         None, "--judge-system-prompt", help="Path to custom judge system prompt file"
     ),
+    rubric: str | None = typer.Option(
+        None,
+        "--rubric",
+        help="Rubric to use for evaluation. Can be a preset alias (default, content-quality, code-review) or a path to a rubric file (.yaml/.json). Defaults to 'default' if not specified.",
+    ),
     seed: int | None = typer.Option(
         None, "--seed", help="Random seed for generator reproducibility"
     ),
@@ -289,6 +295,17 @@ def evaluate_single(
             raise typer.Exit(1)
 
         user_prompt_content = input_file_path.read_text(encoding="utf-8")
+
+        # Load rubric (preset, custom, or default)
+        try:
+            from prompt_evaluator.config import load_rubric, resolve_rubric_path
+
+            rubric_path = resolve_rubric_path(rubric)
+            loaded_rubric = load_rubric(rubric_path)
+            typer.echo(f"Using rubric: {rubric_path}", err=True)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error loading rubric: {e}", err=True)
+            raise typer.Exit(1)
 
         # Load judge prompt (custom or default)
         try:
@@ -377,6 +394,7 @@ def evaluate_single(
                     judge_config=judge_config,
                     judge_system_prompt=judge_prompt_content,
                     task_description=task_description,
+                    rubric=loaded_rubric,
                 )
 
                 # Create sample with judge results
@@ -494,6 +512,42 @@ def evaluate_single(
         raise typer.Exit(1)
     except (KeyboardInterrupt, SystemExit):
         raise
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command()
+def show_rubric(
+    rubric: str | None = typer.Option(
+        None,
+        "--rubric",
+        help="Rubric to display. Can be a preset alias (default, content-quality, code-review) or a path to a rubric file (.yaml/.json). Defaults to 'default' if not specified.",
+    ),
+) -> None:
+    """
+    Display the effective rubric as JSON without running an evaluation.
+
+    This command loads and validates a rubric file, then outputs it as formatted
+    JSON for inspection. Useful for validating rubric files before running evaluations.
+    """
+    try:
+        from prompt_evaluator.config import load_rubric, resolve_rubric_path
+
+        # Resolve and load the rubric
+        rubric_path = resolve_rubric_path(rubric)
+        loaded_rubric = load_rubric(rubric_path)
+
+        # Convert rubric to dictionary for JSON output using dataclass serialization
+        rubric_dict = asdict(loaded_rubric)
+        rubric_dict["rubric_path"] = str(rubric_path)
+
+        # Print the rubric as formatted JSON to stdout
+        typer.echo(json.dumps(rubric_dict, indent=2))
+
+    except (FileNotFoundError, ValueError) as e:
+        typer.echo(f"Error loading rubric: {e}", err=True)
+        raise typer.Exit(1)
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)

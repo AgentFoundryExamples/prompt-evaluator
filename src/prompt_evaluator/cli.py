@@ -52,6 +52,12 @@ app = typer.Typer(
     add_completion=False,
 )
 
+# Configuration constants for evaluate-dataset command
+DEFAULT_NUM_SAMPLES = 5  # Default number of samples per test case
+QUICK_MODE_NUM_SAMPLES = 2  # Number of samples in quick mode
+HIGH_STD_ABSOLUTE_THRESHOLD = 1.0  # Absolute std threshold for high variability warning
+HIGH_STD_RELATIVE_THRESHOLD = 0.2  # Relative std/mean threshold for high variability warning
+
 
 def compute_rubric_metadata(rubric: Rubric | None, rubric_path: Path | None) -> dict[str, Any]:
     """
@@ -741,8 +747,8 @@ def evaluate_dataset(
     system_prompt: str = typer.Option(
         ..., "--system-prompt", "-s", help="Path to generator system prompt file"
     ),
-    num_samples: int = typer.Option(
-        ..., "--num-samples", "-n", help="Number of samples to generate per test case"
+    num_samples: int | None = typer.Option(
+        None, "--num-samples", "-n", help="Number of samples to generate per test case (default: 5)"
     ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
@@ -771,6 +777,15 @@ def evaluate_dataset(
     max_completion_tokens: int | None = typer.Option(
         None, "--max-tokens", help="Maximum tokens for generator"
     ),
+    case_ids: str | None = typer.Option(
+        None, "--case-ids", help="Comma-separated list of test case IDs to evaluate"
+    ),
+    max_cases: int | None = typer.Option(
+        None, "--max-cases", help="Maximum number of test cases to evaluate"
+    ),
+    quick: bool = typer.Option(
+        False, "--quick", help="Quick mode: sets --num-samples=2 unless explicitly overridden"
+    ),
     output_dir: str = typer.Option(
         "runs", "--output-dir", "-o", help="Output directory for evaluation runs"
     ),
@@ -784,8 +799,26 @@ def evaluate_dataset(
     This command loads a dataset, generates N samples for each test case,
     judges each sample, and computes per-case and overall statistics.
     Results are streamed to disk as JSON files.
+
+    Supports filtering by case IDs, limiting total cases, quick mode for testing,
+    and resuming from interrupted runs.
     """
     try:
+        # Handle --quick flag and num_samples interaction
+        if quick and num_samples is not None:
+            typer.echo(
+                "Warning: Both --quick and --num-samples provided. "
+                f"Using explicit --num-samples={num_samples}",
+                err=True
+            )
+        elif quick:
+            num_samples = QUICK_MODE_NUM_SAMPLES
+            typer.echo(f"Quick mode: Using --num-samples={num_samples}", err=True)
+        elif num_samples is None:
+            # Default if neither quick nor explicit num_samples provided
+            num_samples = DEFAULT_NUM_SAMPLES
+            typer.echo(f"Using default --num-samples={num_samples}", err=True)
+
         # Validate num_samples
         if num_samples <= 0:
             typer.echo("Error: --num-samples must be positive", err=True)
@@ -806,6 +839,39 @@ def evaluate_dataset(
         typer.echo(f"Loading dataset from {dataset_path}...", err=True)
         test_cases, dataset_metadata = load_dataset(dataset_path)
         typer.echo(f"Loaded {len(test_cases)} test cases", err=True)
+
+        # Apply case-ids filter if provided
+        if case_ids:
+            requested_ids = [cid.strip() for cid in case_ids.split(",")]
+            test_case_map = {tc.id: tc for tc in test_cases}
+            available_ids = set(test_case_map.keys())
+
+            # Validate all requested IDs exist
+            unknown_ids = [cid for cid in requested_ids if cid not in available_ids]
+            if unknown_ids:
+                typer.echo(
+                    f"Error: Unknown test case IDs: {', '.join(unknown_ids)}",
+                    err=True
+                )
+                typer.echo(
+                    f"Available IDs: {', '.join(sorted(available_ids))}",
+                    err=True
+                )
+                raise typer.Exit(1)
+
+            # Filter test cases, preserving user-specified order
+            test_cases = [test_case_map[cid] for cid in requested_ids]
+            typer.echo(f"Filtered to {len(test_cases)} test cases by --case-ids", err=True)
+
+        # Apply max-cases filter if provided
+        if max_cases is not None:
+            if max_cases <= 0:
+                typer.echo("Error: --max-cases must be positive", err=True)
+                raise typer.Exit(1)
+
+            if len(test_cases) > max_cases:
+                test_cases = test_cases[:max_cases]
+                typer.echo(f"Limited to first {max_cases} test cases by --max-cases", err=True)
 
         # Read system prompt
         system_prompt_path = Path(system_prompt)
@@ -932,6 +998,42 @@ def evaluate_dataset(
             typer.echo(f"Test Cases Partial: {num_partial}", err=True)
         if num_failed > 0:
             typer.echo(f"Test Cases Failed: {num_failed}", err=True)
+
+        # Print per-case metric statistics with std highlighting
+        if evaluation_run.test_case_results:
+            typer.echo("\nPer-Case Metric Statistics:", err=True)
+            for tc in evaluation_run.test_case_results:
+                if tc.status in ("completed", "partial") and tc.per_metric_stats:
+                    typer.echo(f"\n  Case: {tc.test_case_id}", err=True)
+                    for metric_name, metric_data in tc.per_metric_stats.items():
+                        count_val = metric_data.get("count", 0)
+                        if isinstance(count_val, int) and count_val > 0:
+                            mean = metric_data.get("mean")
+                            std = metric_data.get("std")
+
+                            # Highlight high standard deviation
+                            std_warning = ""
+                            if (
+                                std is not None
+                                and mean is not None
+                                and isinstance(std, (int, float))
+                                and isinstance(mean, (int, float))
+                                and count_val > 1
+                            ):
+                                is_high_absolute = std > HIGH_STD_ABSOLUTE_THRESHOLD
+                                is_high_relative = (
+                                    mean != 0 and (std / abs(mean)) > HIGH_STD_RELATIVE_THRESHOLD
+                                )
+                                if is_high_absolute or is_high_relative:
+                                    std_warning = " ⚠️ HIGH VARIABILITY"
+
+                            std_str = f"std={std:.2f}" if std is not None else "std=N/A"
+                            mean_str = f"mean={mean:.2f}" if mean is not None else "mean=N/A"
+
+                            typer.echo(
+                                f"    {metric_name}: {mean_str}, {std_str}{std_warning}",
+                                err=True
+                            )
 
         # Print overall metric statistics
         if evaluation_run.overall_metric_stats:

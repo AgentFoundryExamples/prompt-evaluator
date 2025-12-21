@@ -653,6 +653,319 @@ The architecture is designed for future enhancements:
 
 Contributions and feedback on prioritization are welcome!
 
+### Evaluate-Dataset Command
+
+The `evaluate-dataset` command evaluates multiple test cases from a dataset file, generating N samples per case and computing per-case and overall statistics. This is ideal for systematic prompt testing across diverse inputs.
+
+```bash
+# Basic usage with a dataset file
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --num-samples 5
+
+# Quick testing mode (2 samples per case)
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --quick
+
+# Filter to specific test cases
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --num-samples 3 \
+  --case-ids test-001,test-003
+
+# Limit number of test cases evaluated
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --num-samples 3 \
+  --max-cases 5
+
+# With custom models and rubric
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --num-samples 10 \
+  --generator-model gpt-4 \
+  --judge-model gpt-4 \
+  --rubric content-quality \
+  --temperature 0.7 \
+  --seed 42
+```
+
+#### Command Parameters
+
+**Required Parameters:**
+
+- `--dataset`, `-d`: Path to dataset file (`.yaml`, `.yml`, or `.jsonl`)
+- `--system-prompt`, `-s`: Path to the generator's system prompt file
+
+**Optional Parameters:**
+
+- `--num-samples`, `-n`: Number of samples to generate per test case (default: 5)
+- `--quick`: Quick mode flag - sets num-samples to 2 for fast testing (overridden by explicit `--num-samples`)
+- `--case-ids`: Comma-separated list of test case IDs to evaluate (filters dataset to specific cases)
+- `--max-cases`: Maximum number of test cases to evaluate (applies after --case-ids filter)
+- `--generator-model`: Override the generator model (default: from config or `gpt-5.1`)
+- `--judge-model`: Override the judge model (default: same as generator model)
+- `--judge-system-prompt`: Path to custom judge prompt file (default: built-in rubric-aware prompt)
+- `--rubric`: Rubric to use (preset alias or file path, default: `default`)
+- `--seed`: Random seed for generator reproducibility
+- `--temperature`, `-t`: Generator temperature 0.0-2.0 (default: 0.7)
+- `--max-tokens`: Maximum completion tokens for generator (default: 1024)
+- `--output-dir`, `-o`: Directory for run artifacts (default: `runs/`)
+- `--config`, `-c`: Path to config file for API credentials
+
+#### Filtering Options
+
+**Filter by Case IDs (`--case-ids`):**
+
+Select specific test cases to evaluate:
+
+```bash
+# Evaluate only test-001 and test-003
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --case-ids test-001,test-003 \
+  --num-samples 5
+```
+
+The command will:
+- Validate all case IDs exist in the dataset
+- Fail fast with a list of unknown IDs if any are invalid
+- Show available case IDs in the error message
+
+**Limit Total Cases (`--max-cases`):**
+
+Evaluate only the first N test cases (useful for quick runs or sampling):
+
+```bash
+# Evaluate first 5 test cases from dataset
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --max-cases 5 \
+  --num-samples 3
+```
+
+**Combining Filters:**
+
+Filters are applied in order: `--case-ids` first, then `--max-cases`:
+
+```bash
+# Filter to specific cases, then limit to first 2
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --case-ids test-001,test-002,test-003 \
+  --max-cases 2 \
+  --num-samples 3
+```
+
+This evaluates test-001 and test-002 (first 2 after filtering).
+
+#### Quick Mode
+
+The `--quick` flag is designed for rapid testing and iteration:
+
+```bash
+# Quick mode: 2 samples per case
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --quick
+```
+
+**Behavior:**
+- Sets `--num-samples=2` automatically
+- Can be combined with `--max-cases` for even faster testing
+- If explicit `--num-samples` is provided, it takes precedence and a warning is shown
+
+**Warning Example:**
+```bash
+# Both --quick and --num-samples provided
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --quick \
+  --num-samples 10
+
+# Output: Warning: Both --quick and --num-samples provided. Using explicit --num-samples=10
+```
+
+#### Output and Progress
+
+**Progress Output:**
+
+The command prints detailed progress to stderr:
+
+```
+Loading dataset from examples/datasets/sample.yaml...
+Loaded 3 test cases
+Using default --num-samples=5
+Using rubric: /path/to/examples/rubrics/default.yaml
+
+============================================================
+Starting Dataset Evaluation
+============================================================
+Dataset: examples/datasets/sample.yaml
+Test Cases: 3
+Samples per Case: 5
+Generator Model: gpt-5.1
+Judge Model: gpt-5.1
+============================================================
+
+Evaluating test case 1/3: test-001...
+  Completed 5/5 samples successfully
+Evaluating test case 2/3: test-002...
+  Completed 5/5 samples successfully
+Evaluating test case 3/3: test-003...
+  Completed 4/5 samples successfully
+
+============================================================
+Dataset Evaluation Complete!
+============================================================
+Run ID: abc123-def456-...
+Status: partial
+Test Cases Completed: 2/3
+Test Cases Partial: 1
+
+Per-Case Metric Statistics:
+
+  Case: test-001
+    semantic_fidelity: mean=4.20, std=0.45
+    clarity: mean=4.50, std=1.20 ⚠️ HIGH VARIABILITY
+
+  Case: test-002
+    semantic_fidelity: mean=3.80, std=0.30
+    clarity: mean=4.00, std=0.50
+
+  Case: test-003
+    semantic_fidelity: mean=4.00, std=1.50 ⚠️ HIGH VARIABILITY
+    clarity: mean=3.75, std=0.85
+
+Overall Metric Statistics (mean of per-case means):
+  semantic_fidelity: mean=4.00, min=3.80, max=4.20, cases=3
+  clarity: mean=4.08, min=3.75, max=4.50, cases=3
+
+Results saved to: runs/abc123-def456-.../dataset_evaluation.json
+============================================================
+```
+
+**High Variability Warning:**
+
+The command highlights metrics with high standard deviation (>1.0 or >20% of mean) with a ⚠️ warning. This helps identify:
+- Inconsistent prompt behavior across samples
+- Metrics sensitive to temperature or sampling variation
+- Cases requiring additional investigation
+
+#### Artifact Output
+
+Each dataset evaluation creates artifacts in a unique run directory:
+
+**Main artifact:**
+- `dataset_evaluation.json` - Complete evaluation results with all test cases and samples
+
+**Per-case artifacts:**
+- `test_case_<id>.json` - Individual results for each test case (streamed during evaluation)
+
+**Location:**
+- Default: `runs/<run_id>/dataset_evaluation.json`
+- Custom: `<output-dir>/<run_id>/dataset_evaluation.json` (when using `--output-dir`)
+
+**Output Structure:**
+
+The `dataset_evaluation.json` file includes:
+
+```json
+{
+  "run_id": "abc123-...",
+  "dataset_path": "/path/to/dataset.yaml",
+  "dataset_hash": "sha256-hash",
+  "dataset_count": 3,
+  "num_samples_per_case": 5,
+  "status": "completed",
+  "timestamp_start": "2025-12-21T10:00:00+00:00",
+  "timestamp_end": "2025-12-21T10:15:00+00:00",
+  "generator_config": { ... },
+  "judge_config": { ... },
+  "rubric_metadata": { ... },
+  "test_case_results": [
+    {
+      "test_case_id": "test-001",
+      "status": "completed",
+      "samples": [ ... ],
+      "per_metric_stats": {
+        "semantic_fidelity": {
+          "mean": 4.2,
+          "std": 0.45,
+          "min": 3.5,
+          "max": 5.0,
+          "count": 5
+        }
+      },
+      "per_flag_stats": { ... }
+    }
+  ],
+  "overall_metric_stats": {
+    "semantic_fidelity": {
+      "mean_of_means": 4.0,
+      "min_of_means": 3.8,
+      "max_of_means": 4.2,
+      "num_cases": 3
+    }
+  },
+  "overall_flag_stats": { ... }
+}
+```
+
+#### Error Handling
+
+**Missing Dataset File:**
+```bash
+$ prompt-evaluator evaluate-dataset -d missing.yaml -s sys.txt
+Error: Dataset file not found: missing.yaml
+```
+
+**Unknown Case IDs:**
+```bash
+$ prompt-evaluator evaluate-dataset -d data.yaml -s sys.txt --case-ids unknown
+Error: Unknown test case IDs: unknown
+Available IDs: test-001, test-002, test-003
+```
+
+**Invalid Filters:**
+```bash
+$ prompt-evaluator evaluate-dataset -d data.yaml -s sys.txt --max-cases 0
+Error: --max-cases must be positive
+```
+
+**Partial Failures:**
+
+If some samples fail during evaluation:
+- The run continues for remaining test cases
+- Status is set to "partial" if at least one case succeeds
+- Failed samples are recorded with error details
+- Aggregate statistics exclude failed samples
+
+#### Current Limitations
+
+**No Resume Support (Yet):**
+- If a run is interrupted, you must start over
+- Future versions will support resuming from partial artifacts
+
+**Sequential Processing:**
+- Test cases are evaluated sequentially, not in parallel
+- Large datasets may take significant time
+
+**No Progress Bar:**
+- Progress is shown as text messages, not a visual progress bar
+- Consider using `--max-cases` for quick testing
+
 ## Roadmap
 
 - [x] Project scaffolding and structure

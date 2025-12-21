@@ -208,6 +208,57 @@ class TestSample:
         assert result["status"] == "completed"
         assert result["task_description"] == "Explain programming"
 
+    def test_sample_judge_metrics_validation(self):
+        """Test that judge_metrics are validated in __post_init__."""
+        # Valid metrics should work
+        sample = Sample(
+            sample_id="sample-9",
+            input_text="test",
+            generator_output="test",
+            judge_metrics={"quality": {"score": 4.0, "rationale": "Good"}},
+            status="completed",
+        )
+        assert sample.judge_metrics["quality"]["score"] == 4.0
+
+        # Missing score field should fail
+        with pytest.raises(ValueError, match="must have a 'score' field"):
+            Sample(
+                sample_id="sample-10",
+                input_text="test",
+                generator_output="test",
+                judge_metrics={"quality": {"rationale": "Good"}},
+            )
+
+        # Non-numeric score should fail
+        with pytest.raises(ValueError, match="score must be numeric"):
+            Sample(
+                sample_id="sample-11",
+                input_text="test",
+                generator_output="test",
+                judge_metrics={"quality": {"score": "high", "rationale": "Good"}},
+            )
+
+    def test_sample_judge_flags_validation(self):
+        """Test that judge_flags are validated in __post_init__."""
+        # Valid flags should work
+        sample = Sample(
+            sample_id="sample-12",
+            input_text="test",
+            generator_output="test",
+            judge_flags={"has_issues": False},
+            status="completed",
+        )
+        assert sample.judge_flags["has_issues"] is False
+
+        # Non-boolean flag should fail
+        with pytest.raises(ValueError, match="must be boolean"):
+            Sample(
+                sample_id="sample-13",
+                input_text="test",
+                generator_output="test",
+                judge_flags={"has_issues": "false"},
+            )
+
 
 class TestSingleEvaluationRun:
     """Tests for SingleEvaluationRun dataclass."""
@@ -1242,3 +1293,69 @@ class TestRubricAwareJudge:
         assert result["status"] == "judge_invalid_response"
         assert "Missing required field: metrics" in result["error"]
         assert result["judge_raw_response"] == invalid_json
+
+    def test_parse_rubric_judge_response_nested_json(self):
+        """Test that nested JSON structures are handled correctly."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate quality",
+                ),
+            ],
+        )
+
+        # Response with nested object in commentary (should extract first complete JSON)
+        response_with_nested = (
+            'Here is my evaluation: {"metrics": {"quality": {"score": 4.0, '
+            '"rationale": "Good"}}, "flags": {}, "overall_comment": "Well done"} '
+            'And here is some data: {"extra": "info"}'
+        )
+
+        result = parse_rubric_judge_response(response_with_nested, rubric)
+
+        assert result["status"] == "completed"
+        assert result["judge_metrics"]["quality"]["score"] == 4.0
+
+    def test_parse_rubric_judge_response_escaped_braces(self):
+        """Test handling of escaped braces in strings."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import parse_rubric_judge_response
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate quality",
+                ),
+            ],
+        )
+
+        # JSON with escaped braces in rationale
+        response_json = json.dumps(
+            {
+                "metrics": {
+                    "quality": {
+                        "score": 4.0,
+                        "rationale": "Uses {templates} correctly",
+                    }
+                },
+                "flags": {},
+                "overall_comment": "Good use of {syntax}",
+            }
+        )
+
+        result = parse_rubric_judge_response(response_json, rubric)
+
+        assert result["status"] == "completed"
+        assert result["judge_metrics"]["quality"]["score"] == 4.0
+        assert "templates" in result["judge_metrics"]["quality"]["rationale"]

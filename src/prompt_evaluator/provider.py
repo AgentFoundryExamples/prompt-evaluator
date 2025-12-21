@@ -235,6 +235,17 @@ def build_rubric_judge_prompt(rubric: Any) -> str:
     Returns:
         System prompt string instructing judge to evaluate based on rubric
     """
+    # Helper function to sanitize text for prompt inclusion
+    def sanitize_text(text: str) -> str:
+        """Remove control characters and limit length for safe prompt inclusion."""
+        # Remove control characters except newlines and tabs
+        sanitized = "".join(char for char in text if char.isprintable() or char in "\n\t")
+        # Limit length to prevent excessively long prompts
+        max_length = 5000
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length] + "..."
+        return sanitized
+
     prompt_parts = [
         "You are an expert evaluator assessing AI-generated responses "
         "using a structured rubric.",
@@ -248,13 +259,13 @@ def build_rubric_judge_prompt(rubric: Any) -> str:
 
     # Enumerate each metric
     for metric in rubric.metrics:
-        prompt_parts.append(f"### {metric.name}")
-        prompt_parts.append(f"**Description:** {metric.description}")
+        prompt_parts.append(f"### {sanitize_text(metric.name)}")
+        prompt_parts.append(f"**Description:** {sanitize_text(metric.description)}")
         prompt_parts.append(
             f"**Score Range:** {metric.min_score} (minimum) to {metric.max_score} (maximum)"
         )
         prompt_parts.append("**Guidelines:**")
-        prompt_parts.append(metric.guidelines)
+        prompt_parts.append(sanitize_text(metric.guidelines))
         prompt_parts.append("")
 
     # Enumerate flags if present
@@ -262,20 +273,22 @@ def build_rubric_judge_prompt(rubric: Any) -> str:
         prompt_parts.append("## FLAGS")
         prompt_parts.append("")
         for flag in rubric.flags:
-            prompt_parts.append(f"### {flag.name}")
-            prompt_parts.append(f"**Description:** {flag.description}")
+            prompt_parts.append(f"### {sanitize_text(flag.name)}")
+            prompt_parts.append(f"**Description:** {sanitize_text(flag.description)}")
             prompt_parts.append("**Type:** Boolean (true/false)")
             prompt_parts.append("")
 
     # Build JSON schema
     metrics_schema = {}
     for metric in rubric.metrics:
-        metrics_schema[metric.name] = {
+        # Use sanitized metric name as key
+        metric_name = sanitize_text(metric.name)
+        metrics_schema[metric_name] = {
             "score": f"<number between {metric.min_score} and {metric.max_score}>",
             "rationale": "<string explaining your score in 1-3 sentences>",
         }
 
-    flags_schema = {flag.name: "<boolean true or false>" for flag in rubric.flags}
+    flags_schema = {sanitize_text(flag.name): "<boolean true or false>" for flag in rubric.flags}
 
     schema_example = {
         "metrics": metrics_schema,
@@ -338,11 +351,44 @@ def parse_rubric_judge_response(
             elif "```" in cleaned:
                 cleaned = cleaned.split("```")[1].split("```")[0]
 
-            # Find first { and last } to capture the entire JSON object
+            # Try to extract valid JSON by finding matching braces
+            # Use a stack-based approach to handle nested structures correctly
             start_index = cleaned.find("{")
-            end_index = cleaned.rfind("}")
-            if start_index == -1 or end_index == -1 or end_index < start_index:
+            if start_index == -1:
                 raise ValueError("No JSON object found in response")
+
+            # Track brace depth to find the matching closing brace
+            brace_count = 0
+            end_index = -1
+            in_string = False
+            escape_next = False
+
+            for i in range(start_index, len(cleaned)):
+                char = cleaned[i]
+
+                if escape_next:
+                    escape_next = False
+                    continue
+
+                if char == "\\":
+                    escape_next = True
+                    continue
+
+                if char == '"':
+                    in_string = not in_string
+                    continue
+
+                if not in_string:
+                    if char == "{":
+                        brace_count += 1
+                    elif char == "}":
+                        brace_count -= 1
+                        if brace_count == 0:
+                            end_index = i
+                            break
+
+            if end_index == -1:
+                raise ValueError("No complete JSON object found in response")
 
             json_str = cleaned[start_index : end_index + 1]
             parsed = json.loads(json_str)

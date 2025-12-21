@@ -288,6 +288,34 @@ class Sample:
         if self.judge_score is not None and (self.judge_score < 1.0 or self.judge_score > 5.0):
             raise ValueError(f"judge_score must be between 1.0 and 5.0, got {self.judge_score}")
 
+        # Validate judge_metrics structure if present
+        if self.judge_metrics:
+            for metric_name, metric_data in self.judge_metrics.items():
+                if not isinstance(metric_data, dict):
+                    raise ValueError(
+                        f"Metric '{metric_name}' data must be a dict, "
+                        f"got {type(metric_data).__name__}"
+                    )
+                if "score" not in metric_data:
+                    raise ValueError(f"Metric '{metric_name}' must have a 'score' field")
+                if "rationale" not in metric_data:
+                    raise ValueError(f"Metric '{metric_name}' must have a 'rationale' field")
+                # Basic numeric validation for score
+                if not isinstance(metric_data["score"], (int, float)):
+                    raise ValueError(
+                        f"Metric '{metric_name}' score must be numeric, "
+                        f"got {type(metric_data['score']).__name__}"
+                    )
+
+        # Validate judge_flags structure if present
+        if self.judge_flags:
+            for flag_name, flag_value in self.judge_flags.items():
+                if not isinstance(flag_value, bool):
+                    raise ValueError(
+                        f"Flag '{flag_name}' must be boolean, "
+                        f"got {type(flag_value).__name__}"
+                    )
+
     def to_dict(self) -> dict[str, Any]:
         """
         Convert the Sample to a JSON-compatible dictionary.

@@ -436,7 +436,9 @@ class TestComputeOverallStatistics:
             test_case_id="tc1",
             test_case_input="test1",
             status="completed",
-            per_metric_stats={"metric1": {"mean": 4.0, "std": 0.5, "min": 3.5, "max": 4.5, "count": 3}},
+            per_metric_stats={
+                "metric1": {"mean": 4.0, "std": 0.5, "min": 3.5, "max": 4.5, "count": 3}
+            },
             per_flag_stats={},
         )
 
@@ -444,7 +446,9 @@ class TestComputeOverallStatistics:
             test_case_id="tc2",
             test_case_input="test2",
             status="completed",
-            per_metric_stats={"metric1": {"mean": 5.0, "std": 0.0, "min": 5.0, "max": 5.0, "count": 2}},
+            per_metric_stats={
+                "metric1": {"mean": 5.0, "std": 0.0, "min": 5.0, "max": 5.0, "count": 2}
+            },
             per_flag_stats={},
         )
 
@@ -452,7 +456,9 @@ class TestComputeOverallStatistics:
             test_case_id="tc3",
             test_case_input="test3",
             status="completed",
-            per_metric_stats={"metric1": {"mean": 3.0, "std": 1.0, "min": 2.0, "max": 4.0, "count": 4}},
+            per_metric_stats={
+                "metric1": {"mean": 3.0, "std": 1.0, "min": 2.0, "max": 4.0, "count": 4}
+            },
             per_flag_stats={},
         )
 
@@ -490,7 +496,9 @@ class TestComputeOverallStatistics:
             test_case_id="tc1",
             test_case_input="test1",
             status="completed",
-            per_metric_stats={"metric1": {"mean": 4.0, "std": 0.0, "min": 4.0, "max": 4.0, "count": 3}},
+            per_metric_stats={
+                "metric1": {"mean": 4.0, "std": 0.0, "min": 4.0, "max": 4.0, "count": 3}
+            },
             per_flag_stats={
                 "flag1": {
                     "true_count": 2,
@@ -506,7 +514,9 @@ class TestComputeOverallStatistics:
             test_case_id="tc2",
             test_case_input="test2",
             status="completed",
-            per_metric_stats={"metric1": {"mean": 5.0, "std": 0.0, "min": 5.0, "max": 5.0, "count": 3}},
+            per_metric_stats={
+                "metric1": {"mean": 5.0, "std": 0.0, "min": 5.0, "max": 5.0, "count": 3}
+            },
             per_flag_stats={
                 "flag1": {
                     "true_count": 1,
@@ -561,7 +571,9 @@ class TestComputeOverallStatistics:
             test_case_id="tc1",
             test_case_input="test1",
             status="completed",
-            per_metric_stats={"metric1": {"mean": 4.0, "std": 0.0, "min": 4.0, "max": 4.0, "count": 3}},
+            per_metric_stats={
+                "metric1": {"mean": 4.0, "std": 0.0, "min": 4.0, "max": 4.0, "count": 3}
+            },
             per_flag_stats={},
         )
 
@@ -569,7 +581,9 @@ class TestComputeOverallStatistics:
             test_case_id="tc2",
             test_case_input="test2",
             status="failed",
-            per_metric_stats={"metric1": {"mean": 5.0, "std": 0.0, "min": 5.0, "max": 5.0, "count": 3}},
+            per_metric_stats={
+                "metric1": {"mean": 5.0, "std": 0.0, "min": 5.0, "max": 5.0, "count": 3}
+            },
             per_flag_stats={},
         )
 

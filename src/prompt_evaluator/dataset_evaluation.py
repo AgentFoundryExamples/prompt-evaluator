@@ -145,8 +145,8 @@ def compute_overall_statistics(
     for metric in rubric.metrics:
         metric_name = metric.name
         # Collect per-case means for this metric
-        per_case_means = [
-            tc.per_metric_stats[metric_name]["mean"]
+        per_case_means: list[float | int] = [
+            tc.per_metric_stats[metric_name]["mean"]  # type: ignore[misc]
             for tc in test_case_results
             if tc.status == "completed"
             and metric_name in tc.per_metric_stats
@@ -172,15 +172,15 @@ def compute_overall_statistics(
     for flag in rubric.flags:
         flag_name = flag.name
         # Aggregate flag counts across all test cases
-        total_true = 0
-        total_false = 0
-        total_count = 0
+        total_true: int = 0
+        total_false: int = 0
+        total_count: int = 0
 
         for tc in test_case_results:
             if tc.status == "completed" and flag_name in tc.per_flag_stats:
-                total_true += tc.per_flag_stats[flag_name]["true_count"]
-                total_false += tc.per_flag_stats[flag_name]["false_count"]
-                total_count += tc.per_flag_stats[flag_name]["total_count"]
+                total_true += int(tc.per_flag_stats[flag_name]["true_count"])
+                total_false += int(tc.per_flag_stats[flag_name]["false_count"])
+                total_count += int(tc.per_flag_stats[flag_name]["total_count"])
 
         overall_flag_stats[flag_name] = {
             "true_count": total_true,

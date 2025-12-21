@@ -28,8 +28,20 @@ from typing import Any
 import typer
 
 from prompt_evaluator.config import APIConfig
-from prompt_evaluator.models import GeneratorConfig, PromptRun
-from prompt_evaluator.provider import OpenAIProvider, generate_completion, get_provider
+from prompt_evaluator.models import (
+    GeneratorConfig,
+    JudgeConfig,
+    PromptRun,
+    Sample,
+    SingleEvaluationRun,
+    load_judge_prompt,
+)
+from prompt_evaluator.provider import (
+    OpenAIProvider,
+    generate_completion,
+    get_provider,
+    judge_completion,
+)
 
 app = typer.Typer(
     name="prompt-evaluator",
@@ -58,7 +70,9 @@ def generate(
     temperature: float | None = typer.Option(
         None, "--temperature", "-t", help="Temperature (0.0-2.0)"
     ),
-    max_completion_tokens: int | None = typer.Option(None, "--max-tokens", help="Maximum tokens to generate"),
+    max_completion_tokens: int | None = typer.Option(
+        None, "--max-tokens", help="Maximum tokens to generate"
+    ),
     seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
     output_dir: str = typer.Option("runs", "--output-dir", "-o", help="Output directory for runs"),
     config_file: str | None = typer.Option(
@@ -116,7 +130,9 @@ def generate(
         generator_config = GeneratorConfig(
             model_name=cli_overrides.get("model_name", base_config.model_name),
             temperature=cli_overrides.get("temperature", base_config.temperature),
-            max_completion_tokens=cli_overrides.get("max_completion_tokens", base_config.max_completion_tokens),
+            max_completion_tokens=cli_overrides.get(
+                "max_completion_tokens", base_config.max_completion_tokens
+            ),
             seed=cli_overrides.get("seed", base_config.seed),
         )
 
@@ -197,6 +213,286 @@ def generate(
         raise typer.Exit(1)
     except (KeyboardInterrupt, SystemExit):
         # Allow system signals to propagate
+        raise
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command()
+def evaluate_single(
+    system_prompt: str = typer.Option(
+        ..., "--system-prompt", "-s", help="Path to generator system prompt file"
+    ),
+    input_path: str = typer.Option(
+        ..., "--input", "-i", help="Path to input file"
+    ),
+    num_samples: int = typer.Option(
+        ..., "--num-samples", "-n", help="Number of samples to generate"
+    ),
+    generator_model: str | None = typer.Option(
+        None, "--generator-model", help="Generator model name override"
+    ),
+    judge_model: str | None = typer.Option(
+        None, "--judge-model", help="Judge model name override"
+    ),
+    judge_system_prompt: str | None = typer.Option(
+        None, "--judge-system-prompt", help="Path to custom judge system prompt file"
+    ),
+    seed: int | None = typer.Option(
+        None, "--seed", help="Random seed for generator reproducibility"
+    ),
+    temperature: float | None = typer.Option(
+        None, "--temperature", "-t", help="Generator temperature (0.0-2.0)"
+    ),
+    max_completion_tokens: int | None = typer.Option(
+        None, "--max-tokens", help="Maximum tokens for generator"
+    ),
+    output_dir: str = typer.Option(
+        "runs", "--output-dir", "-o", help="Output directory for evaluation runs"
+    ),
+    config_file: str | None = typer.Option(
+        None, "--config", "-c", help="Path to config file (YAML/TOML)"
+    ),
+    task_description: str | None = typer.Option(
+        None, "--task-description", help="Optional task description for judge context"
+    ),
+) -> None:
+    """
+    Evaluate a prompt by generating N samples and judging each output.
+
+    This command generates multiple completions for the same input, evaluates
+    each output using a judge model, and produces aggregate statistics.
+    """
+    try:
+        # Validate num_samples
+        if num_samples <= 0:
+            typer.echo("Error: --num-samples must be positive", err=True)
+            raise typer.Exit(1)
+
+        # Load API configuration
+        config_path = Path(config_file) if config_file else None
+        api_config = APIConfig(config_file_path=config_path)
+
+        # Read system prompt
+        system_prompt_path = Path(system_prompt)
+        if not system_prompt_path.exists():
+            typer.echo(f"Error: System prompt file not found: {system_prompt}", err=True)
+            raise typer.Exit(1)
+
+        system_prompt_content = system_prompt_path.read_text(encoding="utf-8")
+
+        # Read user input
+        input_file_path = Path(input_path)
+        if not input_file_path.exists():
+            typer.echo(f"Error: Input file not found: {input_path}", err=True)
+            raise typer.Exit(1)
+
+        user_prompt_content = input_file_path.read_text(encoding="utf-8")
+
+        # Load judge prompt (custom or default)
+        try:
+            if judge_system_prompt:
+                judge_prompt_path = Path(judge_system_prompt)
+                judge_prompt_content = load_judge_prompt(judge_prompt_path)
+            else:
+                judge_prompt_content = load_judge_prompt()
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error loading judge prompt: {e}", err=True)
+            raise typer.Exit(1)
+
+        # Build GeneratorConfig
+        base_gen_config = GeneratorConfig(model_name=api_config.model_name)
+        cli_overrides: dict[str, Any] = {}
+        if generator_model is not None:
+            cli_overrides["model_name"] = generator_model
+        if temperature is not None:
+            cli_overrides["temperature"] = temperature
+        if max_completion_tokens is not None:
+            cli_overrides["max_completion_tokens"] = max_completion_tokens
+        if seed is not None:
+            cli_overrides["seed"] = seed
+
+        generator_config = GeneratorConfig(
+            model_name=cli_overrides.get("model_name", base_gen_config.model_name),
+            temperature=cli_overrides.get("temperature", base_gen_config.temperature),
+            max_completion_tokens=cli_overrides.get(
+                "max_completion_tokens", base_gen_config.max_completion_tokens
+            ),
+            seed=cli_overrides.get("seed", base_gen_config.seed),
+        )
+
+        # Build JudgeConfig
+        judge_config = JudgeConfig(
+            model_name=judge_model if judge_model else api_config.model_name,
+            temperature=0.0,  # Use deterministic judge
+        )
+
+        # Create provider
+        provider = get_provider("openai", api_key=api_config.api_key, base_url=api_config.base_url)
+        assert isinstance(provider, OpenAIProvider)
+
+        # Create run metadata
+        run_id = str(uuid.uuid4())
+        timestamp = datetime.now(timezone.utc)
+        output_dir_path = Path(output_dir)
+
+        # Validate output path is a directory
+        if output_dir_path.exists() and not output_dir_path.is_dir():
+            typer.echo(
+                f"Error: Output path '{output_dir}' exists and is not a directory.",
+                err=True
+            )
+            raise typer.Exit(1)
+
+        run_dir = output_dir_path / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        typer.echo(f"Starting evaluation run {run_id}...", err=True)
+        typer.echo(f"Generating {num_samples} samples...", err=True)
+
+        # Generate and judge samples
+        samples: list[Sample] = []
+        for i in range(num_samples):
+            sample_id = f"{run_id}-sample-{i+1}"
+            typer.echo(f"  Sample {i+1}/{num_samples}...", err=True)
+
+            try:
+                # Generate completion
+                response_text, metadata = generate_completion(
+                    provider=provider,
+                    system_prompt=system_prompt_content,
+                    user_prompt=user_prompt_content,
+                    model=generator_config.model_name,
+                    temperature=generator_config.temperature,
+                    max_completion_tokens=generator_config.max_completion_tokens,
+                    seed=generator_config.seed,
+                )
+
+                # Judge the output
+                judge_result = judge_completion(
+                    provider=provider,
+                    input_text=user_prompt_content,
+                    generator_output=response_text,
+                    judge_config=judge_config,
+                    judge_system_prompt=judge_prompt_content,
+                    task_description=task_description,
+                )
+
+                # Create sample with judge results
+                sample = Sample(
+                    sample_id=sample_id,
+                    input_text=user_prompt_content,
+                    generator_output=response_text,
+                    judge_score=judge_result.get("judge_score"),
+                    judge_rationale=judge_result.get("judge_rationale"),
+                    judge_raw_response=judge_result.get("judge_raw_response"),
+                    status=judge_result["status"],
+                    task_description=task_description,
+                )
+
+                samples.append(sample)
+
+                # Display progress
+                if sample.status == "completed":
+                    typer.echo(
+                        f"    ✓ Generated and judged (score: {sample.judge_score:.1f}/5.0)",
+                        err=True
+                    )
+                else:
+                    error_msg = judge_result.get('error')
+                    typer.echo(f"    ⚠ Generated but judge error: {error_msg}", err=True)
+
+            except Exception as e:
+                typer.echo(f"    ✗ Error generating sample: {e}", err=True)
+                # Create a sample with error status
+                sample = Sample(
+                    sample_id=sample_id,
+                    input_text=user_prompt_content,
+                    generator_output="",
+                    status="generation_error",
+                    task_description=task_description,
+                )
+                samples.append(sample)
+
+        # Compute aggregate statistics
+        successful_scores = [
+            s.judge_score for s in samples
+            if s.status == "completed" and s.judge_score is not None
+        ]
+
+        stats: dict[str, float | int | None]
+        if successful_scores:
+            stats = {
+                "mean_score": sum(successful_scores) / len(successful_scores),
+                "min_score": min(successful_scores),
+                "max_score": max(successful_scores),
+                "num_successful": len(successful_scores),
+                "num_failed": len(samples) - len(successful_scores),
+            }
+        else:
+            stats = {
+                "mean_score": None,
+                "min_score": None,
+                "max_score": None,
+                "num_successful": 0,
+                "num_failed": len(samples),
+            }
+
+        # Create SingleEvaluationRun
+        evaluation_run = SingleEvaluationRun(
+            run_id=run_id,
+            timestamp=timestamp,
+            num_samples=num_samples,
+            generator_config=generator_config,
+            judge_config=judge_config,
+            samples=samples,
+        )
+
+        # Save evaluation results
+        evaluation_file = run_dir / "evaluate-single.json"
+        evaluation_dict = evaluation_run.to_dict()
+        # Add aggregate statistics
+        evaluation_dict["aggregate_stats"] = stats
+        # Add metadata about prompts
+        evaluation_dict["system_prompt_path"] = str(system_prompt_path)
+        evaluation_dict["input_path"] = str(input_file_path)
+        if judge_system_prompt:
+            evaluation_dict["judge_system_prompt_path"] = str(Path(judge_system_prompt))
+
+        evaluation_file.write_text(json.dumps(evaluation_dict, indent=2), encoding="utf-8")
+
+        # Print summary to stderr
+        typer.echo("\n" + "=" * 60, err=True)
+        typer.echo("Evaluation Complete!", err=True)
+        typer.echo(f"Run ID: {run_id}", err=True)
+        typer.echo(f"Generator Model: {generator_config.model_name}", err=True)
+        typer.echo(f"Judge Model: {judge_config.model_name}", err=True)
+        typer.echo(f"Total Samples: {num_samples}", err=True)
+        typer.echo(f"Successful: {stats['num_successful']}", err=True)
+        typer.echo(f"Failed: {stats['num_failed']}", err=True)
+
+        if stats["mean_score"] is not None:
+            typer.echo("\nAggregate Statistics:", err=True)
+            typer.echo(f"  Mean Score: {stats['mean_score']:.2f}/5.0", err=True)
+            typer.echo(f"  Min Score:  {stats['min_score']:.2f}/5.0", err=True)
+            typer.echo(f"  Max Score:  {stats['max_score']:.2f}/5.0", err=True)
+        else:
+            typer.echo("\nNo successful samples to compute statistics.", err=True)
+
+        typer.echo(f"\nResults saved to: {evaluation_file}", err=True)
+        typer.echo("=" * 60, err=True)
+
+        # Print JSON output to stdout for programmatic use
+        typer.echo(json.dumps(evaluation_dict, indent=2))
+
+    except ValueError as e:
+        typer.echo(f"Configuration error: {e}", err=True)
+        raise typer.Exit(1)
+    except FileNotFoundError as e:
+        typer.echo(f"File error: {e}", err=True)
+        raise typer.Exit(1)
+    except (KeyboardInterrupt, SystemExit):
         raise
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)

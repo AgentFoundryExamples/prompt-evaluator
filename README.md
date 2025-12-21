@@ -208,6 +208,103 @@ else
 fi
 ```
 
+### Evaluate-Single Command
+
+The `evaluate-single` command runs multiple generation samples for a single prompt/input pair, judges each output, and produces aggregate statistics. This is useful for assessing the consistency and quality of a prompt across multiple generations.
+
+```bash
+# Basic usage with 5 samples
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 5
+
+# With custom models and parameters
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 10 \
+  --generator-model gpt-4 \
+  --judge-model gpt-4 \
+  --seed 42 \
+  --temperature 0.7 \
+  --task-description "Explain programming concepts clearly"
+
+# With custom judge prompt
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 3 \
+  --judge-system-prompt custom_judge.txt
+```
+
+#### How it Works
+
+The command will:
+1. Read system and user prompts from files
+2. Generate N completions using the specified generator model
+3. Evaluate each completion using the judge model
+4. Compute aggregate statistics (mean, min, max scores)
+5. Save detailed results to `runs/<run_id>/evaluate-single.json`
+6. Print summary to stderr and full JSON to stdout
+
+#### Output Structure
+
+Each evaluation run generates a JSON file with:
+- **run_id**: Unique identifier for this evaluation
+- **timestamp**: When the evaluation was started
+- **num_samples**: Number of samples generated
+- **generator_config**: Configuration used for generation (model, temperature, etc.)
+- **judge_config**: Configuration used for judging
+- **samples**: Array of all samples with inputs, outputs, and judge scores
+- **aggregate_stats**: Computed statistics (mean/min/max scores, success/failure counts)
+
+Example output structure:
+```json
+{
+  "run_id": "abc123...",
+  "timestamp": "2025-12-21T06:00:00+00:00",
+  "num_samples": 3,
+  "generator_config": {
+    "model_name": "gpt-4",
+    "temperature": 0.7,
+    "max_completion_tokens": 1024,
+    "seed": 42
+  },
+  "judge_config": {
+    "model_name": "gpt-4",
+    "temperature": 0.0,
+    "max_completion_tokens": 512,
+    "seed": null
+  },
+  "samples": [
+    {
+      "sample_id": "abc123-sample-1",
+      "input_text": "What is Python?",
+      "generator_output": "Python is a programming language...",
+      "judge_score": 4.5,
+      "judge_rationale": "Excellent semantic preservation...",
+      "status": "completed"
+    }
+  ],
+  "aggregate_stats": {
+    "mean_score": 4.33,
+    "min_score": 4.0,
+    "max_score": 4.5,
+    "num_successful": 3,
+    "num_failed": 0
+  }
+}
+```
+
+#### Error Handling
+
+The evaluate-single command is resilient to failures:
+- If generation fails for a sample, it's recorded with error status
+- If judging fails (e.g., invalid JSON response), the sample is marked as "judge_error"
+- Aggregate statistics are computed only from successful samples
+- If all samples fail, statistics are set to null with clear messaging
+
 ## Roadmap
 
 - [x] Project scaffolding and structure
@@ -215,7 +312,7 @@ fi
 - [x] CLI commands for running evaluations
 - [x] LLM provider integrations (OpenAI, etc.)
 - [x] Judge models and evaluation data structures for semantic fidelity scoring
-- [ ] Evaluation metrics and reporting
+- [x] Evaluation command for running multiple samples with aggregate statistics
 - [ ] Result comparison and analysis tools
 
 ## Judge Models

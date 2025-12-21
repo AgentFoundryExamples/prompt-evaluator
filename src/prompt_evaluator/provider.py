@@ -18,6 +18,7 @@ This module provides a unified interface for interacting with different
 LLM providers (OpenAI, Anthropic, etc.) and handles API communication.
 """
 
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -222,3 +223,130 @@ def generate_completion(
     except Exception as e:
         logger.error("Unexpected error during completion: %s", e, exc_info=True)
         raise
+
+
+def judge_completion(
+    provider: OpenAIProvider,
+    input_text: str,
+    generator_output: str,
+    judge_config: Any,
+    judge_system_prompt: str,
+    task_description: str | None = None,
+) -> dict[str, Any]:
+    """
+    Call judge model to evaluate generator output and return structured results.
+
+    This function builds system+user messages, executes the provider API with the
+    configured judge model, enforces JSON schema, and returns structured results
+    or a judge_error status with raw text preserved.
+
+    Args:
+        provider: The OpenAI provider to use for judge model
+        input_text: Original input text
+        generator_output: Output from the generator model to evaluate
+        judge_config: JudgeConfig with model settings
+        judge_system_prompt: System prompt instructing judge on scoring
+        task_description: Optional description of the task for context
+
+    Returns:
+        Dictionary with keys:
+        - status: "completed" or "judge_error"
+        - judge_score: float (1-5) if status is "completed", None otherwise
+        - judge_rationale: str if status is "completed", None otherwise
+        - judge_raw_response: str with raw model output
+        - error: str with error details if status is "judge_error", None otherwise
+    """
+    # Build user message with input, output, and optional task description
+    user_parts = []
+
+    if task_description:
+        user_parts.append(f"Task: {task_description}\n")
+
+    user_parts.append(f"Original Input:\n{input_text}\n")
+    user_parts.append(f"Generated Output:\n{generator_output}\n")
+    user_parts.append("Please evaluate the semantic fidelity of the generated output.")
+
+    user_message = "\n".join(user_parts)
+
+    # Make API call
+    try:
+        response_text, metadata = generate_completion(
+            provider=provider,
+            system_prompt=judge_system_prompt,
+            user_prompt=user_message,
+            model=judge_config.model_name,
+            temperature=judge_config.temperature,
+            max_completion_tokens=judge_config.max_completion_tokens,
+            seed=judge_config.seed,
+        )
+
+        raw_response = response_text
+
+        # Try to extract and parse JSON from response
+        try:
+            # First try direct parsing
+            try:
+                parsed = json.loads(response_text)
+            except json.JSONDecodeError:
+                # Try to extract JSON object from text that may have additional content
+                # Find first { and last } to capture the entire JSON object
+                start_index = response_text.find("{")
+                end_index = response_text.rfind("}")
+                if start_index == -1 or end_index == -1 or end_index < start_index:
+                    raise ValueError("No JSON object found in response")
+
+                json_str = response_text[start_index : end_index + 1]
+                parsed = json.loads(json_str)
+
+            # Validate required fields
+            if "semantic_fidelity" not in parsed:
+                raise ValueError("Missing required field: semantic_fidelity")
+            if "rationale" not in parsed:
+                raise ValueError("Missing required field: rationale")
+
+            # Extract and validate score
+            score = float(parsed["semantic_fidelity"])
+
+            # Clamp score to valid range [1, 5]
+            if score < 1.0:
+                logger.warning("Judge score %s below minimum, clamping to 1.0", score)
+                score = 1.0
+            elif score > 5.0:
+                logger.warning("Judge score %s above maximum, clamping to 5.0", score)
+                score = 5.0
+
+            rationale = str(parsed["rationale"])
+
+            return {
+                "status": "completed",
+                "judge_score": score,
+                "judge_rationale": rationale,
+                "judge_raw_response": raw_response,
+                "error": None,
+            }
+
+        except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
+            # JSON parsing or validation failed
+            error_msg = f"Failed to parse judge response: {str(e)}"
+            logger.warning("%s. Raw response: %s", error_msg, raw_response[:200])
+
+            return {
+                "status": "judge_error",
+                "judge_score": None,
+                "judge_rationale": None,
+                "judge_raw_response": raw_response,
+                "error": error_msg,
+            }
+
+    except Exception as e:
+        # API call failed
+        error_msg = f"Judge API call failed: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+
+        return {
+            "status": "judge_error",
+            "judge_score": None,
+            "judge_rationale": None,
+            "judge_raw_response": None,
+            "error": error_msg,
+        }

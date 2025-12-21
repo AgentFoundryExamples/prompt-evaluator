@@ -236,9 +236,11 @@ def build_rubric_judge_prompt(rubric: Any) -> str:
         System prompt string instructing judge to evaluate based on rubric
     """
     prompt_parts = [
-        "You are an expert evaluator assessing AI-generated responses using a structured rubric.",
+        "You are an expert evaluator assessing AI-generated responses "
+        "using a structured rubric.",
         "",
-        "Your task is to evaluate the generated output based on multiple metrics and flags defined below.",
+        "Your task is to evaluate the generated output based on multiple "
+        "metrics and flags defined below.",
         "",
         "## METRICS",
         "",
@@ -262,7 +264,7 @@ def build_rubric_judge_prompt(rubric: Any) -> str:
         for flag in rubric.flags:
             prompt_parts.append(f"### {flag.name}")
             prompt_parts.append(f"**Description:** {flag.description}")
-            prompt_parts.append(f"**Type:** Boolean (true/false)")
+            prompt_parts.append("**Type:** Boolean (true/false)")
             prompt_parts.append("")
 
     # Build JSON schema
@@ -284,7 +286,9 @@ def build_rubric_judge_prompt(rubric: Any) -> str:
     # Add response format instructions
     prompt_parts.append("## RESPONSE FORMAT")
     prompt_parts.append("")
-    prompt_parts.append("You must respond with a valid JSON object containing exactly three fields:")
+    prompt_parts.append(
+        "You must respond with a valid JSON object containing exactly three fields:"
+    )
     prompt_parts.append("")
     prompt_parts.append("```json")
     prompt_parts.append(json.dumps(schema_example, indent=2))
@@ -387,8 +391,9 @@ def parse_rubric_judge_response(
             try:
                 score = float(metric_value["score"])
             except (TypeError, ValueError) as e:
+                score_type = type(metric_value["score"]).__name__
                 raise ValueError(
-                    f"Metric '{metric_name}' score must be numeric, got {type(metric_value['score']).__name__}"
+                    f"Metric '{metric_name}' score must be numeric, got {score_type}"
                 ) from e
 
             if score < metric.min_score or score > metric.max_score:

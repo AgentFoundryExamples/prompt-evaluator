@@ -250,7 +250,7 @@ class Sample:
         judge_rationale: Explanation for the judge's score, or None if not yet scored
                         (deprecated - use judge_metrics for rubric-based evaluation)
         judge_raw_response: Raw response from judge model for debugging
-        status: Status of evaluation ("pending", "completed", "judge_error", 
+        status: Status of evaluation ("pending", "completed", "judge_error",
                 "generation_error", "judge_invalid_response")
         task_description: Optional description of the task for context
         judge_metrics: Dict of metric results keyed by metric name, each containing

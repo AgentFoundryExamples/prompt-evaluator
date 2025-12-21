@@ -243,7 +243,11 @@ def evaluate_single(
     rubric: str | None = typer.Option(
         None,
         "--rubric",
-        help="Rubric to use for evaluation. Can be a preset alias (default, content-quality, code-review) or a path to a rubric file (.yaml/.json). Defaults to 'default' if not specified.",
+        help=(
+            "Rubric to use for evaluation. Can be a preset alias "
+            "(default, content-quality, code-review) or a path to a rubric file "
+            "(.yaml/.json). Defaults to 'default' if not specified."
+        ),
     ),
     seed: int | None = typer.Option(
         None, "--seed", help="Random seed for generator reproducibility"
@@ -537,7 +541,11 @@ def show_rubric(
     rubric: str | None = typer.Option(
         None,
         "--rubric",
-        help="Rubric to display. Can be a preset alias (default, content-quality, code-review) or a path to a rubric file (.yaml/.json). Defaults to 'default' if not specified.",
+        help=(
+            "Rubric to display. Can be a preset alias "
+            "(default, content-quality, code-review) or a path to a rubric file "
+            "(.yaml/.json). Defaults to 'default' if not specified."
+        ),
     ),
 ) -> None:
     """

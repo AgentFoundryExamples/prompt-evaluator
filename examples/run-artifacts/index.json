@@ -1,0 +1,242 @@
+{
+  "_comment": "This is a sample index file showing summaries of multiple evaluation runs.",
+  "_comment_usage": "This file demonstrates how you might track and compare multiple evaluation runs. The tool does not automatically create this file, but you can generate it manually or with custom scripts for tracking purposes.",
+  
+  "index_metadata": {
+    "created_at": "2025-12-21T23:00:00.000000+00:00",
+    "description": "Tracking multiple evaluation runs for prompt optimization",
+    "project": "prompt-evaluator-examples"
+  },
+  
+  "runs": [
+    {
+      "run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "description": "Baseline evaluation with default rubric and temperature 0.7",
+      "dataset_path": "/path/to/examples/datasets/sample.yaml",
+      "dataset_hash": "sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "dataset_count": 3,
+      "num_samples_per_case": 5,
+      "status": "partial",
+      "timestamp_start": "2025-12-21T10:00:00.000000+00:00",
+      "timestamp_end": "2025-12-21T10:15:30.123456+00:00",
+      "duration_seconds": 930.123,
+      "generator_model": "gpt-5.1",
+      "generator_temperature": 0.7,
+      "generator_seed": 42,
+      "judge_model": "gpt-5.1",
+      "rubric_path": "/path/to/examples/rubrics/default.yaml",
+      "test_cases_completed": 2,
+      "test_cases_partial": 0,
+      "test_cases_failed": 1,
+      "overall_metrics": {
+        "semantic_fidelity": {
+          "mean_of_means": 4.385,
+          "min_of_means": 4.1,
+          "max_of_means": 4.67
+        },
+        "clarity": {
+          "mean_of_means": 4.585,
+          "min_of_means": 4.5,
+          "max_of_means": 4.67
+        }
+      },
+      "artifact_path": "runs/a1b2c3d4-e5f6-7890-abcd-ef1234567890/dataset_evaluation.json",
+      "notes": "Partial run due to API errors on test-003. Consider rerunning with lower rate."
+    },
+    {
+      "run_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "description": "Low temperature (0.3) evaluation for consistency testing",
+      "dataset_path": "/path/to/examples/datasets/sample.yaml",
+      "dataset_hash": "sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "_comment_same_hash": "Same dataset hash indicates identical dataset content as previous run",
+      "dataset_count": 3,
+      "num_samples_per_case": 10,
+      "_comment_more_samples": "Increased to 10 samples per case for better statistical confidence",
+      "status": "completed",
+      "timestamp_start": "2025-12-21T14:00:00.000000+00:00",
+      "timestamp_end": "2025-12-21T14:25:45.678901+00:00",
+      "duration_seconds": 1545.678,
+      "generator_model": "gpt-5.1",
+      "generator_temperature": 0.3,
+      "_comment_lower_temp": "Lower temperature (0.3 vs 0.7) to test if it reduces variance",
+      "generator_seed": 42,
+      "judge_model": "gpt-5.1",
+      "rubric_path": "/path/to/examples/rubrics/default.yaml",
+      "test_cases_completed": 3,
+      "test_cases_partial": 0,
+      "test_cases_failed": 0,
+      "overall_metrics": {
+        "semantic_fidelity": {
+          "mean_of_means": 4.45,
+          "min_of_means": 4.3,
+          "max_of_means": 4.6
+        },
+        "_comment_improved_consistency": "Lower temperature resulted in tighter range (4.3-4.6 vs 4.1-4.67)",
+        "clarity": {
+          "mean_of_means": 4.5,
+          "min_of_means": 4.4,
+          "max_of_means": 4.6
+        }
+      },
+      "artifact_path": "runs/b2c3d4e5-f6a7-8901-bcde-f12345678901/dataset_evaluation.json",
+      "notes": "Completed successfully. Lower temperature reduced variance by ~30%. Recommend using temp=0.3 for production."
+    },
+    {
+      "run_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "description": "High sample count (50) for robust statistics on critical test cases",
+      "dataset_path": "/path/to/examples/datasets/sample.yaml",
+      "dataset_hash": "sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "dataset_count": 3,
+      "num_samples_per_case": 50,
+      "_comment_high_sample_count": "50 samples per case for high-confidence statistical analysis",
+      "status": "completed",
+      "timestamp_start": "2025-12-21T18:00:00.000000+00:00",
+      "timestamp_end": "2025-12-21T19:15:20.111222+00:00",
+      "duration_seconds": 4520.111,
+      "_comment_duration": "Longer runtime (~75 minutes) due to 150 total samples (3 cases × 50 samples)",
+      "generator_model": "gpt-5.1",
+      "generator_temperature": 0.3,
+      "generator_seed": 42,
+      "judge_model": "gpt-5.1",
+      "rubric_path": "/path/to/examples/rubrics/default.yaml",
+      "test_cases_completed": 3,
+      "test_cases_partial": 0,
+      "test_cases_failed": 0,
+      "overall_metrics": {
+        "semantic_fidelity": {
+          "mean_of_means": 4.42,
+          "min_of_means": 4.35,
+          "max_of_means": 4.5
+        },
+        "_comment_stable_metrics": "Metrics are very stable with 50 samples. Confidence intervals are tight.",
+        "clarity": {
+          "mean_of_means": 4.48,
+          "min_of_means": 4.42,
+          "max_of_means": 4.55
+        }
+      },
+      "artifact_path": "runs/c3d4e5f6-a7b8-9012-cdef-123456789012/dataset_evaluation.json",
+      "notes": "High sample count confirms temp=0.3 setting is stable. Mean scores consistent with 10-sample run within margin of error."
+    },
+    {
+      "run_id": "d4e5f6a7-b8c9-0123-def1-234567890123",
+      "description": "Alternative rubric (content-quality) comparison",
+      "dataset_path": "/path/to/examples/datasets/sample.yaml",
+      "dataset_hash": "sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "dataset_count": 3,
+      "num_samples_per_case": 10,
+      "status": "completed",
+      "timestamp_start": "2025-12-21T20:00:00.000000+00:00",
+      "timestamp_end": "2025-12-21T20:18:30.333444+00:00",
+      "duration_seconds": 1110.333,
+      "generator_model": "gpt-5.1",
+      "generator_temperature": 0.3,
+      "generator_seed": 42,
+      "judge_model": "gpt-5.1",
+      "rubric_path": "/path/to/examples/rubrics/content_quality.yaml",
+      "_comment_different_rubric": "Using content-quality rubric instead of default. Metrics will have different names.",
+      "test_cases_completed": 3,
+      "test_cases_partial": 0,
+      "test_cases_failed": 0,
+      "overall_metrics": {
+        "factual_accuracy": {
+          "mean_of_means": 4.6,
+          "min_of_means": 4.5,
+          "max_of_means": 4.7
+        },
+        "completeness": {
+          "mean_of_means": 4.2,
+          "min_of_means": 4.0,
+          "max_of_means": 4.4
+        },
+        "clarity": {
+          "mean_of_means": 4.5,
+          "min_of_means": 4.4,
+          "max_of_means": 4.6
+        }
+      },
+      "artifact_path": "runs/d4e5f6a7-b8c9-0123-def1-234567890123/dataset_evaluation.json",
+      "notes": "Content-quality rubric shows high factual accuracy but moderate completeness. Prompt could be improved to encourage more comprehensive responses."
+    },
+    {
+      "run_id": "e5f6a7b8-c9d0-1234-ef12-345678901234",
+      "description": "Filtered smoke test on critical cases only",
+      "dataset_path": "/path/to/examples/datasets/large_dataset.yaml",
+      "dataset_hash": "sha256:9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+      "_comment_different_dataset": "Different dataset hash indicates this is a different dataset file",
+      "dataset_count": 200,
+      "_comment_large_dataset": "Large dataset with 200 test cases, but filtered to smoke test subset",
+      "num_samples_per_case": 2,
+      "_comment_quick_mode": "Using quick mode (2 samples) for rapid smoke testing",
+      "status": "completed",
+      "timestamp_start": "2025-12-21T21:00:00.000000+00:00",
+      "timestamp_end": "2025-12-21T21:05:15.555666+00:00",
+      "duration_seconds": 315.555,
+      "_comment_short_duration": "Only ~5 minutes because we filtered to 5 cases with --max-cases=5 and used --quick",
+      "generator_model": "gpt-5.1",
+      "generator_temperature": 0.3,
+      "generator_seed": null,
+      "_comment_no_seed": "No seed used for smoke test to get diverse outputs",
+      "judge_model": "gpt-5.1",
+      "rubric_path": "/path/to/examples/rubrics/default.yaml",
+      "test_cases_completed": 5,
+      "_comment_filtered": "Evaluated only first 5 cases from 200 using --max-cases=5 filter",
+      "test_cases_partial": 0,
+      "test_cases_failed": 0,
+      "overall_metrics": {
+        "semantic_fidelity": {
+          "mean_of_means": 4.3,
+          "min_of_means": 4.0,
+          "max_of_means": 4.5
+        },
+        "clarity": {
+          "mean_of_means": 4.4,
+          "min_of_means": 4.2,
+          "max_of_means": 4.6
+        }
+      },
+      "artifact_path": "runs/e5f6a7b8-c9d0-1234-ef12-345678901234/dataset_evaluation.json",
+      "notes": "Smoke test passed. Prompt performs well on sample cases. Ready for full dataset evaluation with more samples."
+    },
+    {
+      "run_id": "f6a7b8c9-d0e1-2345-f123-456789012345",
+      "description": "Full dataset evaluation after smoke test",
+      "dataset_path": "/path/to/examples/datasets/large_dataset.yaml",
+      "dataset_hash": "sha256:9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+      "dataset_count": 200,
+      "num_samples_per_case": 5,
+      "status": "aborted",
+      "_comment_aborted": "Status 'aborted' indicates run was interrupted (e.g., Ctrl+C, system shutdown, or API quota)",
+      "timestamp_start": "2025-12-21T22:00:00.000000+00:00",
+      "timestamp_end": null,
+      "_comment_null_end": "timestamp_end is null because run was interrupted before completion",
+      "duration_seconds": null,
+      "generator_model": "gpt-5.1",
+      "generator_temperature": 0.3,
+      "generator_seed": 42,
+      "judge_model": "gpt-5.1",
+      "rubric_path": "/path/to/examples/rubrics/default.yaml",
+      "test_cases_completed": 87,
+      "test_cases_partial": 3,
+      "test_cases_failed": 0,
+      "_comment_incomplete": "Attempted 90 out of 200 cases before interruption. 110 cases remain unprocessed.",
+      "overall_metrics": {
+        "_comment_incomplete_metrics": "These metrics are computed only from the 87 completed and 3 partial cases",
+        "semantic_fidelity": {
+          "mean_of_means": 4.35,
+          "min_of_means": 3.8,
+          "max_of_means": 4.9
+        },
+        "clarity": {
+          "mean_of_means": 4.42,
+          "min_of_means": 3.9,
+          "max_of_means": 4.8
+        }
+      },
+      "artifact_path": "runs/f6a7b8c9-d0e1-2345-f123-456789012345/dataset_evaluation.json",
+      "notes": "Run interrupted at 45% completion due to API rate limit. Partial results show wider variance than expected. NOTE: Resume functionality not yet implemented - must restart from beginning."
+    }
+  ],
+  
+  "_comment_summary": "This index demonstrates various evaluation scenarios: baseline runs, parameter tuning (temperature), statistical confidence testing (sample counts), rubric comparisons, filtered smoke tests, and interrupted runs. Use it as a reference for tracking your own evaluation campaigns."
+}

@@ -1,0 +1,605 @@
+{
+  "_comment": "This is a sample dataset evaluation run artifact showing the complete JSON schema.",
+  "_comment_usage": "This file demonstrates the structure of dataset_evaluation.json created by evaluate-dataset command.",
+  
+  "run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "_comment_run_id": "Unique UUID for this evaluation run, used to identify run directory and files",
+  
+  "dataset_path": "/path/to/examples/datasets/sample.yaml",
+  "_comment_dataset_path": "Absolute path to the dataset file that was evaluated",
+  
+  "dataset_hash": "sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "_comment_dataset_hash": "SHA-256 hash of dataset file for change detection and reproducibility tracking",
+  
+  "dataset_count": 3,
+  "_comment_dataset_count": "Total number of test cases in the dataset (before filtering)",
+  
+  "num_samples_per_case": 5,
+  "_comment_num_samples_per_case": "Number of samples generated and evaluated per test case",
+  
+  "status": "partial",
+  "_comment_status": "Overall run status: 'completed' (all cases succeeded), 'partial' (some cases succeeded), 'failed' (all failed), 'running' (in progress), 'aborted' (interrupted)",
+  
+  "timestamp_start": "2025-12-21T10:00:00.000000+00:00",
+  "_comment_timestamp_start": "ISO 8601 timestamp when evaluation started (UTC timezone)",
+  
+  "timestamp_end": "2025-12-21T10:15:30.123456+00:00",
+  "_comment_timestamp_end": "ISO 8601 timestamp when evaluation completed (null if still running or interrupted)",
+  
+  "system_prompt_path": "/path/to/examples/system_prompt.txt",
+  "_comment_system_prompt_path": "Path to system prompt file used for generation",
+  
+  "generator_config": {
+    "model_name": "gpt-5.1",
+    "temperature": 0.7,
+    "max_completion_tokens": 1024,
+    "seed": 42
+  },
+  "_comment_generator_config": "Configuration for the generator model. Seed may be null for non-deterministic runs.",
+  
+  "judge_config": {
+    "model_name": "gpt-5.1",
+    "temperature": 0.0,
+    "max_completion_tokens": 512,
+    "seed": null
+  },
+  "_comment_judge_config": "Configuration for the judge model. Temperature is typically 0.0 for consistent evaluation. Seed is usually null.",
+  
+  "rubric_metadata": {
+    "rubric_path": "/path/to/examples/rubrics/default.yaml",
+    "rubric_hash": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+    "rubric_definition": {
+      "metrics": [
+        {
+          "name": "semantic_fidelity",
+          "description": "How well the output preserves the semantic meaning and intent of the input",
+          "min_score": 1,
+          "max_score": 5,
+          "guidelines": "Score 1: Completely unfaithful...\nScore 5: Completely faithful..."
+        },
+        {
+          "name": "clarity",
+          "description": "How clear and understandable the output is",
+          "min_score": 1,
+          "max_score": 5,
+          "guidelines": "Score 1: Confusing and unclear\nScore 5: Perfectly clear and easy to understand"
+        }
+      ],
+      "flags": [
+        {
+          "name": "invented_constraints",
+          "description": "Output introduces constraints or requirements not present in the input",
+          "default": false
+        },
+        {
+          "name": "omitted_constraints",
+          "description": "Output omits important constraints mentioned in the input",
+          "default": false
+        }
+      ]
+    }
+  },
+  "_comment_rubric_metadata": "Metadata about the rubric used for evaluation, including full definition for reproducibility",
+  
+  "test_case_results": [
+    {
+      "test_case_id": "test-001",
+      "_comment_test_case_id": "Unique identifier from the dataset file",
+      
+      "test_case_input": "Explain what Python is in simple terms.",
+      "_comment_test_case_input": "The input text from this test case",
+      
+      "test_case_metadata": {
+        "description": "Basic Python explanation for beginners",
+        "task": "Explain programming language",
+        "expected_constraints": null,
+        "reference": null,
+        "difficulty": "easy",
+        "topic": "programming"
+      },
+      "_comment_test_case_metadata": "Metadata from the test case including standard fields (description, task, etc.) and custom fields (difficulty, topic). null values indicate missing optional fields.",
+      
+      "num_samples": 5,
+      "status": "completed",
+      "_comment_status_per_case": "Status for this test case: 'completed' (all samples succeeded), 'partial' (some succeeded), 'failed' (all failed), 'pending' (not started)",
+      
+      "timestamp_start": "2025-12-21T10:00:05.000000+00:00",
+      "timestamp_end": "2025-12-21T10:05:00.000000+00:00",
+      
+      "samples": [
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-001-sample-1",
+          "_comment_sample_id": "Unique identifier combining run_id, test_case_id, and sample number",
+          
+          "input_text": "Explain what Python is in simple terms.",
+          "generator_output": "Python is a popular programming language known for its readability and ease of use. It's widely used for web development, data science, automation, and more.",
+          
+          "status": "completed",
+          "_comment_status_per_sample": "Status: 'completed' (success), 'judge_error' (generation succeeded but judge failed), 'judge_invalid_response' (judge returned unparseable response, excluded from stats), 'generation_error' (generation failed), 'pending' (not started)",
+          
+          "task_description": "Explain programming language",
+          "_comment_task_description": "Optional task context passed to the judge (may be null)",
+          
+          "judge_score": null,
+          "judge_rationale": null,
+          "_comment_legacy_judge_fields": "Legacy fields for backward compatibility. When using rubrics, these are null and judge_metrics is used instead.",
+          
+          "judge_metrics": {
+            "semantic_fidelity": {
+              "score": 4.5,
+              "rationale": "Excellent preservation of semantic meaning. The output accurately captures what Python is and its common use cases."
+            },
+            "clarity": {
+              "score": 4.0,
+              "rationale": "Clear and easy to understand, though could be slightly more structured."
+            }
+          },
+          "_comment_judge_metrics": "Per-metric scores and rationales from the judge. Each metric contains 'score' (numeric within min/max range) and 'rationale' (string explanation).",
+          
+          "judge_flags": {
+            "invented_constraints": false,
+            "omitted_constraints": false
+          },
+          "_comment_judge_flags": "Boolean flags from the judge indicating specific conditions or issues",
+          
+          "judge_overall_comment": "Strong response that effectively explains Python in accessible terms.",
+          "_comment_judge_overall_comment": "Optional overall comment from judge (may be null)",
+          
+          "judge_raw_response": "{\"metrics\": {...}, \"flags\": {...}, \"overall_comment\": \"...\"}",
+          "_comment_judge_raw_response": "Raw JSON response from judge model for debugging (may be null)"
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-001-sample-2",
+          "input_text": "Explain what Python is in simple terms.",
+          "generator_output": "Python is a high-level programming language that emphasizes code readability and simplicity.",
+          "status": "completed",
+          "task_description": "Explain programming language",
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {
+            "semantic_fidelity": {
+              "score": 4.0,
+              "rationale": "Good semantic preservation with accurate core information."
+            },
+            "clarity": {
+              "score": 5.0,
+              "rationale": "Very clear and concise explanation."
+            }
+          },
+          "judge_flags": {
+            "invented_constraints": false,
+            "omitted_constraints": false
+          },
+          "judge_overall_comment": "Concise and accurate explanation.",
+          "judge_raw_response": "{\"metrics\": {...}, \"flags\": {...}, \"overall_comment\": \"...\"}"
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-001-sample-3",
+          "input_text": "Explain what Python is in simple terms.",
+          "generator_output": "Python is a versatile programming language created by Guido van Rossum. It's used in many fields including AI, web dev, and scientific computing.",
+          "status": "completed",
+          "task_description": "Explain programming language",
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {
+            "semantic_fidelity": {
+              "score": 4.0,
+              "rationale": "Preserves core meaning with additional helpful context."
+            },
+            "clarity": {
+              "score": 4.5,
+              "rationale": "Clear with good examples of use cases."
+            }
+          },
+          "judge_flags": {
+            "invented_constraints": false,
+            "omitted_constraints": false
+          },
+          "judge_overall_comment": "Good explanation with useful context.",
+          "judge_raw_response": "{\"metrics\": {...}, \"flags\": {...}, \"overall_comment\": \"...\"}"
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-001-sample-4",
+          "input_text": "Explain what Python is in simple terms.",
+          "generator_output": "Python is one of the most popular programming languages today, known for its simple syntax and powerful capabilities.",
+          "status": "completed",
+          "task_description": "Explain programming language",
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {
+            "semantic_fidelity": {
+              "score": 4.5,
+              "rationale": "Strong semantic fidelity with accurate characterization."
+            },
+            "clarity": {
+              "score": 4.0,
+              "rationale": "Clear and accessible explanation."
+            }
+          },
+          "judge_flags": {
+            "invented_constraints": false,
+            "omitted_constraints": false
+          },
+          "judge_overall_comment": "Effective simple explanation.",
+          "judge_raw_response": "{\"metrics\": {...}, \"flags\": {...}, \"overall_comment\": \"...\"}"
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-001-sample-5",
+          "input_text": "Explain what Python is in simple terms.",
+          "generator_output": "Python is a programming language.",
+          "status": "completed",
+          "task_description": "Explain programming language",
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {
+            "semantic_fidelity": {
+              "score": 3.5,
+              "rationale": "Technically accurate but lacks detail expected from 'simple terms' explanation."
+            },
+            "clarity": {
+              "score": 5.0,
+              "rationale": "Extremely clear, though very minimal."
+            }
+          },
+          "judge_flags": {
+            "invented_constraints": false,
+            "omitted_constraints": false
+          },
+          "judge_overall_comment": "Too brief but not incorrect.",
+          "judge_raw_response": "{\"metrics\": {...}, \"flags\": {...}, \"overall_comment\": \"...\"}"
+        }
+      ],
+      
+      "per_metric_stats": {
+        "semantic_fidelity": {
+          "mean": 4.1,
+          "std": 0.3873,
+          "min": 3.5,
+          "max": 4.5,
+          "count": 5
+        },
+        "clarity": {
+          "mean": 4.5,
+          "std": 0.4472,
+          "min": 4.0,
+          "max": 5.0,
+          "count": 5
+        }
+      },
+      "_comment_per_metric_stats": "Per-case statistics for each metric. mean=average score, std=standard deviation (sample variance n-1), min/max=range, count=number of valid samples. Samples with status 'judge_invalid_response' are excluded from these calculations. High std (>1.0 or >20% of mean) indicates inconsistent prompt behavior.",
+      
+      "per_flag_stats": {
+        "invented_constraints": {
+          "true_count": 0,
+          "false_count": 5,
+          "total_count": 5,
+          "true_proportion": 0.0
+        },
+        "omitted_constraints": {
+          "true_count": 0,
+          "false_count": 5,
+          "total_count": 5,
+          "true_proportion": 0.0
+        }
+      },
+      "_comment_per_flag_stats": "Per-case statistics for each flag. true_count/false_count show how many samples had the flag set. true_proportion is between 0.0 and 1.0.",
+      
+      "error_message": null,
+      "_comment_error_message": "Error message if test case failed completely (null for successful or partial runs)"
+    },
+    {
+      "test_case_id": "test-002",
+      "test_case_input": "Write a factorial function in Python.",
+      "test_case_metadata": {
+        "description": "Code generation test",
+        "task": "Generate Python code",
+        "expected_constraints": "Use recursion, include docstring",
+        "reference": null,
+        "difficulty": "medium",
+        "topic": "algorithms"
+      },
+      "num_samples": 5,
+      "status": "partial",
+      "_comment_partial_status": "This test case has 'partial' status because some samples succeeded but others failed",
+      
+      "timestamp_start": "2025-12-21T10:05:05.000000+00:00",
+      "timestamp_end": "2025-12-21T10:10:00.000000+00:00",
+      
+      "samples": [
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-002-sample-1",
+          "input_text": "Write a factorial function in Python.",
+          "generator_output": "def factorial(n):\n    \"\"\"Calculate factorial of n.\"\"\"\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)",
+          "status": "completed",
+          "task_description": "Generate Python code",
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {
+            "semantic_fidelity": {
+              "score": 5.0,
+              "rationale": "Perfect implementation meeting all requirements."
+            },
+            "clarity": {
+              "score": 5.0,
+              "rationale": "Clear, well-structured code with docstring."
+            }
+          },
+          "judge_flags": {
+            "invented_constraints": false,
+            "omitted_constraints": false
+          },
+          "judge_overall_comment": "Excellent recursive implementation.",
+          "judge_raw_response": "{\"metrics\": {...}, \"flags\": {...}, \"overall_comment\": \"...\"}"
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-002-sample-2",
+          "input_text": "Write a factorial function in Python.",
+          "generator_output": "",
+          "status": "generation_error",
+          "_comment_generation_error": "This sample has 'generation_error' status because the generator API failed. Note empty generator_output.",
+          "task_description": "Generate Python code",
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {},
+          "judge_flags": {},
+          "judge_overall_comment": null,
+          "judge_raw_response": null
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-002-sample-3",
+          "input_text": "Write a factorial function in Python.",
+          "generator_output": "def factorial(n):\n    result = 1\n    for i in range(1, n + 1):\n        result *= i\n    return result",
+          "status": "completed",
+          "task_description": "Generate Python code",
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {
+            "semantic_fidelity": {
+              "score": 4.0,
+              "rationale": "Correct implementation but uses iteration instead of recursion as requested."
+            },
+            "clarity": {
+              "score": 4.5,
+              "rationale": "Clear and easy to understand, though missing docstring."
+            }
+          },
+          "judge_flags": {
+            "invented_constraints": false,
+            "omitted_constraints": true
+          },
+          "_comment_flag_example": "This sample has 'omitted_constraints' flag set to true because it didn't use recursion as specified",
+          "judge_overall_comment": "Functional but doesn't follow specified constraints.",
+          "judge_raw_response": "{\"metrics\": {...}, \"flags\": {...}, \"overall_comment\": \"...\"}"
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-002-sample-4",
+          "input_text": "Write a factorial function in Python.",
+          "generator_output": "def factorial(n):\n    if n == 0:\n        return 1\n    return n * factorial(n - 1)",
+          "status": "judge_invalid_response",
+          "_comment_judge_invalid_response": "This sample has 'judge_invalid_response' status because judge returned unparseable JSON. It is EXCLUDED from all aggregate statistics.",
+          "task_description": "Generate Python code",
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {},
+          "judge_flags": {},
+          "judge_overall_comment": null,
+          "judge_raw_response": "This looks like a good factorial implementation, but I cannot provide structured output."
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-002-sample-5",
+          "input_text": "Write a factorial function in Python.",
+          "generator_output": "def factorial(n):\n    \"\"\"Recursive factorial.\"\"\"\n    return 1 if n <= 1 else n * factorial(n - 1)",
+          "status": "completed",
+          "task_description": "Generate Python code",
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {
+            "semantic_fidelity": {
+              "score": 5.0,
+              "rationale": "Excellent recursive implementation with docstring."
+            },
+            "clarity": {
+              "score": 4.5,
+              "rationale": "Clear and concise, using ternary operator."
+            }
+          },
+          "judge_flags": {
+            "invented_constraints": false,
+            "omitted_constraints": false
+          },
+          "judge_overall_comment": "Clean recursive solution.",
+          "judge_raw_response": "{\"metrics\": {...}, \"flags\": {...}, \"overall_comment\": \"...\"}"
+        }
+      ],
+      
+      "per_metric_stats": {
+        "semantic_fidelity": {
+          "mean": 4.67,
+          "std": 0.5774,
+          "min": 4.0,
+          "max": 5.0,
+          "count": 3
+        },
+        "_comment_count_3": "count=3 because one sample had generation_error and one had judge_invalid_response, leaving only 3 valid samples for statistics",
+        "clarity": {
+          "mean": 4.67,
+          "std": 0.2887,
+          "min": 4.5,
+          "max": 5.0,
+          "count": 3
+        }
+      },
+      
+      "per_flag_stats": {
+        "invented_constraints": {
+          "true_count": 0,
+          "false_count": 3,
+          "total_count": 3,
+          "true_proportion": 0.0
+        },
+        "omitted_constraints": {
+          "true_count": 1,
+          "false_count": 2,
+          "total_count": 3,
+          "true_proportion": 0.3333
+        }
+      },
+      
+      "error_message": null
+    },
+    {
+      "test_case_id": "test-003",
+      "test_case_input": "Summarize the water cycle.",
+      "test_case_metadata": {
+        "description": "Science education test case",
+        "task": null,
+        "expected_constraints": null,
+        "reference": null,
+        "custom_field": "example"
+      },
+      "_comment_null_fields": "This demonstrates how null values appear for missing optional fields",
+      
+      "num_samples": 5,
+      "status": "failed",
+      "_comment_failed_status": "This test case has 'failed' status because all samples failed",
+      
+      "timestamp_start": "2025-12-21T10:10:05.000000+00:00",
+      "timestamp_end": "2025-12-21T10:15:00.000000+00:00",
+      
+      "samples": [
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-003-sample-1",
+          "input_text": "Summarize the water cycle.",
+          "generator_output": "",
+          "status": "generation_error",
+          "task_description": null,
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {},
+          "judge_flags": {},
+          "judge_overall_comment": null,
+          "judge_raw_response": null
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-003-sample-2",
+          "input_text": "Summarize the water cycle.",
+          "generator_output": "",
+          "status": "generation_error",
+          "task_description": null,
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {},
+          "judge_flags": {},
+          "judge_overall_comment": null,
+          "judge_raw_response": null
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-003-sample-3",
+          "input_text": "Summarize the water cycle.",
+          "generator_output": "",
+          "status": "generation_error",
+          "task_description": null,
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {},
+          "judge_flags": {},
+          "judge_overall_comment": null,
+          "judge_raw_response": null
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-003-sample-4",
+          "input_text": "Summarize the water cycle.",
+          "generator_output": "",
+          "status": "generation_error",
+          "task_description": null,
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {},
+          "judge_flags": {},
+          "judge_overall_comment": null,
+          "judge_raw_response": null
+        },
+        {
+          "sample_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890-test-003-sample-5",
+          "input_text": "Summarize the water cycle.",
+          "generator_output": "",
+          "status": "generation_error",
+          "task_description": null,
+          "judge_score": null,
+          "judge_rationale": null,
+          "judge_metrics": {},
+          "judge_flags": {},
+          "judge_overall_comment": null,
+          "judge_raw_response": null
+        }
+      ],
+      
+      "per_metric_stats": {
+        "semantic_fidelity": {
+          "mean": null,
+          "std": null,
+          "min": null,
+          "max": null,
+          "count": 0
+        },
+        "clarity": {
+          "mean": null,
+          "std": null,
+          "min": null,
+          "max": null,
+          "count": 0
+        }
+      },
+      "_comment_null_stats": "When all samples fail, statistics are null with count=0",
+      
+      "per_flag_stats": {
+        "invented_constraints": {
+          "true_count": 0,
+          "false_count": 0,
+          "total_count": 0,
+          "true_proportion": 0.0
+        },
+        "omitted_constraints": {
+          "true_count": 0,
+          "false_count": 0,
+          "total_count": 0,
+          "true_proportion": 0.0
+        }
+      },
+      
+      "error_message": "All samples failed"
+    }
+  ],
+  
+  "overall_metric_stats": {
+    "semantic_fidelity": {
+      "mean_of_means": 4.385,
+      "min_of_means": 4.1,
+      "max_of_means": 4.67,
+      "num_cases": 2
+    },
+    "_comment_mean_of_means": "Overall metric statistics compute the mean of per-case means. Only includes cases with status 'completed' or 'partial'. The failed test-003 is excluded.",
+    "clarity": {
+      "mean_of_means": 4.585,
+      "min_of_means": 4.5,
+      "max_of_means": 4.67,
+      "num_cases": 2
+    }
+  },
+  
+  "overall_flag_stats": {
+    "invented_constraints": {
+      "true_count": 0,
+      "false_count": 8,
+      "total_count": 8,
+      "true_proportion": 0.0
+    },
+    "omitted_constraints": {
+      "true_count": 1,
+      "false_count": 7,
+      "total_count": 8,
+      "true_proportion": 0.125
+    }
+  },
+  "_comment_overall_flag_stats": "Overall flag statistics aggregate counts across all test cases with 'completed' or 'partial' status. Total is 8 samples (5 from test-001 + 3 valid from test-002)."
+}

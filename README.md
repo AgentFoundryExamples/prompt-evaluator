@@ -923,6 +923,229 @@ The `dataset_evaluation.json` file includes:
 }
 ```
 
+For detailed artifact schema with annotated examples, see `examples/run-artifacts/run-sample.json`.
+
+#### Runtime Expectations and Performance
+
+**Typical Runtime Estimates:**
+
+The evaluation time depends on test cases, samples per case, and API latency:
+
+- **Small dataset (10 cases, 5 samples):** ~5-10 minutes
+- **Medium dataset (50 cases, 5 samples):** ~25-50 minutes  
+- **Large dataset (200 cases, 5 samples):** ~100-200 minutes (1.5-3.5 hours)
+
+**Runtime calculation:**
+```
+Total API calls = test_cases × num_samples × 2 (generator + judge)
+Estimated time ≈ Total calls × (2-3 seconds per call)
+```
+
+For example, 50 test cases with 5 samples = 500 API calls ≈ 16-25 minutes.
+
+**Factors affecting runtime:**
+- **API latency:** OpenAI response times vary by load (typically 1-5 seconds per call)
+- **Model selection:** Larger models (e.g., GPT-4) are slower than GPT-3.5
+- **Token count:** Longer outputs increase generation time
+- **Network conditions:** API round-trip times vary by location and connection
+
+**Rate Limits and API Quotas:**
+
+⚠️ **Warning:** Large evaluations can hit API rate limits, causing failures or slowdowns.
+
+**OpenAI rate limits (typical):**
+- **Requests per minute (RPM):** 3,500 (GPT-3.5), 500 (GPT-4)
+- **Tokens per minute (TPM):** 90,000 (GPT-3.5), 10,000 (GPT-4)
+
+**Recommendations for avoiding rate limits:**
+1. **Start with smoke tests:** Use `--max-cases 5 --quick` to test ~10 API calls before full runs
+2. **Use filters strategically:** Test critical cases first with `--case-ids`
+3. **Monitor progress:** Watch for rate limit errors in output
+4. **Tier-based planning:**
+   - Tier 1 (3 RPM): Max ~90 samples/hour → use `--quick` mode only
+   - Tier 3 (3,500 RPM): Can handle full datasets with 5-10 samples per case
+   - Tier 5 (10,000 RPM): Can run large evaluations with high sample counts
+
+**Example smoke test workflow:**
+```bash
+# Step 1: Quick smoke test (2 samples × 5 cases = 20 API calls ≈ 40 seconds)
+prompt-evaluator evaluate-dataset \
+  --dataset dataset.yaml \
+  --system-prompt prompt.txt \
+  --max-cases 5 \
+  --quick
+
+# Step 2: If successful, run on more cases with more samples
+prompt-evaluator evaluate-dataset \
+  --dataset dataset.yaml \
+  --system-prompt prompt.txt \
+  --num-samples 5
+```
+
+#### Interpreting Stability Metrics
+
+Dataset evaluation provides per-case and overall statistics to help assess prompt consistency and quality.
+
+**Understanding Mean and Standard Deviation:**
+
+For each metric, the evaluation reports:
+- **mean:** Average score across samples
+- **std (standard deviation):** Measure of score variability
+- **min/max:** Score range
+- **count:** Number of valid samples (excludes failed/invalid samples)
+
+**What standard deviation tells you:**
+
+- **Low std (<0.5):** Prompt produces consistent outputs → stable and reliable
+- **Moderate std (0.5-1.0):** Some variation but generally predictable → acceptable for most uses
+- **High std (>1.0 or >20% of mean):** ⚠️ High variability → prompt behavior is inconsistent
+
+**Example interpretation:**
+
+```
+semantic_fidelity: mean=4.2, std=0.3, min=3.8, max=4.6
+  ✓ Low std (0.3) indicates stable, consistent prompt behavior
+  
+clarity: mean=4.5, std=1.2, min=2.5, max=5.0  ⚠️ HIGH VARIABILITY
+  ⚠️ High std (1.2) and wide range (2.5-5.0) indicate inconsistent clarity
+     → Prompt may need refinement to produce more consistent outputs
+```
+
+**Why high variance matters:**
+
+High variance indicates that the prompt's effectiveness depends on factors beyond your control:
+- **Temperature sensitivity:** Higher temperature (0.7+) increases randomness
+- **Prompt ambiguity:** Vague prompts allow model to interpret differently each time
+- **Input sensitivity:** Prompt may work well for some inputs but poorly for others
+
+**When to rerun with more samples:**
+
+Use sample count to build confidence:
+- **2-5 samples:** Good for smoke testing, but std may be unreliable
+- **5-10 samples:** Reasonable confidence for most metrics (std within ~15% of true value)
+- **10-20 samples:** High confidence (std within ~10% of true value)
+- **50+ samples:** Very high confidence (std within ~5% of true value) → use for critical prompts
+
+**Rule of thumb:** If std > 1.0, consider:
+1. **Lower temperature:** Try 0.3 instead of 0.7 to reduce randomness
+2. **More samples:** Increase to 10-20 samples to confirm variance is real, not sampling noise
+3. **Prompt refinement:** Add constraints or examples to reduce ambiguity
+4. **Input analysis:** Check if high variance occurs on specific test cases
+
+**Flag rate interpretation:**
+
+Flag statistics show how often specific conditions occur:
+- **true_proportion = 0.0:** Flag never triggered → good if flag indicates a problem
+- **true_proportion = 0.1-0.3:** Flag occasionally triggered → investigate specific cases
+- **true_proportion > 0.5:** Flag frequently triggered → systemic issue with prompt
+
+Example:
+```
+omitted_constraints: true_proportion=0.15 (15% of samples)
+  → Prompt occasionally misses constraints
+  → Review the 15% of samples where flag was true
+  → Consider adding explicit reminders in system prompt
+```
+
+**Overall vs. Per-Case Statistics:**
+
+- **Per-case stats:** Help identify which specific inputs cause problems
+- **Overall stats (mean of means):** Summarize prompt performance across all inputs
+
+If overall mean is good but some per-case means are poor:
+- Prompt works well for most inputs but fails on specific cases
+- Use per-case breakdown to identify problematic input patterns
+
+#### Incomplete Runs and Future Resume Support
+
+**Detecting Incomplete Runs:**
+
+A run is considered incomplete if:
+- **status = "aborted":** Run was interrupted (Ctrl+C, system shutdown, etc.)
+- **status = "partial":** Some test cases succeeded but others failed
+- **timestamp_end = null:** Run never completed normally
+
+Check the `status` field in `dataset_evaluation.json`:
+```json
+{
+  "status": "aborted",
+  "timestamp_end": null,
+  "test_case_results": [
+    { "test_case_id": "test-001", "status": "completed" },
+    { "test_case_id": "test-002", "status": "completed" },
+    { "test_case_id": "test-003", "status": "pending" }
+  ]
+}
+```
+
+**What happens on interruption:**
+
+When a run is interrupted:
+1. The main `dataset_evaluation.json` file may be incomplete or missing
+2. Per-case artifacts (`test_case_<id>.json`) are saved as each case completes
+3. Completed test cases have valid results, pending cases have no artifact
+
+**Current Limitation - No Resume:**
+
+⚠️ **Resume functionality is not yet implemented.** If a run is interrupted, you must restart from the beginning or manually determine which cases completed and run the remaining ones.
+
+**Manual workaround strategies:**
+
+These are manual approaches to handle interrupted runs, not built-in resume commands:
+
+1. **Manually filter to remaining cases:**
+   ```bash
+   # Original run was interrupted after test-001 and test-002
+   # Inspect the partial results to identify completed cases
+   # Then manually run remaining cases with --case-ids
+   prompt-evaluator evaluate-dataset \
+     --dataset dataset.yaml \
+     --system-prompt prompt.txt \
+     --case-ids test-003,test-004,test-005 \
+     --num-samples 5
+   ```
+
+2. **Use smaller batches from the start:**
+   ```bash
+   # Instead of running all 100 cases at once, split into batches
+   prompt-evaluator evaluate-dataset --case-ids test-001,...,test-020 --num-samples 5
+   prompt-evaluator evaluate-dataset --case-ids test-021,...,test-040 --num-samples 5
+   # ... etc
+   ```
+
+3. **Checkpoint with smaller batches:**
+   ```bash
+   # Process in chunks of 10 cases to minimize risk
+   for i in {0..9}; do
+     prompt-evaluator evaluate-dataset \
+       --max-cases 10 \
+       --num-samples 5 \
+       --output-dir runs/batch-$i
+   done
+   ```
+
+**Note:** These workarounds require manual tracking of completed cases and cannot automatically merge results. You must manually inspect partial artifacts to determine which cases need to be rerun.
+
+**Tracking Multiple Runs:**
+
+To track and compare multiple evaluation runs, you can manually create an index file. See `examples/run-artifacts/index.json` for an example of tracking run metadata, configurations, and results across multiple evaluation campaigns.
+
+**Hashing and Reproducibility:**
+
+The evaluation tracks dataset and rubric changes using SHA-256 hashes:
+- **dataset_hash:** Hash of dataset file content (not path) → detects if dataset changed
+- **rubric_hash:** Hash of rubric file content → detects if evaluation criteria changed
+
+Same hash = same content = reproducible comparison across runs.
+Different hash = content changed = results may not be directly comparable.
+
+**Use cases for hashing:**
+1. **Detect dataset drift:** Compare `dataset_hash` across runs to ensure using same test cases
+2. **Track rubric changes:** If `rubric_hash` differs, evaluation criteria have changed
+3. **Filesystem portability:** Hashes are content-based, so paths can differ across systems while ensuring same content
+
+**Note:** Hashes are computed from file content including whitespace and line endings. Identical content on different operating systems (Unix vs. Windows line endings) may produce different hashes. Normalize line endings if exact hash matching is critical.
+
 #### Error Handling
 
 **Missing Dataset File:**

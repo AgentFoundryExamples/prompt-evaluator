@@ -145,6 +145,7 @@ examples/*
 !examples/input.txt
 !examples/rubrics/
 !examples/datasets/
+!examples/run-artifacts/
 *.local.yaml
 *.local.yml
 *.local.json

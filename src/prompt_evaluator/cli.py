@@ -733,6 +733,268 @@ def show_rubric(
         raise typer.Exit(1)
 
 
+@app.command()
+def evaluate_dataset(
+    dataset: str = typer.Option(
+        ..., "--dataset", "-d", help="Path to dataset file (.yaml/.yml or .jsonl)"
+    ),
+    system_prompt: str = typer.Option(
+        ..., "--system-prompt", "-s", help="Path to generator system prompt file"
+    ),
+    num_samples: int = typer.Option(
+        ..., "--num-samples", "-n", help="Number of samples to generate per test case"
+    ),
+    generator_model: str | None = typer.Option(
+        None, "--generator-model", help="Generator model name override"
+    ),
+    judge_model: str | None = typer.Option(
+        None, "--judge-model", help="Judge model name override"
+    ),
+    judge_system_prompt: str | None = typer.Option(
+        None, "--judge-system-prompt", help="Path to custom judge system prompt file"
+    ),
+    rubric: str | None = typer.Option(
+        None,
+        "--rubric",
+        help=(
+            "Rubric to use for evaluation. Can be a preset alias "
+            "(default, content-quality, code-review) or a path to a rubric file "
+            "(.yaml/.json). Defaults to 'default' if not specified."
+        ),
+    ),
+    seed: int | None = typer.Option(
+        None, "--seed", help="Random seed for generator reproducibility"
+    ),
+    temperature: float | None = typer.Option(
+        None, "--temperature", "-t", help="Generator temperature (0.0-2.0)"
+    ),
+    max_completion_tokens: int | None = typer.Option(
+        None, "--max-tokens", help="Maximum tokens for generator"
+    ),
+    output_dir: str = typer.Option(
+        "runs", "--output-dir", "-o", help="Output directory for evaluation runs"
+    ),
+    config_file: str | None = typer.Option(
+        None, "--config", "-c", help="Path to config file (YAML/TOML)"
+    ),
+) -> None:
+    """
+    Evaluate a dataset of test cases with multiple samples per case.
+
+    This command loads a dataset, generates N samples for each test case,
+    judges each sample, and computes per-case and overall statistics.
+    Results are streamed to disk as JSON files.
+    """
+    try:
+        # Validate num_samples
+        if num_samples <= 0:
+            typer.echo("Error: --num-samples must be positive", err=True)
+            raise typer.Exit(1)
+
+        # Load API configuration
+        config_path = Path(config_file) if config_file else None
+        api_config = APIConfig(config_file_path=config_path)
+
+        # Load dataset
+        from prompt_evaluator.config import load_dataset
+
+        dataset_path = Path(dataset)
+        if not dataset_path.exists():
+            typer.echo(f"Error: Dataset file not found: {dataset}", err=True)
+            raise typer.Exit(1)
+
+        typer.echo(f"Loading dataset from {dataset_path}...", err=True)
+        test_cases, dataset_metadata = load_dataset(dataset_path)
+        typer.echo(f"Loaded {len(test_cases)} test cases", err=True)
+
+        # Read system prompt
+        system_prompt_path = Path(system_prompt)
+        if not system_prompt_path.exists():
+            typer.echo(f"Error: System prompt file not found: {system_prompt}", err=True)
+            raise typer.Exit(1)
+
+        system_prompt_content = system_prompt_path.read_text(encoding="utf-8")
+
+        # Load rubric (preset, custom, or default)
+        try:
+            from prompt_evaluator.config import load_rubric, resolve_rubric_path
+
+            rubric_path = resolve_rubric_path(rubric)
+            loaded_rubric = load_rubric(rubric_path)
+            typer.echo(f"Using rubric: {rubric_path}", err=True)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error loading rubric: {e}", err=True)
+            raise typer.Exit(1)
+
+        # Load judge prompt (custom or default)
+        try:
+            if judge_system_prompt:
+                judge_prompt_path = Path(judge_system_prompt)
+                judge_prompt_content = load_judge_prompt(judge_prompt_path)
+            else:
+                judge_prompt_content = load_judge_prompt()
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error loading judge prompt: {e}", err=True)
+            raise typer.Exit(1)
+
+        # Build GeneratorConfig
+        base_gen_config = GeneratorConfig(model_name=api_config.model_name)
+        cli_overrides: dict[str, Any] = {}
+        if generator_model is not None:
+            cli_overrides["model_name"] = generator_model
+        if temperature is not None:
+            cli_overrides["temperature"] = temperature
+        if max_completion_tokens is not None:
+            cli_overrides["max_completion_tokens"] = max_completion_tokens
+        if seed is not None:
+            cli_overrides["seed"] = seed
+
+        generator_config = GeneratorConfig(
+            model_name=cli_overrides.get("model_name", base_gen_config.model_name),
+            temperature=cli_overrides.get("temperature", base_gen_config.temperature),
+            max_completion_tokens=cli_overrides.get(
+                "max_completion_tokens", base_gen_config.max_completion_tokens
+            ),
+            seed=cli_overrides.get("seed", base_gen_config.seed),
+        )
+
+        # Build JudgeConfig
+        judge_config = JudgeConfig(
+            model_name=judge_model if judge_model else api_config.model_name,
+            temperature=0.0,  # Use deterministic judge
+        )
+
+        # Create provider
+        provider = get_provider("openai", api_key=api_config.api_key, base_url=api_config.base_url)
+        assert isinstance(provider, OpenAIProvider)
+
+        # Prepare output directory
+        output_dir_path = Path(output_dir)
+        if output_dir_path.exists() and not output_dir_path.is_dir():
+            typer.echo(
+                f"Error: Output path '{output_dir}' exists and is not a directory.",
+                err=True
+            )
+            raise typer.Exit(1)
+
+        # Compute rubric metadata
+        rubric_metadata = compute_rubric_metadata(loaded_rubric, rubric_path)
+
+        # Run dataset evaluation
+        typer.echo("\n" + "=" * 60, err=True)
+        typer.echo("Starting Dataset Evaluation", err=True)
+        typer.echo("=" * 60, err=True)
+        typer.echo(f"Dataset: {dataset_path}", err=True)
+        typer.echo(f"Test Cases: {len(test_cases)}", err=True)
+        typer.echo(f"Samples per Case: {num_samples}", err=True)
+        typer.echo(f"Generator Model: {generator_config.model_name}", err=True)
+        typer.echo(f"Judge Model: {judge_config.model_name}", err=True)
+        typer.echo("=" * 60 + "\n", err=True)
+
+        from prompt_evaluator.dataset_evaluation import evaluate_dataset as run_dataset_evaluation
+
+        evaluation_run = run_dataset_evaluation(
+            provider=provider,
+            test_cases=test_cases,
+            dataset_metadata=dataset_metadata,
+            system_prompt=system_prompt_content,
+            system_prompt_path=system_prompt_path,
+            num_samples_per_case=num_samples,
+            generator_config=generator_config,
+            judge_config=judge_config,
+            judge_system_prompt=judge_prompt_content,
+            rubric=loaded_rubric,
+            rubric_metadata=rubric_metadata,
+            output_dir=output_dir_path,
+            progress_callback=typer.echo,
+        )
+
+        # Print summary
+        typer.echo("\n" + "=" * 60, err=True)
+        typer.echo("Dataset Evaluation Complete!", err=True)
+        typer.echo("=" * 60, err=True)
+        typer.echo(f"Run ID: {evaluation_run.run_id}", err=True)
+        typer.echo(f"Status: {evaluation_run.status}", err=True)
+
+        # Count results by status
+        num_completed = sum(
+            1 for tc in evaluation_run.test_case_results if tc.status == "completed"
+        )
+        num_partial = sum(
+            1 for tc in evaluation_run.test_case_results if tc.status == "partial"
+        )
+        num_failed = sum(
+            1 for tc in evaluation_run.test_case_results if tc.status == "failed"
+        )
+
+        typer.echo(f"Test Cases Completed: {num_completed}/{len(test_cases)}", err=True)
+        if num_partial > 0:
+            typer.echo(f"Test Cases Partial: {num_partial}", err=True)
+        if num_failed > 0:
+            typer.echo(f"Test Cases Failed: {num_failed}", err=True)
+
+        # Print overall metric statistics
+        if evaluation_run.overall_metric_stats:
+            typer.echo("\nOverall Metric Statistics (mean of per-case means):", err=True)
+            for metric_name, metric_data in evaluation_run.overall_metric_stats.items():
+                num_cases = metric_data.get("num_cases", 0)
+                if isinstance(num_cases, int) and num_cases > 0:
+                    mean_of_means = metric_data.get("mean_of_means")
+                    min_of_means = metric_data.get("min_of_means")
+                    max_of_means = metric_data.get("max_of_means")
+                    if (
+                        mean_of_means is not None
+                        and min_of_means is not None
+                        and max_of_means is not None
+                    ):
+                        typer.echo(
+                            f"  {metric_name}: "
+                            f"mean={mean_of_means:.2f}, "
+                            f"min={min_of_means:.2f}, "
+                            f"max={max_of_means:.2f}, "
+                            f"cases={num_cases}",
+                            err=True,
+                        )
+                    else:
+                        typer.echo(f"  {metric_name}: No valid results", err=True)
+                else:
+                    typer.echo(f"  {metric_name}: No valid results", err=True)
+
+        # Print overall flag statistics
+        if evaluation_run.overall_flag_stats:
+            typer.echo("\nOverall Flag Statistics:", err=True)
+            for flag_name, flag_data in evaluation_run.overall_flag_stats.items():
+                if flag_data["total_count"] > 0:
+                    typer.echo(
+                        f"  {flag_name}: "
+                        f"true={flag_data['true_count']}, "
+                        f"false={flag_data['false_count']}, "
+                        f"proportion={flag_data['true_proportion']:.2%}",
+                        err=True
+                    )
+                else:
+                    typer.echo(f"  {flag_name}: No samples evaluated", err=True)
+
+        output_file = output_dir_path / evaluation_run.run_id / "dataset_evaluation.json"
+        typer.echo(f"\nResults saved to: {output_file}", err=True)
+        typer.echo("=" * 60, err=True)
+
+        # Print JSON output to stdout for programmatic use
+        typer.echo(json.dumps(evaluation_run.to_dict(), indent=2))
+
+    except ValueError as e:
+        typer.echo(f"Configuration error: {e}", err=True)
+        raise typer.Exit(1)
+    except FileNotFoundError as e:
+        typer.echo(f"File error: {e}", err=True)
+        raise typer.Exit(1)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,

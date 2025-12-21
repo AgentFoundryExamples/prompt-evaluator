@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 12
+Total files: 13
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,8 @@ Total files: 12
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 19.68 KB  
-**LOC:** 400  
+**Size:** 21.75 KB  
+**LOC:** 441  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/config.py
@@ -29,8 +29,8 @@ Total files: 12
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 12.05 KB  
-**LOC:** 247  
+**Size:** 15.98 KB  
+**LOC:** 322  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/models.py
@@ -47,9 +47,9 @@ Total files: 12
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 11.92 KB  
-**LOC:** 258  
-**TODOs/FIXMEs:** 0  
+**Size:** 12.51 KB  
+**LOC:** 266  
+**TODOs/FIXMEs:** 1  
 
 ## tests/__init__.py
 **Language:** Python  
@@ -103,6 +103,15 @@ Total files: 12
 **Summary:** Python test file (role: test)  
 **Size:** 30.16 KB  
 **LOC:** 644  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_rubric_cli.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 15.87 KB  
+**LOC:** 341  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_rubric_models.py

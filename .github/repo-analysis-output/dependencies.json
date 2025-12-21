@@ -15,6 +15,7 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [
+          "dataclasses.asdict",
           "datetime.datetime",
           "datetime.timezone",
           "json",
@@ -173,6 +174,26 @@
       }
     },
     {
+      "id": "tests/test_rubric_cli.py",
+      "path": "tests/test_rubric_cli.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json",
+          "os",
+          "pathlib.Path",
+          "re",
+          "stat",
+          "unittest.mock.MagicMock",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "pytest",
+          "typer.testing.CliRunner"
+        ]
+      }
+    },
+    {
       "id": "tests/test_rubric_models.py",
       "path": "tests/test_rubric_models.py",
       "type": "file",
@@ -256,6 +277,14 @@
       "target": "src/prompt_evaluator/provider.py"
     },
     {
+      "source": "tests/test_rubric_cli.py",
+      "target": "src/prompt_evaluator/cli.py"
+    },
+    {
+      "source": "tests/test_rubric_cli.py",
+      "target": "src/prompt_evaluator/config.py"
+    },
+    {
       "source": "tests/test_rubric_models.py",
       "target": "src/prompt_evaluator/config.py"
     },
@@ -280,6 +309,7 @@
       "os",
       "pathlib.Path",
       "re",
+      "stat",
       "sys",
       "time",
       "tomllib",
@@ -300,7 +330,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 21,
+    "stdlib_count": 22,
     "third-party_count": 10
   }
 }

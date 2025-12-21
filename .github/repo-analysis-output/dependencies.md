@@ -8,16 +8,16 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 12
-- **Intra-repo dependencies**: 19
-- **External stdlib dependencies**: 21
+- **Total files**: 13
+- **Intra-repo dependencies**: 21
+- **External stdlib dependencies**: 22
 - **External third-party dependencies**: 10
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 21 unique modules
+Total: 22 unique modules
 
 - `abc.ABC`
 - `abc.abstractmethod`
@@ -33,13 +33,13 @@ Total: 21 unique modules
 - `os`
 - `pathlib.Path`
 - `re`
+- `stat`
 - `sys`
 - `time`
 - `tomllib`
 - `typing.Any`
 - `unittest.mock.MagicMock`
-- `unittest.mock.patch`
-- ... and 1 more (see JSON for full list)
+- ... and 2 more (see JSON for full list)
 
 ### Third-Party Packages
 
@@ -59,9 +59,9 @@ Total: 10 unique packages
 ## Most Depended Upon Files (Intra-Repo)
 
 - `src/prompt_evaluator/models.py` (7 dependents)
-- `src/prompt_evaluator/config.py` (4 dependents)
+- `src/prompt_evaluator/config.py` (5 dependents)
+- `src/prompt_evaluator/cli.py` (4 dependents)
 - `src/prompt_evaluator/provider.py` (3 dependents)
-- `src/prompt_evaluator/cli.py` (3 dependents)
 - `src/prompt_evaluator/__init__.py` (2 dependents)
 
 ## Files with Most Dependencies (Intra-Repo)
@@ -70,6 +70,7 @@ Total: 10 unique packages
 - `src/prompt_evaluator/cli.py` (4 dependencies)
 - `tests/test_config_models.py` (2 dependencies)
 - `tests/test_judge_models.py` (2 dependencies)
+- `tests/test_rubric_cli.py` (2 dependencies)
 - `tests/test_rubric_models.py` (2 dependencies)
 - `src/prompt_evaluator/config.py` (1 dependencies)
 - `src/prompt_evaluator/provider.py` (1 dependencies)

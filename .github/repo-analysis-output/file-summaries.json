@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 12,
+  "total_files": 13,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 20149,
-        "loc": 400,
+        "size_bytes": 22275,
+        "loc": 441,
         "todo_count": 0
       }
     },
@@ -39,8 +39,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 12339,
-        "loc": 247,
+        "size_bytes": 16362,
+        "loc": 322,
         "todo_count": 0
       }
     },
@@ -67,9 +67,9 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 12202,
-        "loc": 258,
-        "todo_count": 0
+        "size_bytes": 12807,
+        "loc": 266,
+        "todo_count": 1
       }
     },
     {
@@ -153,6 +153,20 @@
       "metrics": {
         "size_bytes": 30886,
         "loc": 644,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_rubric_cli.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 16255,
+        "loc": 341,
         "todo_count": 0
       }
     },

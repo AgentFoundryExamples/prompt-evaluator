@@ -37,6 +37,7 @@
   ├── test_evaluate_single_cli.py
   ├── test_generate_cli.py
   ├── test_judge_models.py
+  ├── test_rubric_cli.py
   └── test_rubric_models.py
 ├── .gitignore
 ├── LICENSE

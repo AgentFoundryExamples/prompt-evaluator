@@ -168,6 +168,10 @@
         },
         {
           "type": "file",
+          "name": "test_rubric_cli.py"
+        },
+        {
+          "type": "file",
           "name": "test_rubric_models.py"
         }
       ]

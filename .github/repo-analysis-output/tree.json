@@ -152,6 +152,10 @@
             },
             {
               "type": "file",
+              "name": "dataset_evaluation.py"
+            },
+            {
+              "type": "file",
               "name": "models.py"
             },
             {
@@ -181,6 +185,10 @@
         {
           "type": "file",
           "name": "test_config_models.py"
+        },
+        {
+          "type": "file",
+          "name": "test_dataset_evaluation.py"
         },
         {
           "type": "file",

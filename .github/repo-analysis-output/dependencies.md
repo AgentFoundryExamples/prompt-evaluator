@@ -8,20 +8,21 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 15
-- **Intra-repo dependencies**: 25
-- **External stdlib dependencies**: 22
+- **Total files**: 17
+- **Intra-repo dependencies**: 30
+- **External stdlib dependencies**: 23
 - **External third-party dependencies**: 11
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 22 unique modules
+Total: 23 unique modules
 
 - `abc.ABC`
 - `abc.abstractmethod`
 - `collections.Counter`
+- `collections.abc.Callable`
 - `dataclasses.asdict`
 - `dataclasses.dataclass`
 - `dataclasses.field`
@@ -38,8 +39,7 @@ Total: 22 unique modules
 - `time`
 - `tomllib`
 - `typing.Any`
-- `unittest.mock.MagicMock`
-- ... and 2 more (see JSON for full list)
+- ... and 3 more (see JSON for full list)
 
 ### Third-Party Packages
 
@@ -59,21 +59,22 @@ Total: 11 unique packages
 
 ## Most Depended Upon Files (Intra-Repo)
 
-- `src/prompt_evaluator/models.py` (9 dependents)
+- `src/prompt_evaluator/models.py` (11 dependents)
 - `src/prompt_evaluator/config.py` (6 dependents)
 - `src/prompt_evaluator/cli.py` (5 dependents)
-- `src/prompt_evaluator/provider.py` (3 dependents)
+- `src/prompt_evaluator/provider.py` (4 dependents)
 - `src/prompt_evaluator/__init__.py` (2 dependents)
+- `src/prompt_evaluator/dataset_evaluation.py` (2 dependents)
 
 ## Files with Most Dependencies (Intra-Repo)
 
+- `src/prompt_evaluator/cli.py` (5 dependencies)
 - `tests/test_basic.py` (5 dependencies)
-- `src/prompt_evaluator/cli.py` (4 dependencies)
+- `src/prompt_evaluator/dataset_evaluation.py` (2 dependencies)
 - `tests/test_aggregation.py` (2 dependencies)
 - `tests/test_config_models.py` (2 dependencies)
+- `tests/test_dataset_evaluation.py` (2 dependencies)
 - `tests/test_dataset_loader.py` (2 dependencies)
 - `tests/test_judge_models.py` (2 dependencies)
 - `tests/test_rubric_cli.py` (2 dependencies)
 - `tests/test_rubric_models.py` (2 dependencies)
-- `src/prompt_evaluator/config.py` (1 dependencies)
-- `src/prompt_evaluator/provider.py` (1 dependencies)

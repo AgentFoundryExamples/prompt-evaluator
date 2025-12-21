@@ -33,6 +33,7 @@
     ├── __init__.py
     ├── cli.py
     ├── config.py
+    ├── dataset_evaluation.py
     ├── models.py
     └── provider.py
 ├── tests
@@ -40,6 +41,7 @@
   ├── test_aggregation.py
   ├── test_basic.py
   ├── test_config_models.py
+  ├── test_dataset_evaluation.py
   ├── test_dataset_loader.py
   ├── test_evaluate_single_cli.py
   ├── test_generate_cli.py

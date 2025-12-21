@@ -53,6 +53,23 @@
       }
     },
     {
+      "id": "src/prompt_evaluator/dataset_evaluation.py",
+      "path": "src/prompt_evaluator/dataset_evaluation.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "collections.abc.Callable",
+          "datetime.datetime",
+          "datetime.timezone",
+          "json",
+          "pathlib.Path",
+          "typing.Any",
+          "uuid"
+        ],
+        "third-party": []
+      }
+    },
+    {
       "id": "src/prompt_evaluator/models.py",
       "path": "src/prompt_evaluator/models.py",
       "type": "file",
@@ -137,6 +154,20 @@
           "datetime.datetime",
           "datetime.timezone",
           "pathlib.Path"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_dataset_evaluation.py",
+      "path": "tests/test_dataset_evaluation.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone"
         ],
         "third-party": [
           "pytest"
@@ -253,8 +284,20 @@
       "target": "src/prompt_evaluator/__init__.py"
     },
     {
+      "source": "src/prompt_evaluator/cli.py",
+      "target": "src/prompt_evaluator/dataset_evaluation.py"
+    },
+    {
       "source": "src/prompt_evaluator/config.py",
       "target": "src/prompt_evaluator/models.py"
+    },
+    {
+      "source": "src/prompt_evaluator/dataset_evaluation.py",
+      "target": "src/prompt_evaluator/models.py"
+    },
+    {
+      "source": "src/prompt_evaluator/dataset_evaluation.py",
+      "target": "src/prompt_evaluator/provider.py"
     },
     {
       "source": "src/prompt_evaluator/provider.py",
@@ -294,6 +337,14 @@
     },
     {
       "source": "tests/test_config_models.py",
+      "target": "src/prompt_evaluator/models.py"
+    },
+    {
+      "source": "tests/test_dataset_evaluation.py",
+      "target": "src/prompt_evaluator/dataset_evaluation.py"
+    },
+    {
+      "source": "tests/test_dataset_evaluation.py",
       "target": "src/prompt_evaluator/models.py"
     },
     {
@@ -342,6 +393,7 @@
       "abc.ABC",
       "abc.abstractmethod",
       "collections.Counter",
+      "collections.abc.Callable",
       "dataclasses.asdict",
       "dataclasses.dataclass",
       "dataclasses.field",
@@ -375,7 +427,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 22,
+    "stdlib_count": 23,
     "third-party_count": 11
   }
 }

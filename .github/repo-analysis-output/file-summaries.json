@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 15,
+  "total_files": 17,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 29240,
-        "loc": 575,
+        "size_bytes": 40216,
+        "loc": 791,
         "todo_count": 0
       }
     },
@@ -46,6 +46,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "src/prompt_evaluator/dataset_evaluation.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python core implementation",
+      "summary_text": "Python core implementation",
+      "metrics": {
+        "size_bytes": 16156,
+        "loc": 333,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "src/prompt_evaluator/models.py",
       "language": "Python",
       "role": "model",
@@ -53,8 +67,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 23220,
-        "loc": 484,
+        "size_bytes": 29229,
+        "loc": 602,
         "todo_count": 0
       }
     },
@@ -125,6 +139,20 @@
       "metrics": {
         "size_bytes": 12389,
         "loc": 234,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_dataset_evaluation.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 23013,
+        "loc": 556,
         "todo_count": 0
       }
     },

@@ -19,6 +19,9 @@ and integration with evaluate-single command.
 """
 
 import json
+import os
+import re
+import stat
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -90,8 +93,6 @@ class TestResolveRubricPath:
         # Change to temp directory
         original_cwd = Path.cwd()
         try:
-            import os
-
             os.chdir(temp_rubric.parent)
             result = resolve_rubric_path(temp_rubric.name)
             assert result.exists()
@@ -121,9 +122,6 @@ class TestResolveRubricPath:
 
     def test_resolve_unreadable_file_raises_error(self, temp_rubric):
         """Test that unreadable file raises ValueError."""
-        import os
-        import stat
-
         # Make file unreadable (Unix-like systems only)
         try:
             original_mode = temp_rubric.stat().st_mode
@@ -221,7 +219,6 @@ class TestEvaluateSingleWithRubric:
         result = cli_runner.invoke(app, ["evaluate-single", "--help"])
         assert result.exit_code == 0
         # Strip ANSI codes for cleaner comparison
-        import re
         clean_output = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
         assert "--rubric" in clean_output
         assert "preset alias" in clean_output or "preset" in clean_output.lower()

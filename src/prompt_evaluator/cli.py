@@ -18,6 +18,7 @@ This module provides the main CLI entry point and commands for running
 prompt evaluations, managing configurations, and viewing results.
 """
 
+import hashlib
 import json
 import sys
 import uuid
@@ -33,6 +34,7 @@ from prompt_evaluator.models import (
     GeneratorConfig,
     JudgeConfig,
     PromptRun,
+    Rubric,
     Sample,
     SingleEvaluationRun,
     load_judge_prompt,
@@ -49,6 +51,143 @@ app = typer.Typer(
     help="Evaluate and compare prompts across different LLM providers",
     add_completion=False,
 )
+
+
+def compute_rubric_metadata(rubric: Rubric | None, rubric_path: Path | None) -> dict[str, Any]:
+    """
+    Compute rubric metadata including path, hash, and full definition.
+
+    Args:
+        rubric: Rubric object or None
+        rubric_path: Path to rubric file or None
+
+    Returns:
+        Dictionary with rubric metadata
+    """
+    if rubric is None or rubric_path is None:
+        return {}
+
+    rubric_dict = asdict(rubric)
+
+    # Compute hash of rubric content for change detection
+    rubric_json = json.dumps(rubric_dict, sort_keys=True)
+    rubric_hash = hashlib.sha256(rubric_json.encode()).hexdigest()
+
+    return {
+        "rubric_path": str(rubric_path),
+        "rubric_hash": rubric_hash,
+        "rubric_definition": rubric_dict,
+    }
+
+
+def compute_aggregate_statistics(
+    samples: list[Sample], rubric: Rubric | None = None
+) -> dict[str, Any]:
+    """
+    Compute aggregate statistics from samples, including legacy and rubric-based metrics.
+
+    This function computes:
+    - Legacy statistics (mean/min/max score for backward compatibility)
+    - Per-metric statistics (mean/min/max/count for each metric in rubric)
+    - Per-flag statistics (count and proportion for each flag in rubric)
+
+    Samples with status "judge_invalid_response" are excluded from aggregation.
+
+    Args:
+        samples: List of Sample objects with evaluation results
+        rubric: Optional Rubric object defining metrics and flags
+
+    Returns:
+        Dictionary with aggregate statistics including:
+        - Legacy fields: mean_score, min_score, max_score, num_successful, num_failed
+        - metric_stats: Per-metric statistics (if rubric provided)
+        - flag_stats: Per-flag statistics (if rubric provided)
+    """
+    # Filter out invalid samples (judge_invalid_response status)
+    valid_samples = [s for s in samples if s.status != "judge_invalid_response"]
+
+    # Compute legacy statistics for backward compatibility
+    successful_scores = [
+        s.judge_score
+        for s in valid_samples
+        if s.status == "completed" and s.judge_score is not None
+    ]
+
+    stats: dict[str, Any] = {}
+
+    # Calculate num_successful based on "completed" status, which is mode-agnostic
+    num_successful = sum(1 for s in samples if s.status == "completed")
+    stats["num_successful"] = num_successful
+    stats["num_failed"] = len(samples) - num_successful
+
+    if successful_scores:
+        stats["mean_score"] = sum(successful_scores) / len(successful_scores)
+        stats["min_score"] = min(successful_scores)
+        stats["max_score"] = max(successful_scores)
+    else:
+        stats["mean_score"] = None
+        stats["min_score"] = None
+        stats["max_score"] = None
+
+    # If rubric is provided, compute per-metric and per-flag statistics
+    if rubric is not None:
+        # Compute per-metric statistics
+        metric_stats: dict[str, dict[str, float | int | None]] = {}
+
+        for metric in rubric.metrics:
+            metric_name = metric.name
+            # Collect scores for this metric from valid completed samples
+            metric_scores = [
+                s.judge_metrics[metric_name]["score"]
+                for s in valid_samples
+                if s.status == "completed"
+                and metric_name in s.judge_metrics
+                and "score" in s.judge_metrics[metric_name]
+            ]
+
+            if metric_scores:
+                metric_stats[metric_name] = {
+                    "mean": sum(metric_scores) / len(metric_scores),
+                    "min": min(metric_scores),
+                    "max": max(metric_scores),
+                    "count": len(metric_scores),
+                }
+            else:
+                metric_stats[metric_name] = {
+                    "mean": None,
+                    "min": None,
+                    "max": None,
+                    "count": 0,
+                }
+
+        stats["metric_stats"] = metric_stats
+
+        # Compute per-flag statistics
+        flag_stats: dict[str, dict[str, int | float]] = {}
+
+        for flag in rubric.flags:
+            flag_name = flag.name
+            # Collect flag values from valid completed samples
+            flag_values = [
+                s.judge_flags[flag_name]
+                for s in valid_samples
+                if s.status == "completed"
+                and flag_name in s.judge_flags
+            ]
+
+            true_count = sum(1 for v in flag_values if v)
+            total_count = len(flag_values)
+
+            flag_stats[flag_name] = {
+                "true_count": true_count,
+                "false_count": total_count - true_count,
+                "total_count": total_count,
+                "true_proportion": true_count / total_count if total_count > 0 else 0.0,
+            }
+
+        stats["flag_stats"] = flag_stats
+
+    return stats
 
 
 @app.command()
@@ -452,29 +591,11 @@ def evaluate_single(
                 )
                 samples.append(sample)
 
-        # Compute aggregate statistics
-        successful_scores = [
-            s.judge_score for s in samples
-            if s.status == "completed" and s.judge_score is not None
-        ]
+        # Compute aggregate statistics with rubric awareness
+        stats = compute_aggregate_statistics(samples, loaded_rubric)
 
-        stats: dict[str, float | int | None]
-        if successful_scores:
-            stats = {
-                "mean_score": sum(successful_scores) / len(successful_scores),
-                "min_score": min(successful_scores),
-                "max_score": max(successful_scores),
-                "num_successful": len(successful_scores),
-                "num_failed": len(samples) - len(successful_scores),
-            }
-        else:
-            stats = {
-                "mean_score": None,
-                "min_score": None,
-                "max_score": None,
-                "num_successful": 0,
-                "num_failed": len(samples),
-            }
+        # Compute rubric metadata
+        rubric_metadata = compute_rubric_metadata(loaded_rubric, rubric_path)
 
         # Create SingleEvaluationRun
         evaluation_run = SingleEvaluationRun(
@@ -491,6 +612,9 @@ def evaluate_single(
         evaluation_dict = evaluation_run.to_dict()
         # Add aggregate statistics
         evaluation_dict["aggregate_stats"] = stats
+        # Add rubric metadata
+        if rubric_metadata:
+            evaluation_dict["rubric_metadata"] = rubric_metadata
         # Add metadata about prompts
         evaluation_dict["system_prompt_path"] = str(system_prompt_path)
         evaluation_dict["input_path"] = str(input_file_path)
@@ -509,12 +633,45 @@ def evaluate_single(
         typer.echo(f"Successful: {stats['num_successful']}", err=True)
         typer.echo(f"Failed: {stats['num_failed']}", err=True)
 
+        # Print legacy statistics if available
         if stats["mean_score"] is not None:
-            typer.echo("\nAggregate Statistics:", err=True)
+            typer.echo("\nLegacy Aggregate Statistics:", err=True)
             typer.echo(f"  Mean Score: {stats['mean_score']:.2f}/5.0", err=True)
             typer.echo(f"  Min Score:  {stats['min_score']:.2f}/5.0", err=True)
             typer.echo(f"  Max Score:  {stats['max_score']:.2f}/5.0", err=True)
-        else:
+
+        # Print per-metric statistics if available
+        if "metric_stats" in stats and stats["metric_stats"]:
+            typer.echo("\nPer-Metric Statistics:", err=True)
+            for metric_name, metric_data in stats["metric_stats"].items():
+                if metric_data["count"] > 0:
+                    typer.echo(
+                        f"  {metric_name}: "
+                        f"mean={metric_data['mean']:.2f}, "
+                        f"min={metric_data['min']:.2f}, "
+                        f"max={metric_data['max']:.2f}, "
+                        f"count={metric_data['count']}",
+                        err=True
+                    )
+                else:
+                    typer.echo(f"  {metric_name}: No valid scores", err=True)
+
+        # Print per-flag statistics if available
+        if "flag_stats" in stats and stats["flag_stats"]:
+            typer.echo("\nPer-Flag Statistics:", err=True)
+            for flag_name, flag_data in stats["flag_stats"].items():
+                if flag_data["total_count"] > 0:
+                    typer.echo(
+                        f"  {flag_name}: "
+                        f"true={flag_data['true_count']}, "
+                        f"false={flag_data['false_count']}, "
+                        f"proportion={flag_data['true_proportion']:.2%}",
+                        err=True
+                    )
+                else:
+                    typer.echo(f"  {flag_name}: No samples evaluated", err=True)
+
+        if stats.get("num_successful") == 0:
             typer.echo("\nNo successful samples to compute statistics.", err=True)
 
         typer.echo(f"\nResults saved to: {evaluation_file}", err=True)

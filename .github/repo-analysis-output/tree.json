@@ -117,6 +117,20 @@
           ]
         },
         {
+          "type": "directory",
+          "name": "run-artifacts",
+          "children": [
+            {
+              "type": "file",
+              "name": "index.json"
+            },
+            {
+              "type": "file",
+              "name": "run-sample.json"
+            }
+          ]
+        },
+        {
           "type": "file",
           "name": ".gitkeep"
         },

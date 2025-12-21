@@ -25,6 +25,9 @@
     ├── code_review.json
     ├── content_quality.yaml
     └── default.yaml
+  ├── run-artifacts
+    ├── index.json
+    └── run-sample.json
   ├── .gitkeep
   ├── input.txt
   └── system_prompt.txt

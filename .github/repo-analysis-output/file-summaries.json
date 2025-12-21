@@ -25,7 +25,7 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 8540,
+        "size_bytes": 8650,
         "loc": 161,
         "todo_count": 0
       }
@@ -39,7 +39,7 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 7651,
+        "size_bytes": 7656,
         "loc": 154,
         "todo_count": 0
       }
@@ -53,7 +53,7 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 6455,
+        "size_bytes": 6537,
         "loc": 132,
         "todo_count": 0
       }
@@ -67,7 +67,7 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 6999,
+        "size_bytes": 7076,
         "loc": 157,
         "todo_count": 0
       }
@@ -109,7 +109,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 12215,
+        "size_bytes": 12391,
         "loc": 232,
         "todo_count": 0
       }
@@ -123,7 +123,7 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 8862,
+        "size_bytes": 8873,
         "loc": 204,
         "todo_count": 0
       }

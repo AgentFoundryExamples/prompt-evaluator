@@ -20,7 +20,7 @@ Total files: 9
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 8.34 KB  
+**Size:** 8.45 KB  
 **LOC:** 161  
 **TODOs/FIXMEs:** 0  
 
@@ -29,7 +29,7 @@ Total files: 9
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 7.47 KB  
+**Size:** 7.48 KB  
 **LOC:** 154  
 **TODOs/FIXMEs:** 0  
 
@@ -38,7 +38,7 @@ Total files: 9
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 6.30 KB  
+**Size:** 6.38 KB  
 **LOC:** 132  
 **TODOs/FIXMEs:** 0  
 
@@ -47,7 +47,7 @@ Total files: 9
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 6.83 KB  
+**Size:** 6.91 KB  
 **LOC:** 157  
 **TODOs/FIXMEs:** 0  
 
@@ -74,7 +74,7 @@ Total files: 9
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 11.93 KB  
+**Size:** 12.10 KB  
 **LOC:** 232  
 **TODOs/FIXMEs:** 0  
 
@@ -83,6 +83,6 @@ Total files: 9
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 8.65 KB  
+**Size:** 8.67 KB  
 **LOC:** 204  
 **TODOs/FIXMEs:** 0  

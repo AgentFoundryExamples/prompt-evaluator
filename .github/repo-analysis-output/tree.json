@@ -148,6 +148,10 @@
         },
         {
           "type": "file",
+          "name": "test_aggregation.py"
+        },
+        {
+          "type": "file",
           "name": "test_basic.py"
         },
         {

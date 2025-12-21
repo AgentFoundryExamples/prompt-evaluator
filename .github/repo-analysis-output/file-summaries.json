@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 13,
+  "total_files": 14,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 23332,
-        "loc": 462,
+        "size_bytes": 29240,
+        "loc": 575,
         "todo_count": 0
       }
     },
@@ -88,6 +88,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "tests/test_aggregation.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 18150,
+        "loc": 418,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "tests/test_basic.py",
       "language": "Python",
       "role": "test",
@@ -123,8 +137,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 25920,
-        "loc": 600,
+        "size_bytes": 34281,
+        "loc": 775,
         "todo_count": 0
       }
     },

@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 14,
+  "total_files": 15,
   "files": [
     {
       "schema_version": "2.0",
@@ -39,8 +39,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 16378,
-        "loc": 323,
+        "size_bytes": 22395,
+        "loc": 439,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 19223,
-        "loc": 403,
+        "size_bytes": 23220,
+        "loc": 484,
         "todo_count": 0
       }
     },
@@ -125,6 +125,20 @@
       "metrics": {
         "size_bytes": 12389,
         "loc": 234,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_dataset_loader.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 22701,
+        "loc": 483,
         "todo_count": 0
       }
     },

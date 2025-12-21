@@ -72,8 +72,32 @@
     },
     {
       "type": "directory",
+      "name": "docs",
+      "children": [
+        {
+          "type": "file",
+          "name": "datasets.md"
+        }
+      ]
+    },
+    {
+      "type": "directory",
       "name": "examples",
       "children": [
+        {
+          "type": "directory",
+          "name": "datasets",
+          "children": [
+            {
+              "type": "file",
+              "name": "sample.jsonl"
+            },
+            {
+              "type": "file",
+              "name": "sample.yaml"
+            }
+          ]
+        },
         {
           "type": "directory",
           "name": "rubrics",
@@ -157,6 +181,10 @@
         {
           "type": "file",
           "name": "test_config_models.py"
+        },
+        {
+          "type": "file",
+          "name": "test_dataset_loader.py"
         },
         {
           "type": "file",

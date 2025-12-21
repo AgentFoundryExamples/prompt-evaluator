@@ -70,6 +70,30 @@ def test_data_models_defined():
     assert EvaluationResult is not None
 
 
+def test_judge_models_defined():
+    """Test that judge models and structures are defined."""
+    from prompt_evaluator.models import (
+        DEFAULT_JUDGE_SYSTEM_PROMPT,
+        JudgeConfig,
+        Sample,
+        SingleEvaluationRun,
+        load_judge_prompt,
+    )
+
+    assert JudgeConfig is not None
+    assert Sample is not None
+    assert SingleEvaluationRun is not None
+    assert DEFAULT_JUDGE_SYSTEM_PROMPT is not None
+    assert callable(load_judge_prompt)
+
+
+def test_judge_completion_defined():
+    """Test that judge_completion function is defined."""
+    from prompt_evaluator.provider import judge_completion
+
+    assert callable(judge_completion)
+
+
 def test_provider_base_class_defined():
     """Test that provider classes are defined."""
     from prompt_evaluator.provider import BaseProvider, OpenAIProvider, get_provider

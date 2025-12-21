@@ -18,7 +18,6 @@ Tests validate JudgeConfig, Sample, SingleEvaluationRun, and judge functionality
 """
 
 from datetime import datetime, timezone
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -122,7 +121,8 @@ class TestSample:
 
     def test_sample_status_validation_invalid(self):
         """Test that invalid status raises ValueError."""
-        with pytest.raises(ValueError, match="status must be 'pending', 'completed', or 'judge_error'"):
+        expected_msg = "status must be 'pending', 'completed', or 'judge_error'"
+        with pytest.raises(ValueError, match=expected_msg):
             Sample(
                 sample_id="sample-3",
                 input_text="test",

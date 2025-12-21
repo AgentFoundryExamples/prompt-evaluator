@@ -214,8 +214,62 @@ fi
 - [x] Configuration file format and loading
 - [x] CLI commands for running evaluations
 - [x] LLM provider integrations (OpenAI, etc.)
+- [x] Judge models and evaluation data structures for semantic fidelity scoring
 - [ ] Evaluation metrics and reporting
 - [ ] Result comparison and analysis tools
+
+## Judge Models
+
+The prompt evaluator includes built-in support for evaluating generated outputs using a judge model. The judge assesses semantic fidelity on a 1-5 scale and provides structured feedback.
+
+### Key Features
+
+- **JudgeConfig**: Separate configuration for judge models (model name, temperature, tokens, seed)
+- **Sample**: Data structure for storing input, output, and judge scoring results
+- **SingleEvaluationRun**: Container for multiple samples with generator and judge configurations
+- **Default Judge Prompt**: Built-in system prompt for semantic fidelity evaluation with JSON schema enforcement
+- **Custom Prompts**: Load custom judge prompts from files for specialized evaluation criteria
+- **Robust Parsing**: Handles JSON extraction from responses with extra text, score clamping, and graceful error handling
+
+### Usage Example
+
+```python
+from prompt_evaluator.models import JudgeConfig, Sample, load_judge_prompt
+from prompt_evaluator.provider import OpenAIProvider, judge_completion
+
+# Initialize provider and configs
+provider = OpenAIProvider(api_key="your-key")
+judge_config = JudgeConfig(model_name="gpt-4", temperature=0.0)
+
+# Load default or custom judge prompt
+judge_prompt = load_judge_prompt()  # Uses DEFAULT_JUDGE_SYSTEM_PROMPT
+# Or load custom: judge_prompt = load_judge_prompt(Path("custom_prompt.txt"))
+
+# Evaluate a sample
+result = judge_completion(
+    provider=provider,
+    input_text="What is Python?",
+    generator_output="Python is a programming language.",
+    judge_config=judge_config,
+    judge_system_prompt=judge_prompt,
+    task_description="Explain programming concepts clearly"  # Optional
+)
+
+# Check result
+if result["status"] == "completed":
+    print(f"Score: {result['judge_score']}/5")
+    print(f"Rationale: {result['judge_rationale']}")
+else:
+    print(f"Error: {result['error']}")
+```
+
+### Error Handling
+
+The judge completion function gracefully handles various error scenarios:
+- Invalid JSON or missing fields → `judge_error` status with raw response preserved
+- Out-of-range scores → Automatic clamping to 1.0-5.0 range
+- API exceptions → `judge_error` status with error details
+- Extra text around JSON → Automatic extraction of JSON object
 
 ## Development
 

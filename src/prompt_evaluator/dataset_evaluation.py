@@ -21,6 +21,7 @@ per-case and overall aggregate statistics.
 
 import json
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -204,7 +205,7 @@ def evaluate_dataset(
     rubric: Rubric | None,
     rubric_metadata: dict[str, Any],
     output_dir: Path,
-    progress_callback: Any = None,
+    progress_callback: Callable[..., None] | None = None,
 ) -> DatasetEvaluationRun:
     """
     Evaluate a dataset of test cases with multiple samples per case.

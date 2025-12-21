@@ -633,7 +633,7 @@ class TestCaseResult:
         samples: List of Sample objects with generation and judging results
         per_metric_stats: Per-metric statistics (mean/std/min/max/count) for this test case
         per_flag_stats: Per-flag statistics (counts and proportions) for this test case
-        status: Status of test case evaluation ("completed", "failed", "partial")
+        status: Status of test case evaluation ("pending", "completed", "failed", "partial")
         timestamp_start: When evaluation of this test case started
         timestamp_end: When evaluation of this test case completed
         error_message: Error message if evaluation failed
@@ -697,7 +697,7 @@ class DatasetEvaluationRun:
         test_case_results: List of TestCaseResult objects
         overall_metric_stats: Overall statistics (mean of per-case means) for each metric
         overall_flag_stats: Overall flag rates across all test cases
-        status: Status of the run ("running", "completed", "failed", "aborted")
+        status: Status of the run ("running", "completed", "failed", "aborted", "partial")
         timestamp_start: When the evaluation run started
         timestamp_end: When the evaluation run completed
         system_prompt_path: Path to the system prompt file used

@@ -843,7 +843,8 @@ def evaluate_dataset(
         # Apply case-ids filter if provided
         if case_ids:
             requested_ids = [cid.strip() for cid in case_ids.split(",")]
-            available_ids = {tc.id for tc in test_cases}
+            test_case_map = {tc.id: tc for tc in test_cases}
+            available_ids = set(test_case_map.keys())
 
             # Validate all requested IDs exist
             unknown_ids = [cid for cid in requested_ids if cid not in available_ids]
@@ -858,8 +859,8 @@ def evaluate_dataset(
                 )
                 raise typer.Exit(1)
 
-            # Filter test cases
-            test_cases = [tc for tc in test_cases if tc.id in requested_ids]
+            # Filter test cases, preserving user-specified order
+            test_cases = [test_case_map[cid] for cid in requested_ids]
             typer.echo(f"Filtered to {len(test_cases)} test cases by --case-ids", err=True)
 
         # Apply max-cases filter if provided
@@ -1019,9 +1020,11 @@ def evaluate_dataset(
                                 and isinstance(mean, (int, float))
                                 and count_val > 1
                             ):
-                                if std > HIGH_STD_ABSOLUTE_THRESHOLD or (
-                                    mean > 0 and std / mean > HIGH_STD_RELATIVE_THRESHOLD
-                                ):
+                                is_high_absolute = std > HIGH_STD_ABSOLUTE_THRESHOLD
+                                is_high_relative = (
+                                    mean != 0 and (std / abs(mean)) > HIGH_STD_RELATIVE_THRESHOLD
+                                )
+                                if is_high_absolute or is_high_relative:
                                     std_warning = " ⚠️ HIGH VARIABILITY"
 
                             std_str = f"std={std:.2f}" if std is not None else "std=N/A"

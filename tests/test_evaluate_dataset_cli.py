@@ -333,11 +333,14 @@ class TestEvaluateDatasetCLI:
             assert result.exit_code == 0
             assert "Filtered to 2 test cases by --case-ids" in result.stdout
 
-            # Verify only filtered test cases were passed
+            # Verify only filtered test cases were passed in user-specified order
             call_kwargs = mock_eval.call_args.kwargs
             test_cases = call_kwargs["test_cases"]
             assert len(test_cases) == 2
             assert {tc.id for tc in test_cases} == {"test-001", "test-003"}
+            # Verify order matches user specification (test-001, test-003)
+            assert test_cases[0].id == "test-001"
+            assert test_cases[1].id == "test-003"
 
     def test_evaluate_dataset_case_ids_unknown_id(
         self, cli_runner, temp_dataset_yaml, temp_prompts, monkeypatch
@@ -489,10 +492,11 @@ class TestEvaluateDatasetCLI:
             assert "Filtered to 2 test cases by --case-ids" in result.stdout
             assert "Limited to first 1 test cases by --max-cases" in result.stdout
 
-            # Verify only 1 test case was passed
+            # Verify only 1 test case was passed and it's the first one from the filtered list
             call_kwargs = mock_eval.call_args.kwargs
             test_cases = call_kwargs["test_cases"]
             assert len(test_cases) == 1
+            assert test_cases[0].id == "test-001"  # First case from filtered list
 
     def test_evaluate_dataset_jsonl_format(
         self, cli_runner, temp_dataset_jsonl, temp_prompts, monkeypatch

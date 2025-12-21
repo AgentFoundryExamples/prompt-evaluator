@@ -898,6 +898,7 @@ def evaluate_dataset(
             test_cases=test_cases,
             dataset_metadata=dataset_metadata,
             system_prompt=system_prompt_content,
+            system_prompt_path=system_prompt_path,
             num_samples_per_case=num_samples,
             generator_config=generator_config,
             judge_config=judge_config,

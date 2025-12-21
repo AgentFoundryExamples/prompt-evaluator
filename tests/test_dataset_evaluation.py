@@ -303,7 +303,8 @@ class TestComputePerCaseStatistics:
         assert per_metric_stats["metric1"]["min"] == 3.0
         assert per_metric_stats["metric1"]["max"] == 5.0
         assert per_metric_stats["metric1"]["count"] == 3
-        assert per_metric_stats["metric1"]["std"] == pytest.approx(0.8165, rel=0.01)
+        # Sample standard deviation with n-1 denominator
+        assert per_metric_stats["metric1"]["std"] == pytest.approx(1.0, rel=0.01)
 
         # Check flag statistics
         assert "flag1" in per_flag_stats
@@ -596,3 +597,67 @@ class TestComputeOverallStatistics:
         # Only tc1 should be included
         assert overall_metric_stats["metric1"]["mean_of_means"] == 4.0
         assert overall_metric_stats["metric1"]["num_cases"] == 1
+
+    def test_compute_overall_statistics_includes_partial_cases(self):
+        """Test that partial test cases are included in overall statistics."""
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="metric1",
+                    description="Test",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Test",
+                ),
+            ],
+            flags=[
+                RubricFlag(name="flag1", description="Test flag"),
+            ],
+        )
+
+        tc1 = TestCaseResult(
+            test_case_id="tc1",
+            test_case_input="test1",
+            status="completed",
+            per_metric_stats={
+                "metric1": {"mean": 4.0, "std": 0.0, "min": 4.0, "max": 4.0, "count": 3}
+            },
+            per_flag_stats={
+                "flag1": {
+                    "true_count": 2,
+                    "false_count": 1,
+                    "total_count": 3,
+                    "true_proportion": 2 / 3,
+                }
+            },
+        )
+
+        tc2 = TestCaseResult(
+            test_case_id="tc2",
+            test_case_input="test2",
+            status="partial",
+            per_metric_stats={
+                "metric1": {"mean": 5.0, "std": 0.0, "min": 5.0, "max": 5.0, "count": 2}
+            },
+            per_flag_stats={
+                "flag1": {
+                    "true_count": 1,
+                    "false_count": 1,
+                    "total_count": 2,
+                    "true_proportion": 0.5,
+                }
+            },
+        )
+
+        test_case_results = [tc1, tc2]
+
+        overall_metric_stats, overall_flag_stats = compute_overall_statistics(
+            test_case_results, rubric
+        )
+
+        # Both tc1 and tc2 should be included
+        assert overall_metric_stats["metric1"]["mean_of_means"] == 4.5
+        assert overall_metric_stats["metric1"]["num_cases"] == 2
+        # Flags: tc1 has 2 true, tc2 has 1 true = 3 total true out of 5 samples
+        assert overall_flag_stats["flag1"]["true_count"] == 3
+        assert overall_flag_stats["flag1"]["total_count"] == 5

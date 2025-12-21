@@ -74,9 +74,11 @@ def compute_per_case_statistics(
         if metric_scores:
             # Compute mean, std, min, max, count
             mean = sum(metric_scores) / len(metric_scores)
-            # Compute standard deviation
+            # Compute standard deviation using sample variance (n-1)
             if len(metric_scores) > 1:
-                variance = sum((x - mean) ** 2 for x in metric_scores) / len(metric_scores)
+                variance = sum((x - mean) ** 2 for x in metric_scores) / (
+                    len(metric_scores) - 1
+                )
                 std = variance**0.5
             else:
                 std = 0.0
@@ -149,7 +151,7 @@ def compute_overall_statistics(
         per_case_means: list[float | int] = [
             tc.per_metric_stats[metric_name]["mean"]  # type: ignore[misc]
             for tc in test_case_results
-            if tc.status == "completed"
+            if tc.status in ("completed", "partial")
             and metric_name in tc.per_metric_stats
             and tc.per_metric_stats[metric_name]["mean"] is not None
         ]
@@ -178,7 +180,7 @@ def compute_overall_statistics(
         total_count: int = 0
 
         for tc in test_case_results:
-            if tc.status == "completed" and flag_name in tc.per_flag_stats:
+            if tc.status in ("completed", "partial") and flag_name in tc.per_flag_stats:
                 total_true += int(tc.per_flag_stats[flag_name]["true_count"])
                 total_false += int(tc.per_flag_stats[flag_name]["false_count"])
                 total_count += int(tc.per_flag_stats[flag_name]["total_count"])
@@ -198,6 +200,7 @@ def evaluate_dataset(
     test_cases: list[TestCase],
     dataset_metadata: dict[str, Any],
     system_prompt: str,
+    system_prompt_path: Path,
     num_samples_per_case: int,
     generator_config: GeneratorConfig,
     judge_config: JudgeConfig,
@@ -223,6 +226,7 @@ def evaluate_dataset(
         test_cases: List of TestCase objects to evaluate
         dataset_metadata: Metadata about the dataset (path, hash, count)
         system_prompt: System prompt for the generator
+        system_prompt_path: Path to the system prompt file
         num_samples_per_case: Number of samples to generate per test case
         generator_config: Configuration for the generator model
         judge_config: Configuration for the judge model
@@ -254,6 +258,7 @@ def evaluate_dataset(
         judge_config=judge_config,
         rubric_metadata=rubric_metadata,
         timestamp_start=timestamp_start,
+        system_prompt_path=str(system_prompt_path),
     )
 
     # Iterate through test cases
@@ -301,38 +306,56 @@ def evaluate_dataset(
                 )
 
                 # Judge the output
-                judge_result = judge_completion(
-                    provider=provider,
-                    input_text=test_case.input,
-                    generator_output=response_text,
-                    judge_config=judge_config,
-                    judge_system_prompt=judge_system_prompt,
-                    task_description=test_case.task,
-                    rubric=rubric,
-                )
+                try:
+                    judge_result = judge_completion(
+                        provider=provider,
+                        input_text=test_case.input,
+                        generator_output=response_text,
+                        judge_config=judge_config,
+                        judge_system_prompt=judge_system_prompt,
+                        task_description=test_case.task,
+                        rubric=rubric,
+                    )
 
-                # Create sample with judge results
-                sample = Sample(
-                    sample_id=sample_id,
-                    input_text=test_case.input,
-                    generator_output=response_text,
-                    judge_score=judge_result.get("judge_score"),
-                    judge_rationale=judge_result.get("judge_rationale"),
-                    judge_raw_response=judge_result.get("judge_raw_response"),
-                    status=judge_result["status"],
-                    task_description=test_case.task,
-                    judge_metrics=judge_result.get("judge_metrics", {}),
-                    judge_flags=judge_result.get("judge_flags", {}),
-                    judge_overall_comment=judge_result.get("judge_overall_comment"),
-                )
+                    # Create sample with judge results
+                    sample = Sample(
+                        sample_id=sample_id,
+                        input_text=test_case.input,
+                        generator_output=response_text,
+                        judge_score=judge_result.get("judge_score"),
+                        judge_rationale=judge_result.get("judge_rationale"),
+                        judge_raw_response=judge_result.get("judge_raw_response"),
+                        status=judge_result["status"],
+                        task_description=test_case.task,
+                        judge_metrics=judge_result.get("judge_metrics", {}),
+                        judge_flags=judge_result.get("judge_flags", {}),
+                        judge_overall_comment=judge_result.get("judge_overall_comment"),
+                    )
 
-                samples.append(sample)
+                    samples.append(sample)
 
-                if sample.status == "completed":
-                    num_successful += 1
+                    if sample.status == "completed":
+                        num_successful += 1
+
+                except Exception as e:
+                    # Judge failed, but we have the generation
+                    sample = Sample(
+                        sample_id=sample_id,
+                        input_text=test_case.input,
+                        generator_output=response_text,
+                        status="judge_error",
+                        task_description=test_case.task,
+                        judge_raw_response=str(e),
+                    )
+                    samples.append(sample)
+
+                    if progress_callback:
+                        progress_callback(
+                            f"  Judge error in sample {sample_idx + 1}: {e}", err=True
+                        )
 
             except Exception as e:
-                # Create a sample with error status
+                # Generation failed
                 sample = Sample(
                     sample_id=sample_id,
                     input_text=test_case.input,
@@ -343,7 +366,9 @@ def evaluate_dataset(
                 samples.append(sample)
 
                 if progress_callback:
-                    progress_callback(f"  Error in sample {sample_idx + 1}: {e}", err=True)
+                    progress_callback(
+                        f"  Generation error in sample {sample_idx + 1}: {e}", err=True
+                    )
 
         # Store samples in test case result
         test_case_result.samples = samples

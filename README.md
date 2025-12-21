@@ -208,6 +208,53 @@ else
 fi
 ```
 
+## Understanding Generator and Judge Roles
+
+The prompt evaluator uses a two-model architecture to assess prompt quality:
+
+### Generator Model
+
+The **generator** is the LLM that produces text completions based on your prompts. Its role is to:
+- Process the system prompt and user input
+- Generate natural language responses
+- Potentially use a seed for reproducibility (when supported by the provider)
+- Apply sampling parameters (temperature, max tokens, etc.)
+
+Generator configuration is controlled via `GeneratorConfig` and CLI flags like `--generator-model`, `--temperature`, `--seed`, and `--max-tokens`.
+
+### Judge Model
+
+The **judge** is a separate LLM that evaluates the quality of generator outputs. Its role is to:
+- Assess how well the generated output preserves the semantic meaning of the input
+- Assign a numeric score on a 1-5 scale
+- Provide a rationale explaining the score
+- Return structured feedback as JSON
+
+Judge configuration is controlled via `JudgeConfig` and CLI flags like `--judge-model` and `--judge-system-prompt`.
+
+### Semantic Fidelity Scoring
+
+The default judge evaluates **semantic fidelity** - how faithfully the output preserves the meaning and intent of the input. The scoring scale is:
+
+- **5.0** - Completely faithful: Perfect preservation of semantic meaning and intent
+- **4.0** - Mostly faithful: Minor deviations but core semantics preserved
+- **3.0** - Partially faithful: Some key information preserved but with notable gaps
+- **2.0** - Mostly unfaithful: Major semantic deviations or omissions
+- **1.0** - Completely unfaithful: Output contradicts or has no relation to the input
+
+### Judge Response Format
+
+The judge returns a JSON object with exactly two fields:
+
+```json
+{
+  "semantic_fidelity": 4.5,
+  "rationale": "The output accurately captures the main concepts with minor elaboration that enhances clarity."
+}
+```
+
+The `semantic_fidelity` field is extracted and stored as `judge_score` in the evaluation results. This structured format allows for programmatic analysis of evaluation results. If the judge fails to return valid JSON or the score is out of range, the sample is marked with a `judge_error` status and the raw response is preserved for debugging.
+
 ### Evaluate-Single Command
 
 The `evaluate-single` command runs multiple generation samples for a single prompt/input pair, judges each output, and produces aggregate statistics. This is useful for assessing the consistency and quality of a prompt across multiple generations.
@@ -237,6 +284,80 @@ prompt-evaluator evaluate-single \
   --num-samples 3 \
   --judge-system-prompt custom_judge.txt
 ```
+
+#### Command Parameters
+
+**Required Parameters:**
+
+- `--system-prompt`, `-s`: Path to the generator's system prompt file
+- `--input`, `-i`: Path to the input/user prompt file
+- `--num-samples`, `-n`: Number of samples to generate and evaluate (must be positive)
+
+**Optional Parameters:**
+
+- `--generator-model`: Override the generator model (default: `gpt-5.1`, or from `OPENAI_MODEL` environment variable, or from config file)
+- `--judge-model`: Override the judge model (default: same as generator model)
+- `--judge-system-prompt`: Path to custom judge prompt file (default: uses built-in semantic fidelity prompt). **Note:** Custom judge prompts must still return a JSON object with `semantic_fidelity` (numeric score 1-5) and `rationale` (string) keys to be parsed correctly.
+- `--seed`: Random seed for generator reproducibility (default: no seed)
+- `--temperature`, `-t`: Generator sampling temperature 0.0-2.0 (default: `0.7`)
+- `--max-tokens`: Maximum completion tokens for generator (default: `1024`)
+- `--task-description`: Optional description providing context to the judge about the task
+- `--output-dir`, `-o`: Directory for run artifacts (default: `runs/`)
+- `--config`, `-c`: Path to config file for API credentials (default: reads from environment)
+
+**Note on Stdin:** Unlike the `generate` command, `evaluate-single` does not support stdin input (`--input -`). You must provide a file path for reproducible multi-sample evaluations.
+
+#### Configuration Defaults
+
+The command uses the following default configurations:
+
+**Generator defaults:**
+- Model: `gpt-5.1` (or from `OPENAI_MODEL` environment variable)
+- Temperature: `0.7`
+- Max completion tokens: `1024`
+- Seed: `null` (non-deterministic)
+
+**Judge defaults:**
+- Model: Same as generator model (or from `--judge-model`)
+- Temperature: `0.0` (deterministic judging)
+- Max completion tokens: `512`
+- Seed: `null`
+- System prompt: Built-in semantic fidelity evaluator
+
+Defaults can be overridden via CLI flags or config file. CLI flags take precedence over config file values.
+
+#### Deterministic Runs with --seed
+
+The `--seed` parameter enables reproducible generator outputs when the LLM provider supports seeding:
+
+```bash
+# Deterministic generation (when supported)
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 5 \
+  --seed 42
+```
+
+**Important notes about seeding:**
+
+- **Provider support varies:** Not all LLM providers honor the seed parameter. OpenAI's GPT models support seeding for deterministic outputs, but results may still vary across different API versions or model updates.
+- **Judge is always deterministic:** The judge uses `temperature=0.0` by default to ensure consistent scoring, regardless of the `--seed` parameter (which only affects the generator).
+- **No guarantee:** Even with a seed, providers may ignore it or return slightly different results due to internal changes. Always verify reproducibility for your specific model and provider.
+- **Debugging tip:** If you get different outputs with the same seed, check the provider's documentation for seeding support and any known limitations.
+
+#### Artifact Output
+
+Each evaluation run creates a unique directory under `runs/<run_id>/` containing:
+
+**Main artifact:**
+- `evaluate-single.json` - Complete evaluation results with all samples, scores, and metadata
+
+**Location:**
+- Default: `runs/<uuid>/evaluate-single.json`
+- Custom: `<output-dir>/<uuid>/evaluate-single.json` (when using `--output-dir`)
+
+The run directory is created automatically if it doesn't exist. Each run gets a unique UUID-based identifier to prevent conflicts.
 
 #### How it Works
 
@@ -297,13 +418,129 @@ Example output structure:
 }
 ```
 
-#### Error Handling
+#### Interpreting Results
 
-The evaluate-single command is resilient to failures:
-- If generation fails for a sample, it's recorded with error status
-- If judging fails (e.g., invalid JSON response), the sample is marked as "judge_error"
+**Sample Status Values:**
+
+Each sample in the output has a `status` field indicating its evaluation state:
+
+- `"completed"` - Both generation and judging succeeded; `judge_score` and `judge_rationale` are populated
+- `"judge_error"` - Generation succeeded but judge failed to return valid JSON or encountered an error; check `judge_raw_response` for debugging
+- `"generation_error"` - Generator failed to produce output; `generator_output` will be empty
+- `"pending"` - Sample not yet processed (should not appear in final results)
+
+**Aggregate Statistics:**
+
+The `aggregate_stats` object summarizes results across all samples:
+
+- `mean_score` - Average semantic fidelity score across successful samples
+- `min_score` - Lowest score among successful samples
+- `max_score` - Highest score among successful samples
+- `num_successful` - Count of samples with `status: "completed"`
+- `num_failed` - Count of samples with `judge_error` or `generation_error`
+
+**When Statistics are Null:**
+
+If all samples fail (no successful completions), the statistics fields are set to `null`:
+
+```json
+{
+  "aggregate_stats": {
+    "mean_score": null,
+    "min_score": null,
+    "max_score": null,
+    "num_successful": 0,
+    "num_failed": 5
+  }
+}
+```
+
+This indicates a systemic issue - check your API credentials, model availability, or prompt configuration.
+
+**Inspecting Judge Errors:**
+
+When a sample has `status: "judge_error"`, examine the `judge_raw_response` field in the artifact JSON:
+
+```json
+{
+  "sample_id": "abc123-sample-2",
+  "status": "judge_error",
+  "judge_score": null,
+  "judge_rationale": null,
+  "judge_raw_response": "I think the output is good but I cannot provide a score in JSON format."
+}
+```
+
+Common causes of judge errors:
+- Judge returned text instead of JSON
+- JSON structure is missing required fields (`semantic_fidelity` or `rationale`)
+- Network or API errors during judge request
+
+To recover, consider:
+- Using a more capable judge model (e.g., `gpt-4` instead of `gpt-3.5-turbo`)
+- Adjusting the judge system prompt to emphasize JSON formatting
+- **Note:** The judge's `max_completion_tokens` is set to 512 by default and cannot be adjusted via CLI flags. If you need more tokens for verbose rationales, you would need to modify the `JudgeConfig` in code or request this as a feature enhancement.
+
+#### Error Handling and Resilience
+
+The evaluate-single command is designed to handle failures gracefully:
+
+**Generation Failures:**
+- If the generator fails for a sample, it's recorded with `status: "generation_error"`
+- Remaining samples continue to process
+- Failed samples are counted in `num_failed` but excluded from score statistics
+
+**Judge Failures:**
+- If judging fails (e.g., invalid JSON response), the sample is marked as `status: "judge_error"`
+- The generator output is preserved but scores remain `null`
+- Raw judge response is saved in `judge_raw_response` for debugging
+- Failed samples are counted in `num_failed` but excluded from score statistics
+
+**Partial Success:**
 - Aggregate statistics are computed only from successful samples
 - If all samples fail, statistics are set to null with clear messaging
+
+**Exit Codes:**
+- `0` - Evaluation completed (even if some samples failed)
+- `1` - Configuration error, missing files, or unrecoverable failure
+
+The command prioritizes completing as many samples as possible, even when individual samples encounter errors.
+
+#### Current Limitations
+
+**Single Input Per Run:**
+- The `evaluate-single` command processes one input file per execution
+- To evaluate multiple inputs, run the command multiple times with different `--input` files
+- Each run generates a separate artifact with its own `run_id`
+- Future versions may support batch evaluation of multiple inputs
+
+**Semantic Fidelity Only:**
+- The default judge evaluates only **semantic fidelity** (meaning preservation)
+- Other dimensions (fluency, coherence, factuality, safety) are not currently assessed
+- Custom judge prompts (via `--judge-system-prompt`) can evaluate different criteria, but the JSON schema remains the same
+- Future versions may support multi-dimensional scoring and custom rubrics
+
+**No Stdin Support:**
+- Unlike `generate`, the `evaluate-single` command does not accept stdin input (`--input -`)
+- This is intentional to ensure reproducibility - all samples must use the same input file
+- Workaround: Write stdin content to a temporary file, then pass that file path
+
+**Model and Provider Constraints:**
+- Currently optimized for OpenAI API (GPT-4, GPT-3.5, etc.)
+- Other providers may work but are not actively tested
+- Seeding behavior depends on provider support and may not be consistent
+
+#### Future Extensibility
+
+The architecture is designed for future enhancements:
+- **Multi-dimensional scoring:** Support for evaluating multiple quality dimensions simultaneously (fluency, factuality, etc.)
+- **Batch evaluation:** Process multiple input files in a single run with comparative analysis
+- **Custom rubrics:** User-defined evaluation criteria and scoring schemas
+- **Provider diversity:** Expanded testing and support for Anthropic, Hugging Face, and other LLM providers
+- **Progress streaming:** Real-time progress updates and partial result streaming for long-running evaluations
+- **Retry mechanisms:** Configurable retry logic for transient API failures
+
+Contributions and feedback on prioritization are welcome!
 
 ## Roadmap
 

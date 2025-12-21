@@ -1087,14 +1087,17 @@ When a run is interrupted:
 
 **Current Limitation - No Resume:**
 
-⚠️ **Resume functionality is not yet implemented.** If a run is interrupted, you must restart from the beginning.
+⚠️ **Resume functionality is not yet implemented.** If a run is interrupted, you must restart from the beginning or manually determine which cases completed and run the remaining ones.
 
-**Workaround strategies:**
+**Manual workaround strategies:**
 
-1. **Filter to remaining cases:**
+These are manual approaches to handle interrupted runs, not built-in resume commands:
+
+1. **Manually filter to remaining cases:**
    ```bash
    # Original run was interrupted after test-001 and test-002
-   # Manually run remaining cases
+   # Inspect the partial results to identify completed cases
+   # Then manually run remaining cases with --case-ids
    prompt-evaluator evaluate-dataset \
      --dataset dataset.yaml \
      --system-prompt prompt.txt \
@@ -1102,7 +1105,7 @@ When a run is interrupted:
      --num-samples 5
    ```
 
-2. **Use smaller batches:**
+2. **Use smaller batches from the start:**
    ```bash
    # Instead of running all 100 cases at once, split into batches
    prompt-evaluator evaluate-dataset --case-ids test-001,...,test-020 --num-samples 5
@@ -1110,9 +1113,9 @@ When a run is interrupted:
    # ... etc
    ```
 
-3. **Checkpoint with max-cases:**
+3. **Checkpoint with smaller batches:**
    ```bash
-   # Process in chunks of 10 cases
+   # Process in chunks of 10 cases to minimize risk
    for i in {0..9}; do
      prompt-evaluator evaluate-dataset \
        --max-cases 10 \
@@ -1120,6 +1123,8 @@ When a run is interrupted:
        --output-dir runs/batch-$i
    done
    ```
+
+**Note:** These workarounds require manual tracking of completed cases and cannot automatically merge results. You must manually inspect partial artifacts to determine which cases need to be rerun.
 
 **Tracking Multiple Runs:**
 

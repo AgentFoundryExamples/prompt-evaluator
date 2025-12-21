@@ -473,9 +473,11 @@ More samples → more reliable statistics:
 | Samples | Confidence Level | Use Case |
 |---------|------------------|----------|
 | 2-5 | Low | Smoke testing, rapid iteration |
-| 5-10 | Moderate | Standard evaluation, std within ~15% of true value |
-| 10-20 | High | Critical prompts, std within ~10% of true value |
-| 50+ | Very High | Production validation, std within ~5% of true value |
+| 5-10 | Moderate | Standard evaluation |
+| 10-20 | High | Critical prompts |
+| 50+ | Very High | Production validation |
+
+**Note:** The confidence levels above are general guidelines. Actual statistical precision depends on the underlying distribution of metric scores and the inherent variability in model outputs. These estimates assume reasonably well-behaved distributions.
 
 **Rule of thumb:** If std is high, increase sample count to confirm it's real variance, not sampling noise.
 

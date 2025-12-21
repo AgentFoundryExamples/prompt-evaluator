@@ -219,7 +219,7 @@
       "test_cases_completed": 87,
       "test_cases_partial": 3,
       "test_cases_failed": 0,
-      "_comment_incomplete": "Processed 90 out of 200 cases before interruption. 110 cases remain unprocessed.",
+      "_comment_incomplete": "Attempted 90 out of 200 cases before interruption. 110 cases remain unprocessed.",
       "overall_metrics": {
         "_comment_incomplete_metrics": "These metrics are computed only from the 87 completed and 3 partial cases",
         "semantic_fidelity": {

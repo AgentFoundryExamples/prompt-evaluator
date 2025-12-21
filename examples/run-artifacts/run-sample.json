@@ -260,13 +260,13 @@
         },
         "clarity": {
           "mean": 4.5,
-          "std": 0.5,
+          "std": 0.4472,
           "min": 4.0,
           "max": 5.0,
           "count": 5
         }
       },
-      "_comment_per_metric_stats": "Per-case statistics for each metric. mean=average score, std=standard deviation (sample variance n-1), min/max=range, count=number of valid samples. High std (>1.0 or >20% of mean) indicates inconsistent prompt behavior.",
+      "_comment_per_metric_stats": "Per-case statistics for each metric. mean=average score, std=standard deviation (sample variance n-1), min/max=range, count=number of valid samples. Samples with status 'judge_invalid_response' are excluded from these calculations. High std (>1.0 or >20% of mean) indicates inconsistent prompt behavior.",
       
       "per_flag_stats": {
         "invented_constraints": {

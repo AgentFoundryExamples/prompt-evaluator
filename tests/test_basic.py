@@ -269,7 +269,7 @@ class TestAggregationStatistics:
             ),
         ]
 
-        # Use same aggregation logic as CLI (from cli.py lines 418-440)
+        # Use same aggregation logic as CLI evaluate_single command
         successful_scores = [
             s.judge_score for s in samples
             if s.status == "completed" and s.judge_score is not None

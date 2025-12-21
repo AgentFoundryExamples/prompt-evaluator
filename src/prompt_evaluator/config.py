@@ -300,18 +300,11 @@ def resolve_rubric_path(rubric_input: str | None) -> Path:
         rubric_path = Path.cwd() / rubric_path
 
     # Resolve to canonical path to prevent path traversal attacks
+    # resolve() normalizes the path, resolving symlinks and removing .. components
     try:
         rubric_path = rubric_path.resolve(strict=False)
     except (OSError, RuntimeError) as e:
         raise ValueError(f"Invalid rubric path: {rubric_input}") from e
-
-    # Validate that resolved path doesn't contain path traversal attempts
-    # Check for suspicious patterns in the resolved path
-    path_str = str(rubric_path)
-    if ".." in path_str.split(os.sep):
-        raise ValueError(
-            f"Path traversal not allowed in rubric path: {rubric_input}"
-        )
 
     # Check if path exists
     if not rubric_path.exists():

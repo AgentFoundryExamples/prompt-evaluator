@@ -618,3 +618,135 @@ class TestCase(BaseModel):
             return super().model_validate(obj_copy, **kwargs)
 
         return super().model_validate(obj, **kwargs)
+
+
+@dataclass
+class TestCaseResult:
+    """
+    Results from evaluating a single test case with multiple samples.
+
+    Attributes:
+        test_case_id: Unique identifier for the test case
+        test_case_input: Input text from the test case
+        test_case_metadata: Metadata from the test case (task, constraints, etc.)
+        num_samples: Number of samples generated for this test case
+        samples: List of Sample objects with generation and judging results
+        per_metric_stats: Per-metric statistics (mean/std/min/max/count) for this test case
+        per_flag_stats: Per-flag statistics (counts and proportions) for this test case
+        status: Status of test case evaluation ("completed", "failed", "partial")
+        timestamp_start: When evaluation of this test case started
+        timestamp_end: When evaluation of this test case completed
+        error_message: Error message if evaluation failed
+    """
+
+    test_case_id: str
+    test_case_input: str
+    test_case_metadata: dict[str, Any] = field(default_factory=dict)
+    num_samples: int = 0
+    samples: list[Sample] = field(default_factory=list)
+    per_metric_stats: dict[str, dict[str, float | int | None]] = field(default_factory=dict)
+    per_flag_stats: dict[str, dict[str, int | float]] = field(default_factory=dict)
+    status: str = "pending"
+    timestamp_start: datetime | None = None
+    timestamp_end: datetime | None = None
+    error_message: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate test case result fields."""
+        valid_statuses = ("pending", "completed", "failed", "partial")
+        if self.status not in valid_statuses:
+            raise ValueError(f"status must be one of {valid_statuses}, got '{self.status}'")
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the TestCaseResult to a JSON-compatible dictionary.
+
+        Returns:
+            Dictionary representation suitable for JSON serialization
+        """
+        result = {
+            "test_case_id": self.test_case_id,
+            "test_case_input": self.test_case_input,
+            "test_case_metadata": self.test_case_metadata,
+            "num_samples": self.num_samples,
+            "samples": [sample.to_dict() for sample in self.samples],
+            "per_metric_stats": self.per_metric_stats,
+            "per_flag_stats": self.per_flag_stats,
+            "status": self.status,
+            "timestamp_start": self.timestamp_start.isoformat() if self.timestamp_start else None,
+            "timestamp_end": self.timestamp_end.isoformat() if self.timestamp_end else None,
+            "error_message": self.error_message,
+        }
+        return result
+
+
+@dataclass
+class DatasetEvaluationRun:
+    """
+    Complete dataset evaluation run with all test cases and aggregate metrics.
+
+    Attributes:
+        run_id: Unique identifier for this evaluation run
+        dataset_path: Path to the dataset file
+        dataset_hash: Hash of the dataset for change detection
+        dataset_count: Number of test cases in the dataset
+        num_samples_per_case: Number of samples generated per test case
+        generator_config: Configuration for the generator model
+        judge_config: Configuration for the judge model
+        rubric_metadata: Metadata about the rubric used (path, hash, definition)
+        test_case_results: List of TestCaseResult objects
+        overall_metric_stats: Overall statistics (mean of per-case means) for each metric
+        overall_flag_stats: Overall flag rates across all test cases
+        status: Status of the run ("running", "completed", "failed", "aborted")
+        timestamp_start: When the evaluation run started
+        timestamp_end: When the evaluation run completed
+        system_prompt_path: Path to the system prompt file used
+    """
+
+    run_id: str
+    dataset_path: str
+    dataset_hash: str
+    dataset_count: int
+    num_samples_per_case: int
+    generator_config: GeneratorConfig
+    judge_config: JudgeConfig
+    rubric_metadata: dict[str, Any] = field(default_factory=dict)
+    test_case_results: list[TestCaseResult] = field(default_factory=list)
+    overall_metric_stats: dict[str, dict[str, float | int | None]] = field(default_factory=dict)
+    overall_flag_stats: dict[str, dict[str, int | float]] = field(default_factory=dict)
+    status: str = "running"
+    timestamp_start: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp_end: datetime | None = None
+    system_prompt_path: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate dataset evaluation run fields."""
+        valid_statuses = ("running", "completed", "failed", "aborted", "partial")
+        if self.status not in valid_statuses:
+            raise ValueError(f"status must be one of {valid_statuses}, got '{self.status}'")
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the DatasetEvaluationRun to a JSON-compatible dictionary.
+
+        Returns:
+            Dictionary representation suitable for JSON serialization
+        """
+        result = {
+            "run_id": self.run_id,
+            "dataset_path": self.dataset_path,
+            "dataset_hash": self.dataset_hash,
+            "dataset_count": self.dataset_count,
+            "num_samples_per_case": self.num_samples_per_case,
+            "generator_config": asdict(self.generator_config),
+            "judge_config": asdict(self.judge_config),
+            "rubric_metadata": self.rubric_metadata,
+            "test_case_results": [result.to_dict() for result in self.test_case_results],
+            "overall_metric_stats": self.overall_metric_stats,
+            "overall_flag_stats": self.overall_flag_stats,
+            "status": self.status,
+            "timestamp_start": self.timestamp_start.isoformat(),
+            "timestamp_end": self.timestamp_end.isoformat() if self.timestamp_end else None,
+            "system_prompt_path": self.system_prompt_path,
+        }
+        return result

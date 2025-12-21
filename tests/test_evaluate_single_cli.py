@@ -113,9 +113,10 @@ class TestEvaluateSingleCLI:
     def test_evaluate_single_invalid_num_samples(
         self, cli_runner, temp_prompts, monkeypatch
     ):
-        """Test error handling when num_samples is non-positive."""
+        """Test error handling when num_samples is non-positive (zero or negative)."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
+        # Test with zero
         result = cli_runner.invoke(
             app,
             [
@@ -126,6 +127,22 @@ class TestEvaluateSingleCLI:
                 str(temp_prompts["input"]),
                 "--num-samples",
                 "0",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "must be positive" in result.stdout
+
+        # Test with negative value
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "-5",
             ],
         )
         assert result.exit_code == 1
@@ -528,3 +545,202 @@ class TestEvaluateSingleCLI:
         stats = evaluation["aggregate_stats"]
         assert stats["num_successful"] == 0
         assert stats["num_failed"] == 1
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    @patch("prompt_evaluator.cli.judge_completion")
+    def test_evaluate_single_num_samples_boundary_values(
+        self, mock_judge, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test num-samples with boundary values."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Answer", {"tokens_used": 5, "latency_ms": 50})
+        mock_judge.return_value = {
+            "status": "completed",
+            "judge_score": 4.0,
+            "judge_rationale": "Good",
+            "judge_raw_response": '{"semantic_fidelity": 4.0, "rationale": "Good"}',
+            "error": None,
+        }
+
+        # Test num-samples = 1 (minimum valid value)
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "1",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+        assert result.exit_code == 0
+        assert mock_generate.call_count == 1
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    @patch("prompt_evaluator.cli.judge_completion")
+    def test_evaluate_single_seed_parameter_wiring(
+        self, mock_judge, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that seed parameter is wired correctly through evaluate-single."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Answer", {"tokens_used": 5, "latency_ms": 50})
+        mock_judge.return_value = {
+            "status": "completed",
+            "judge_score": 4.5,
+            "judge_rationale": "Good",
+            "judge_raw_response": '{"semantic_fidelity": 4.5, "rationale": "Good"}',
+            "error": None,
+        }
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "1",
+                "--seed",
+                "42",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Verify seed was passed to generator
+        gen_kwargs = mock_generate.call_args[1]
+        assert gen_kwargs["seed"] == 42
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    @patch("prompt_evaluator.cli.judge_completion")
+    def test_evaluate_single_no_real_api_calls(
+        self, mock_judge, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that mocked tests don't make real API calls."""
+        monkeypatch.setenv("OPENAI_API_KEY", "fake-test-key-no-real-calls")
+
+        mock_generate.return_value = ("Mocked output", {"tokens_used": 10, "latency_ms": 100})
+        mock_judge.return_value = {
+            "status": "completed",
+            "judge_score": 3.5,
+            "judge_rationale": "Mocked evaluation",
+            "judge_raw_response": '{"semantic_fidelity": 3.5, "rationale": "Mocked"}',
+            "error": None,
+        }
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "2",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+
+        # Should succeed with mocks, no real API calls
+        assert result.exit_code == 0
+        assert mock_generate.call_count == 2
+        assert mock_judge.call_count == 2
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    @patch("prompt_evaluator.cli.judge_completion")
+    def test_evaluate_single_config_flags_wiring(
+        self, mock_judge, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that all config flags are properly wired without real API calls."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Generated text", {"tokens_used": 20, "latency_ms": 200})
+        mock_judge.return_value = {
+            "status": "completed",
+            "judge_score": 4.8,
+            "judge_rationale": "Excellent",
+            "judge_raw_response": '{"semantic_fidelity": 4.8, "rationale": "Excellent"}',
+            "error": None,
+        }
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "1",
+                "--generator-model",
+                "test-gen-model",
+                "--judge-model",
+                "test-judge-model",
+                "--temperature",
+                "0.8",
+                "--max-tokens",
+                "750",
+                "--seed",
+                "999",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Verify all parameters were passed correctly
+        gen_kwargs = mock_generate.call_args[1]
+        assert gen_kwargs["model"] == "test-gen-model"
+        assert gen_kwargs["temperature"] == 0.8
+        assert gen_kwargs["max_completion_tokens"] == 750
+        assert gen_kwargs["seed"] == 999
+
+        # Verify judge was called and check judge_config details
+        assert mock_judge.called
+        judge_kwargs = mock_judge.call_args[1]
+        judge_config = judge_kwargs["judge_config"]
+        assert judge_config.model_name == "test-judge-model"
+        assert judge_config.temperature == 0.0  # Judge uses deterministic temperature
+
+    def test_evaluate_single_unreadable_prompt_path(
+        self, cli_runner, tmp_path, monkeypatch
+    ):
+        """Test error handling for unreadable prompt files."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create a directory where file is expected (can't read directory as file)
+        bad_path = tmp_path / "bad_prompt"
+        bad_path.mkdir()
+
+        input_file = tmp_path / "input.txt"
+        input_file.write_text("test")
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(bad_path),
+                "--input",
+                str(input_file),
+                "--num-samples",
+                "1",
+            ],
+        )
+
+        # Should fail with clear error
+        assert result.exit_code == 1

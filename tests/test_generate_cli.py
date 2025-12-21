@@ -266,3 +266,127 @@ class TestGenerateCLI:
         # Verify stdin content was passed
         call_kwargs = mock_generate.call_args[1]
         assert call_kwargs["user_prompt"] == "What is the meaning of life?"
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_validates_temperature_bounds(
+        self, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that temperature validation works in CLI."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Test temperature too low
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--temperature",
+                "-0.1",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "temperature must be between 0.0 and 2.0" in result.stdout
+
+        # Test temperature too high
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--temperature",
+                "2.5",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "temperature must be between 0.0 and 2.0" in result.stdout
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_seed_parameter_wiring(
+        self, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that seed parameter is properly wired through CLI."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Test response", {"tokens_used": 5, "latency_ms": 50.0})
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--seed",
+                "12345",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert mock_generate.called
+
+        # Verify seed was passed correctly
+        call_kwargs = mock_generate.call_args[1]
+        assert call_kwargs["seed"] == 12345
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_without_seed_uses_none(
+        self, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that without seed parameter, None is used."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Test response", {"tokens_used": 5, "latency_ms": 50.0})
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+
+        assert result.exit_code == 0
+        call_kwargs = mock_generate.call_args[1]
+        assert call_kwargs["seed"] is None
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_no_real_api_calls_with_mock(
+        self, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that mocked tests don't make real API calls."""
+        monkeypatch.setenv("OPENAI_API_KEY", "fake-test-key-12345")
+
+        mock_generate.return_value = ("Mocked response", {"tokens_used": 10, "latency_ms": 100})
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+
+        # Should succeed with mock, no real API call
+        assert result.exit_code == 0
+        assert "Mocked response" in result.stdout
+        # Verify mock was called instead of real API
+        assert mock_generate.call_count == 1

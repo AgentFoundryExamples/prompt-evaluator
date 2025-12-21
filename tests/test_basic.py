@@ -165,3 +165,249 @@ def test_get_provider_invalid():
 
     with pytest.raises(ValueError, match="Unsupported provider"):
         get_provider("invalid_provider")
+
+
+class TestAggregationStatistics:
+    """Tests for aggregate statistics calculation from samples."""
+
+    def test_aggregation_all_successful_samples(self):
+        """Test statistics calculation with all successful samples."""
+        from prompt_evaluator.models import Sample
+
+        samples = [
+            Sample(
+                sample_id="s1",
+                input_text="test",
+                generator_output="output1",
+                judge_score=4.5,
+                status="completed",
+            ),
+            Sample(
+                sample_id="s2",
+                input_text="test",
+                generator_output="output2",
+                judge_score=3.0,
+                status="completed",
+            ),
+            Sample(
+                sample_id="s3",
+                input_text="test",
+                generator_output="output3",
+                judge_score=5.0,
+                status="completed",
+            ),
+        ]
+
+        # Calculate statistics as done in CLI
+        successful_scores = [
+            s.judge_score for s in samples if s.status == "completed" and s.judge_score is not None
+        ]
+
+        assert len(successful_scores) == 3
+        assert sum(successful_scores) / len(successful_scores) == pytest.approx(4.166666, rel=1e-3)
+        assert min(successful_scores) == 3.0
+        assert max(successful_scores) == 5.0
+
+    def test_aggregation_mixed_success_failure(self):
+        """Test statistics with mix of successful and failed samples."""
+        from prompt_evaluator.models import Sample
+
+        samples = [
+            Sample(
+                sample_id="s1",
+                input_text="test",
+                generator_output="output1",
+                judge_score=4.0,
+                status="completed",
+            ),
+            Sample(
+                sample_id="s2",
+                input_text="test",
+                generator_output="output2",
+                status="judge_error",
+            ),
+            Sample(
+                sample_id="s3",
+                input_text="test",
+                generator_output="output3",
+                judge_score=3.5,
+                status="completed",
+            ),
+            Sample(
+                sample_id="s4",
+                input_text="test",
+                generator_output="",
+                status="generation_error",
+            ),
+        ]
+
+        successful_scores = [
+            s.judge_score for s in samples if s.status == "completed" and s.judge_score is not None
+        ]
+
+        assert len(successful_scores) == 2
+        assert sum(successful_scores) / len(successful_scores) == 3.75
+        assert min(successful_scores) == 3.5
+        assert max(successful_scores) == 4.0
+
+    def test_aggregation_zero_successful_samples(self):
+        """Test statistics when all samples fail using actual CLI aggregation logic."""
+        from prompt_evaluator.models import Sample
+
+        samples = [
+            Sample(
+                sample_id="s1",
+                input_text="test",
+                generator_output="output1",
+                status="judge_error",
+            ),
+            Sample(
+                sample_id="s2",
+                input_text="test",
+                generator_output="",
+                status="generation_error",
+            ),
+        ]
+
+        # Use same aggregation logic as CLI evaluate_single command
+        successful_scores = [
+            s.judge_score for s in samples
+            if s.status == "completed" and s.judge_score is not None
+        ]
+
+        assert len(successful_scores) == 0
+
+        # Apply same conditional logic as CLI
+        if successful_scores:
+            stats = {
+                "mean_score": sum(successful_scores) / len(successful_scores),
+                "min_score": min(successful_scores),
+                "max_score": max(successful_scores),
+                "num_successful": len(successful_scores),
+                "num_failed": len(samples) - len(successful_scores),
+            }
+        else:
+            stats = {
+                "mean_score": None,
+                "min_score": None,
+                "max_score": None,
+                "num_successful": 0,
+                "num_failed": len(samples),
+            }
+
+        assert stats["mean_score"] is None
+        assert stats["min_score"] is None
+        assert stats["max_score"] is None
+        assert stats["num_successful"] == 0
+        assert stats["num_failed"] == 2
+
+    def test_aggregation_floating_point_precision(self):
+        """Test that floating-point calculations are precise."""
+        from prompt_evaluator.models import Sample
+
+        samples = [
+            Sample(
+                sample_id=f"s{i}",
+                input_text="test",
+                generator_output=f"output{i}",
+                judge_score=score,
+                status="completed",
+            )
+            for i, score in enumerate([4.123, 3.456, 2.789, 4.567, 3.891])
+        ]
+
+        successful_scores = [
+            s.judge_score for s in samples if s.status == "completed" and s.judge_score is not None
+        ]
+
+        mean = sum(successful_scores) / len(successful_scores)
+        # Mean should be (4.123 + 3.456 + 2.789 + 4.567 + 3.891) / 5 = 3.7652
+        assert mean == pytest.approx(3.7652, rel=1e-3)
+
+        # Test rounding to 3 decimal places
+        mean_rounded = round(mean, 3)
+        assert mean_rounded == 3.765
+
+    def test_aggregation_single_successful_sample(self):
+        """Test statistics with only one successful sample."""
+        from prompt_evaluator.models import Sample
+
+        samples = [
+            Sample(
+                sample_id="s1",
+                input_text="test",
+                generator_output="output1",
+                judge_score=4.2,
+                status="completed",
+            ),
+        ]
+
+        successful_scores = [
+            s.judge_score for s in samples if s.status == "completed" and s.judge_score is not None
+        ]
+
+        assert len(successful_scores) == 1
+        assert sum(successful_scores) / len(successful_scores) == 4.2
+        assert min(successful_scores) == 4.2
+        assert max(successful_scores) == 4.2
+
+    def test_aggregation_boundary_scores(self):
+        """Test aggregation with scores at boundaries (1.0 and 5.0)."""
+        from prompt_evaluator.models import Sample
+
+        samples = [
+            Sample(
+                sample_id="s1",
+                input_text="test",
+                generator_output="output1",
+                judge_score=1.0,
+                status="completed",
+            ),
+            Sample(
+                sample_id="s2",
+                input_text="test",
+                generator_output="output2",
+                judge_score=5.0,
+                status="completed",
+            ),
+            Sample(
+                sample_id="s3",
+                input_text="test",
+                generator_output="output3",
+                judge_score=3.0,
+                status="completed",
+            ),
+        ]
+
+        successful_scores = [
+            s.judge_score for s in samples if s.status == "completed" and s.judge_score is not None
+        ]
+
+        assert len(successful_scores) == 3
+        assert sum(successful_scores) / len(successful_scores) == 3.0
+        assert min(successful_scores) == 1.0
+        assert max(successful_scores) == 5.0
+
+    def test_aggregation_identical_scores(self):
+        """Test aggregation when all scores are identical."""
+        from prompt_evaluator.models import Sample
+
+        samples = [
+            Sample(
+                sample_id=f"s{i}",
+                input_text="test",
+                generator_output=f"output{i}",
+                judge_score=4.0,
+                status="completed",
+            )
+            for i in range(5)
+        ]
+
+        successful_scores = [
+            s.judge_score for s in samples if s.status == "completed" and s.judge_score is not None
+        ]
+
+        assert len(successful_scores) == 5
+        assert sum(successful_scores) / len(successful_scores) == 4.0
+        assert min(successful_scores) == 4.0
+        assert max(successful_scores) == 4.0

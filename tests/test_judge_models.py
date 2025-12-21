@@ -121,7 +121,9 @@ class TestSample:
 
     def test_sample_status_validation_invalid(self):
         """Test that invalid status raises ValueError."""
-        expected_msg = "status must be 'pending', 'completed', or 'judge_error'"
+        expected_msg = (
+            "status must be 'pending', 'completed', 'judge_error', or 'generation_error'"
+        )
         with pytest.raises(ValueError, match=expected_msg):
             Sample(
                 sample_id="sample-3",
@@ -132,7 +134,7 @@ class TestSample:
 
     def test_sample_status_validation_valid(self):
         """Test that all valid status values are accepted."""
-        for status in ["pending", "completed", "judge_error"]:
+        for status in ["pending", "completed", "judge_error", "generation_error"]:
             sample = Sample(
                 sample_id=f"sample-{status}",
                 input_text="test",

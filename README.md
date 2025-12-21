@@ -245,7 +245,7 @@ The command will:
 2. Generate N completions using the specified generator model
 3. Evaluate each completion using the judge model
 4. Compute aggregate statistics (mean, min, max scores)
-5. Save detailed results to `runs/<run_id>/evaluation.json`
+5. Save detailed results to `runs/<run_id>/evaluate-single.json`
 6. Print summary to stderr and full JSON to stdout
 
 #### Output Structure

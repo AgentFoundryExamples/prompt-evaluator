@@ -247,7 +247,7 @@ class Sample:
         judge_score: Semantic fidelity score (1-5) from judge, or None if not yet scored
         judge_rationale: Explanation for the judge's score, or None if not yet scored
         judge_raw_response: Raw response from judge model for debugging
-        status: Status of evaluation ("pending", "completed", "judge_error")
+        status: Status of evaluation ("pending", "completed", "judge_error", "generation_error")
         task_description: Optional description of the task for context
     """
 
@@ -262,9 +262,10 @@ class Sample:
 
     def __post_init__(self) -> None:
         """Validate sample fields."""
-        if self.status not in ("pending", "completed", "judge_error"):
+        if self.status not in ("pending", "completed", "judge_error", "generation_error"):
             raise ValueError(
-                f"status must be 'pending', 'completed', or 'judge_error', got '{self.status}'"
+                f"status must be 'pending', 'completed', 'judge_error', or 'generation_error', "
+                f"got '{self.status}'"
             )
         if self.judge_score is not None and (self.judge_score < 1.0 or self.judge_score > 5.0):
             raise ValueError(f"judge_score must be between 1.0 and 5.0, got {self.judge_score}")

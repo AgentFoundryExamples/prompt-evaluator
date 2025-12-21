@@ -191,7 +191,7 @@ class TestEvaluateSingleCLI:
         run_dir = run_dirs[0]
 
         # Check evaluation file
-        evaluation_file = run_dir / "evaluation.json"
+        evaluation_file = run_dir / "evaluate-single.json"
         assert evaluation_file.exists()
         evaluation = json.loads(evaluation_file.read_text())
 
@@ -268,7 +268,7 @@ class TestEvaluateSingleCLI:
 
         # Check evaluation file
         run_dirs = list(temp_prompts["output_dir"].iterdir())
-        evaluation_file = run_dirs[0] / "evaluation.json"
+        evaluation_file = run_dirs[0] / "evaluate-single.json"
         evaluation = json.loads(evaluation_file.read_text())
 
         # Check aggregate stats
@@ -330,7 +330,7 @@ class TestEvaluateSingleCLI:
 
         # Check evaluation file
         run_dirs = list(temp_prompts["output_dir"].iterdir())
-        evaluation_file = run_dirs[0] / "evaluation.json"
+        evaluation_file = run_dirs[0] / "evaluate-single.json"
         evaluation = json.loads(evaluation_file.read_text())
 
         # Check aggregate stats - should be null with failures
@@ -459,7 +459,7 @@ class TestEvaluateSingleCLI:
 
         # Check evaluation file
         run_dirs = list(temp_prompts["output_dir"].iterdir())
-        evaluation_file = run_dirs[0] / "evaluation.json"
+        evaluation_file = run_dirs[0] / "evaluate-single.json"
         evaluation = json.loads(evaluation_file.read_text())
 
         # Check configs
@@ -517,12 +517,12 @@ class TestEvaluateSingleCLI:
 
         # Check that error was recorded
         run_dirs = list(temp_prompts["output_dir"].iterdir())
-        evaluation_file = run_dirs[0] / "evaluation.json"
+        evaluation_file = run_dirs[0] / "evaluate-single.json"
         evaluation = json.loads(evaluation_file.read_text())
 
         # Sample should have error status
         assert len(evaluation["samples"]) == 1
-        assert evaluation["samples"][0]["status"] == "judge_error"
+        assert evaluation["samples"][0]["status"] == "generation_error"
 
         # Stats should show failure
         stats = evaluation["aggregate_stats"]

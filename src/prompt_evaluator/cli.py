@@ -410,7 +410,7 @@ def evaluate_single(
                     sample_id=sample_id,
                     input_text=user_prompt_content,
                     generator_output="",
-                    status="judge_error",
+                    status="generation_error",
                     task_description=task_description,
                 )
                 samples.append(sample)
@@ -450,7 +450,7 @@ def evaluate_single(
         )
 
         # Save evaluation results
-        evaluation_file = run_dir / "evaluation.json"
+        evaluation_file = run_dir / "evaluate-single.json"
         evaluation_dict = evaluation_run.to_dict()
         # Add aggregate statistics
         evaluation_dict["aggregate_stats"] = stats

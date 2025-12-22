@@ -389,3 +389,387 @@ class TestCompareRunsCLI:
 
         assert result.exit_code == 1
         assert "error" in result.stderr.lower()
+
+
+class TestThresholdParsing:
+    """Tests for threshold parsing and validation."""
+
+    def test_compare_runs_zero_threshold(self, cli_runner, tmp_path):
+        """Test comparison with zero thresholds."""
+        baseline_data = {
+            "run_id": "baseline-123",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 4.0},
+            },
+            "overall_flag_stats": {
+                "invented_constraints": {"true_proportion": 0.1},
+            },
+        }
+
+        candidate_data = {
+            "run_id": "candidate-456",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 3.999},  # Very small regression
+            },
+            "overall_flag_stats": {
+                "invented_constraints": {"true_proportion": 0.101},  # Very small regression
+            },
+        }
+
+        baseline = tmp_path / "baseline.json"
+        candidate = tmp_path / "candidate.json"
+        baseline.write_text(json.dumps(baseline_data))
+        candidate.write_text(json.dumps(candidate_data))
+
+        # With zero thresholds, any negative change is a regression
+        result = cli_runner.invoke(
+            app,
+            [
+                "compare-runs",
+                "--baseline",
+                str(baseline),
+                "--candidate",
+                str(candidate),
+                "--metric-threshold",
+                "0.0",
+                "--flag-threshold",
+                "0.0",
+            ],
+        )
+
+        assert result.exit_code == 1  # Regressions detected
+        assert "REGRESSION" in result.stderr
+
+    def test_compare_runs_very_large_threshold(self, cli_runner, tmp_path):
+        """Test comparison with very large thresholds."""
+        baseline_data = {
+            "run_id": "baseline-123",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 4.0},
+            },
+            "overall_flag_stats": {},
+        }
+
+        candidate_data = {
+            "run_id": "candidate-456",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 1.0},  # Large regression
+            },
+            "overall_flag_stats": {},
+        }
+
+        baseline = tmp_path / "baseline.json"
+        candidate = tmp_path / "candidate.json"
+        baseline.write_text(json.dumps(baseline_data))
+        candidate.write_text(json.dumps(candidate_data))
+
+        # With very large threshold, even big regressions don't trigger
+        result = cli_runner.invoke(
+            app,
+            [
+                "compare-runs",
+                "--baseline",
+                str(baseline),
+                "--candidate",
+                str(candidate),
+                "--metric-threshold",
+                "10.0",
+            ],
+        )
+
+        assert result.exit_code == 0  # No regressions detected
+        assert "No regressions detected" in result.stderr
+
+    def test_compare_runs_fractional_threshold(self, cli_runner, tmp_path):
+        """Test comparison with fractional threshold values."""
+        baseline_data = {
+            "run_id": "baseline-123",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 4.0},
+            },
+            "overall_flag_stats": {
+                "invented_constraints": {"true_proportion": 0.1},
+            },
+        }
+
+        candidate_data = {
+            "run_id": "candidate-456",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 3.95},  # Delta = -0.05
+            },
+            "overall_flag_stats": {
+                "invented_constraints": {"true_proportion": 0.125},  # Delta = 0.025
+            },
+        }
+
+        baseline = tmp_path / "baseline.json"
+        candidate = tmp_path / "candidate.json"
+        baseline.write_text(json.dumps(baseline_data))
+        candidate.write_text(json.dumps(candidate_data))
+
+        # With thresholds of 0.03, both should regress
+        result = cli_runner.invoke(
+            app,
+            [
+                "compare-runs",
+                "--baseline",
+                str(baseline),
+                "--candidate",
+                str(candidate),
+                "--metric-threshold",
+                "0.03",
+                "--flag-threshold",
+                "0.02",
+            ],
+        )
+
+        assert result.exit_code == 1  # Regressions detected
+        output_data = json.loads(result.stdout)
+        assert output_data["regression_count"] == 2
+
+    def test_compare_runs_invalid_threshold_string(self, cli_runner, sample_artifacts):
+        """Test error handling for non-numeric threshold values."""
+        result = cli_runner.invoke(
+            app,
+            [
+                "compare-runs",
+                "--baseline",
+                str(sample_artifacts["baseline"]),
+                "--candidate",
+                str(sample_artifacts["candidate"]),
+                "--metric-threshold",
+                "not-a-number",
+            ],
+        )
+
+        assert result.exit_code != 0
+        # Typer should handle this as a validation error
+
+    def test_compare_runs_default_thresholds(self, cli_runner, sample_artifacts):
+        """Test that default thresholds are applied correctly."""
+        result = cli_runner.invoke(
+            app,
+            [
+                "compare-runs",
+                "--baseline",
+                str(sample_artifacts["baseline"]),
+                "--candidate",
+                str(sample_artifacts["candidate"]),
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Verify default thresholds in output
+        output_data = json.loads(result.stdout)
+        assert output_data["thresholds_config"]["metric_threshold"] == 0.1
+        assert output_data["thresholds_config"]["flag_threshold"] == 0.05
+
+
+class TestEdgeCases:
+    """Tests for edge cases in comparison logic."""
+
+    def test_compare_runs_delta_on_threshold_boundary(self, cli_runner, tmp_path):
+        """Test comparison when delta is exactly on threshold boundary."""
+        baseline_data = {
+            "run_id": "baseline-123",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 5.0},
+            },
+            "overall_flag_stats": {
+                "invented_constraints": {"true_proportion": 0.1},
+            },
+        }
+
+        candidate_data = {
+            "run_id": "candidate-456",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 4.9},  # Delta = -0.1, exactly on threshold
+            },
+            "overall_flag_stats": {
+                "invented_constraints": {
+                    "true_proportion": 0.15
+                },  # Delta = 0.05, exactly on threshold
+            },
+        }
+
+        baseline = tmp_path / "baseline.json"
+        candidate = tmp_path / "candidate.json"
+        baseline.write_text(json.dumps(baseline_data))
+        candidate.write_text(json.dumps(candidate_data))
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "compare-runs",
+                "--baseline",
+                str(baseline),
+                "--candidate",
+                str(candidate),
+                "--metric-threshold",
+                "0.1",
+                "--flag-threshold",
+                "0.05",
+            ],
+        )
+
+        # Delta equal to threshold should NOT be a regression
+        assert result.exit_code == 0
+        assert "No regressions detected" in result.stderr
+
+        output_data = json.loads(result.stdout)
+        assert not output_data["has_regressions"]
+        assert output_data["regression_count"] == 0
+
+    def test_compare_runs_empty_metrics_and_flags(self, cli_runner, tmp_path):
+        """Test comparison with no metrics or flags."""
+        baseline_data = {
+            "run_id": "baseline-123",
+            "overall_metric_stats": {},
+            "overall_flag_stats": {},
+        }
+
+        candidate_data = {
+            "run_id": "candidate-456",
+            "overall_metric_stats": {},
+            "overall_flag_stats": {},
+        }
+
+        baseline = tmp_path / "baseline.json"
+        candidate = tmp_path / "candidate.json"
+        baseline.write_text(json.dumps(baseline_data))
+        candidate.write_text(json.dumps(candidate_data))
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "compare-runs",
+                "--baseline",
+                str(baseline),
+                "--candidate",
+                str(candidate),
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "No regressions detected" in result.stderr
+
+        output_data = json.loads(result.stdout)
+        assert len(output_data["metric_deltas"]) == 0
+        assert len(output_data["flag_deltas"]) == 0
+
+    def test_compare_runs_with_prompt_metadata_fields(self, cli_runner, tmp_path):
+        """Test comparison with prompt_version_id, prompt_hash, and run_notes."""
+        baseline_data = {
+            "run_id": "baseline-123",
+            "prompt_version_id": "v1.0.0",
+            "prompt_hash": "abc123",
+            "run_notes": "Baseline run",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 4.0},
+            },
+            "overall_flag_stats": {},
+        }
+
+        candidate_data = {
+            "run_id": "candidate-456",
+            "prompt_version_id": "v2.0.0",
+            "prompt_hash": "xyz789",
+            "run_notes": "Improved prompt",
+            "overall_metric_stats": {
+                "semantic_fidelity": {"mean_of_means": 4.3},
+            },
+            "overall_flag_stats": {},
+        }
+
+        baseline = tmp_path / "baseline.json"
+        candidate = tmp_path / "candidate.json"
+        baseline.write_text(json.dumps(baseline_data))
+        candidate.write_text(json.dumps(candidate_data))
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "compare-runs",
+                "--baseline",
+                str(baseline),
+                "--candidate",
+                str(candidate),
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Verify metadata in JSON output
+        output_data = json.loads(result.stdout)
+        assert output_data["baseline_prompt_version"] == "v1.0.0"
+        assert output_data["candidate_prompt_version"] == "v2.0.0"
+
+        # Verify metadata in human-readable output
+        assert "v1.0.0" in result.stderr
+        assert "v2.0.0" in result.stderr
+
+
+class TestMultipleMetricsAndFlags:
+    """Tests for comparison with multiple metrics and flags."""
+
+    def test_compare_runs_many_metrics(self, cli_runner, tmp_path):
+        """Test comparison with many different metrics."""
+        baseline_data = {
+            "run_id": "baseline-123",
+            "overall_metric_stats": {
+                "metric_1": {"mean_of_means": 4.0},
+                "metric_2": {"mean_of_means": 3.5},
+                "metric_3": {"mean_of_means": 4.2},
+                "metric_4": {"mean_of_means": 3.8},
+                "metric_5": {"mean_of_means": 4.5},
+            },
+            "overall_flag_stats": {
+                "flag_1": {"true_proportion": 0.1},
+                "flag_2": {"true_proportion": 0.05},
+                "flag_3": {"true_proportion": 0.15},
+            },
+        }
+
+        candidate_data = {
+            "run_id": "candidate-456",
+            "overall_metric_stats": {
+                "metric_1": {"mean_of_means": 4.1},  # Improved
+                "metric_2": {"mean_of_means": 3.3},  # Regressed
+                "metric_3": {"mean_of_means": 4.25},  # Improved
+                "metric_4": {"mean_of_means": 3.85},  # Improved
+                "metric_5": {"mean_of_means": 4.45},  # Small regression
+            },
+            "overall_flag_stats": {
+                "flag_1": {"true_proportion": 0.08},  # Improved
+                "flag_2": {"true_proportion": 0.12},  # Regressed
+                "flag_3": {"true_proportion": 0.14},  # Improved
+            },
+        }
+
+        baseline = tmp_path / "baseline.json"
+        candidate = tmp_path / "candidate.json"
+        baseline.write_text(json.dumps(baseline_data))
+        candidate.write_text(json.dumps(candidate_data))
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "compare-runs",
+                "--baseline",
+                str(baseline),
+                "--candidate",
+                str(candidate),
+            ],
+        )
+
+        assert result.exit_code == 1  # Has regressions
+
+        output_data = json.loads(result.stdout)
+        assert output_data["has_regressions"]
+        # metric_2 regressed by 0.2, flag_2 regressed by 0.07
+        assert output_data["regression_count"] == 2
+
+        # Verify all metrics and flags are present
+        assert len(output_data["metric_deltas"]) == 5
+        assert len(output_data["flag_deltas"]) == 3

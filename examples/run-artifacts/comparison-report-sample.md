@@ -145,7 +145,7 @@ This comparison report was generated with the following configuration:
 
 **Raw Artifacts:**
 - [Baseline run (JSON)](run-sample.json)
-- [Candidate run (JSON)](run-sample.json)
+- [Candidate run (JSON)](run-sample.json) _(Note: In practice, baseline and candidate would be different files)_
 - [Comparison artifact (JSON)](comparison-sample.json)
 
 ---

@@ -2897,6 +2897,9 @@ prompt-evaluator render-report \
   --run runs/<run_id> \
   --output report.md \
   --html
+# HTML output will be named report.html by default (derived from --output)
+# To specify a different HTML filename, use --html-output:
+#   --html --output report.md --html-output custom-name.html
 ```
 
 **Tip**: On Windows, use backslashes for paths or quotes: `--run "runs\<run_id>"` or `--run runs/<run_id>` (forward slashes work in most shells).
@@ -3094,11 +3097,18 @@ HTML generation requires the `markdown` Python package:
 pip install markdown
 
 # Generate HTML report
+# By default, HTML filename is derived from --output (report.md -> report.html)
+prompt-evaluator render-report \
+  --run runs/<run_id> \
+  --html \
+  --output report.md
+
+# Or specify custom HTML output filename
 prompt-evaluator render-report \
   --run runs/<run_id> \
   --html \
   --output report.md \
-  --html-output report.html
+  --html-output custom-report.html
 ```
 
 If the `markdown` package is not installed, the HTML report will be skipped with a warning. Markdown output always works.

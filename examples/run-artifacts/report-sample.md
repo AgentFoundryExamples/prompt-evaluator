@@ -115,8 +115,8 @@ Detailed statistics for each test case, with annotations for instability and wea
 ### Test Case: test-003
 
 **Input**: Summarize the concept of recursion with a simple example.  
-**Status**: ✅ Completed  
-**Samples**: 5 successful, 0 failed  
+**Status**: ❌ Failed  
+**Samples**: 0 successful, 5 failed  
 **Metadata**: difficulty=hard, topic=programming-concepts
 
 #### Per-Metric Statistics
@@ -127,7 +127,7 @@ Detailed statistics for each test case, with annotations for instability and wea
 | clarity | N/A | N/A | N/A | N/A | 0 |
 | decomposition_quality | N/A | N/A | N/A | N/A | 0 |
 
-**Note**: This test case has no valid metric statistics (all samples failed or had judge errors).
+**Note**: This test case has no valid metric statistics because all samples failed during generation or judging.
 
 ---
 
@@ -233,7 +233,7 @@ This report was generated with the following configuration:
 
 **Raw Artifacts:**
 - [Run artifact (JSON)](run-sample.json)
-- [Per-case artifacts](.)
+- [Per-case artifacts directory](.)
 
 ---
 

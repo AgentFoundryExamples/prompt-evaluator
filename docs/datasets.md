@@ -424,14 +424,15 @@ prompt-evaluator evaluate-dataset \
   --output-dir runs/baselines
 ```
 
-**Note the run ID** from output (e.g., `runs/baselines/abc123-def456-...`) for report generation.
+**Note the run ID** from output (e.g., `runs/baselines/abc123-def456-...`) for report generation. The run ID appears in the command output and is the directory name where artifacts are saved.
 
 #### Step 4: Generate Report
 
-Transform raw JSON artifacts into readable reports:
+Transform raw JSON artifacts into readable reports. Replace `<run_id>` with the actual run ID from Step 3:
 
 ```bash
 # Markdown only (fast, no dependencies)
+# Replace <run_id> with actual value like: abc123-def456-7890-abcd-ef1234567890
 prompt-evaluator render-report \
   --run runs/baselines/<run_id> \
   --output baseline-report.md
@@ -603,7 +604,8 @@ prompt-evaluator evaluate-dataset \
   --seed 42 \
   --output-dir runs/candidates
 
-# Generate report
+# Note the new run ID from output (different from baseline run ID)
+# Generate report using the new run ID
 prompt-evaluator render-report \
   --run runs/candidates/<run_id> \
   --output candidate-report.md \

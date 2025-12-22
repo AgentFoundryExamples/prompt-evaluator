@@ -2766,7 +2766,51 @@ For comprehensive information about dataset formats, schema, validation rules, a
 
 ## Evaluation Reporting
 
-The Prompt Evaluator includes a comprehensive specification for generating human-readable evaluation reports from JSON artifacts. These reports transform raw evaluation data into structured Markdown documents (with optional HTML conversion) for reviewing prompt quality, stability, and regressions.
+The Prompt Evaluator includes comprehensive support for generating human-readable evaluation reports from JSON artifacts. These reports transform raw evaluation data into structured Markdown documents (with optional HTML conversion) for reviewing prompt quality, stability, and regressions.
+
+### Generate Report Command
+
+Generate a formatted report from a dataset evaluation run:
+
+```bash
+# Basic report generation
+prompt-evaluator render-report --run runs/<run_id>
+
+# With custom thresholds and options
+prompt-evaluator render-report \
+  --run runs/<run_id> \
+  --std-threshold 1.0 \
+  --weak-threshold 3.0 \
+  --qualitative-count 3 \
+  --html \
+  --output custom-report.md
+```
+
+**Options:**
+- `--run`: Path to run directory containing `dataset_evaluation.json` (required)
+- `--std-threshold`: Standard deviation threshold for marking metrics as unstable (default: 1.0)
+- `--weak-threshold`: Mean score threshold for marking metrics as weak (default: 3.0)
+- `--qualitative-count`: Number of worst-case examples to include (default: 3)
+- `--max-text-length`: Maximum text length for truncation (default: 500)
+- `--html`: Generate HTML report alongside Markdown
+- `--output`: Output filename for Markdown report (default: report.md)
+- `--html-output`: Output filename for HTML report (default: report.html)
+
+### Report Structure
+
+**Single-Run Reports include:**
+- **Metadata**: Run ID, status, timestamps, dataset info, model configuration
+- **Suite-Level Metrics**: Mean, std, min, max across all test cases
+- **Suite-Level Flags**: Flag occurrence rates and proportions
+- **Per-Test-Case Summary**: Status, sample counts, with unstable/weak annotations
+- **Qualitative Examples**: Worst-performing cases with inputs, outputs, and judge rationales
+
+Reports automatically:
+- Flag metrics with high variance (std > threshold) as **UNSTABLE**
+- Flag metrics with low scores (mean < threshold) as **WEAK**
+- Truncate long text for readability
+- Link back to raw JSON artifacts
+- Handle missing data gracefully with N/A values
 
 ### Report Types
 
@@ -2787,14 +2831,14 @@ The Prompt Evaluator includes a comprehensive specification for generating human
 - **Pure Consumer**: Reports are generated from existing JSON artifacts without modifying schemas
 - **Fully Configurable**: All thresholds, limits, and formatting options are adjustable via CLI or config
 - **Edge Case Handling**: Gracefully handles missing metrics, small datasets, and failed test cases
-- **HTML Conversion**: Optional HTML output with clean styling for sharing
+- **HTML Conversion**: Optional HTML output with clean styling for sharing (requires `markdown` package)
 - **Artifact Links**: Reports include links back to raw JSON files for detailed inspection
 
 ### Reporting Specification
 
 For the complete specification including section structures, table formats, configuration parameters, and edge case handling, see [docs/reporting.md](docs/reporting.md).
 
-**Note**: Report generation commands (`report-single`, `report-compare`) are documented in the specification and will be implemented in future versions. Currently, the specification serves as a contract for future implementation.
+**Note**: The `render-report` command implements single-run report generation. Compare-runs reporting (`report-compare`) is documented in the specification and will be implemented in future versions.
 
 ## Development
 

@@ -1320,6 +1320,116 @@ def compare_runs(
         raise typer.Exit(1)
 
 
+@app.command()
+def render_report(
+    run: str = typer.Option(..., "--run", help="Path to run directory containing artifact"),
+    std_threshold: float = typer.Option(
+        1.0,
+        "--std-threshold",
+        help="Standard deviation threshold for marking metrics as unstable",
+    ),
+    weak_score_threshold: float = typer.Option(
+        3.0, "--weak-threshold", help="Mean score threshold for marking metrics as weak"
+    ),
+    qualitative_count: int = typer.Option(
+        3, "--qualitative-count", help="Number of worst-case examples to include in report"
+    ),
+    max_text_length: int = typer.Option(
+        500, "--max-text-length", help="Maximum text length for truncation in report"
+    ),
+    html: bool = typer.Option(False, "--html", help="Generate HTML report alongside Markdown"),
+    output_name: str = typer.Option(
+        "report.md", "--output", "-o", help="Output filename for Markdown report"
+    ),
+    html_output_name: str = typer.Option(
+        "report.html", "--html-output", help="Output filename for HTML report"
+    ),
+) -> None:
+    """
+    Generate a Markdown (and optional HTML) report from a dataset evaluation run.
+
+    This command reads an existing run artifact (dataset_evaluation.json) from
+    the specified run directory and generates a formatted report including:
+    - Run metadata and configuration
+    - Suite-level metric and flag statistics
+    - Per-test-case summary with instability/weak-point annotations
+    - Qualitative examples from worst-performing cases
+
+    The report is written to report.md (or specified output name) in the run
+    directory without modifying the original JSON artifact.
+    """
+    try:
+        from prompt_evaluator.reporting import render_run_report
+
+        run_path = Path(run)
+
+        # Validate run directory
+        if not run_path.exists():
+            typer.echo(f"Error: Run directory not found: {run}", err=True)
+            raise typer.Exit(1)
+
+        if not run_path.is_dir():
+            typer.echo(f"Error: Path is not a directory: {run}", err=True)
+            raise typer.Exit(1)
+
+        # Validate thresholds
+        if std_threshold < 0:
+            typer.echo("Error: --std-threshold must be non-negative", err=True)
+            raise typer.Exit(1)
+
+        if weak_score_threshold < 0:
+            typer.echo("Error: --weak-threshold must be non-negative", err=True)
+            raise typer.Exit(1)
+
+        if qualitative_count < 0:
+            typer.echo("Error: --qualitative-count must be non-negative", err=True)
+            raise typer.Exit(1)
+
+        if max_text_length < 1:
+            typer.echo("Error: --max-text-length must be positive", err=True)
+            raise typer.Exit(1)
+
+        typer.echo(f"Generating report for run: {run_path}", err=True)
+        typer.echo(f"  Std threshold: {std_threshold}", err=True)
+        typer.echo(f"  Weak threshold: {weak_score_threshold}", err=True)
+        typer.echo(f"  Qualitative samples: {qualitative_count}", err=True)
+
+        # Generate report
+        report_path = render_run_report(
+            run_dir=run_path,
+            std_threshold=std_threshold,
+            weak_score_threshold=weak_score_threshold,
+            qualitative_sample_count=qualitative_count,
+            max_text_length=max_text_length,
+            generate_html=html,
+            output_name=output_name,
+            html_output_name=html_output_name,
+        )
+
+        typer.echo(f"\n✓ Report generated successfully: {report_path}", err=True)
+
+        if html:
+            html_path = run_path / html_output_name
+            if html_path.exists():
+                typer.echo(f"✓ HTML report: {html_path}", err=True)
+            else:
+                typer.echo(
+                    "⚠ HTML report not generated (markdown library may not be installed)", err=True
+                )
+
+    except FileNotFoundError as e:
+        typer.echo(f"File error: {e}", err=True)
+        raise typer.Exit(1)
+    except ValueError as e:
+        typer.echo(f"Validation error: {e}", err=True)
+        raise typer.Exit(1)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,

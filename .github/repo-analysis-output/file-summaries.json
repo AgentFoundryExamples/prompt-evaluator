@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 19,
+  "total_files": 22,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,22 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 48129,
-        "loc": 936,
+        "size_bytes": 54495,
+        "loc": 1044,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "src/prompt_evaluator/comparison.py",
+      "language": "Python",
+      "role": "implementation",
+      "role_justification": "general implementation file (default classification)",
+      "summary": "Python core implementation",
+      "summary_text": "Python core implementation",
+      "metrics": {
+        "size_bytes": 8646,
+        "loc": 174,
         "todo_count": 0
       }
     },
@@ -39,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 22395,
-        "loc": 439,
+        "size_bytes": 22257,
+        "loc": 433,
         "todo_count": 0
       }
     },
@@ -53,8 +67,8 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 16545,
-        "loc": 342,
+        "size_bytes": 16507,
+        "loc": 340,
         "todo_count": 0
       }
     },
@@ -67,8 +81,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 30197,
-        "loc": 620,
+        "size_bytes": 33750,
+        "loc": 701,
         "todo_count": 0
       }
     },
@@ -81,8 +95,8 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 25141,
-        "loc": 503,
+        "size_bytes": 25125,
+        "loc": 500,
         "todo_count": 0
       }
     },
@@ -109,8 +123,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 18150,
-        "loc": 418,
+        "size_bytes": 18128,
+        "loc": 416,
         "todo_count": 0
       }
     },
@@ -123,8 +137,36 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 14945,
-        "loc": 351,
+        "size_bytes": 14933,
+        "loc": 350,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_compare_runs_cli.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 13235,
+        "loc": 316,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_comparison.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 15679,
+        "loc": 312,
         "todo_count": 0
       }
     },
@@ -165,8 +207,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 22701,
-        "loc": 483,
+        "size_bytes": 22664,
+        "loc": 480,
         "todo_count": 0
       }
     },
@@ -193,8 +235,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 34281,
-        "loc": 775,
+        "size_bytes": 34240,
+        "loc": 769,
         "todo_count": 0
       }
     },
@@ -207,8 +249,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 13013,
-        "loc": 307,
+        "size_bytes": 12985,
+        "loc": 303,
         "todo_count": 0
       }
     },
@@ -221,8 +263,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 51000,
-        "loc": 1115,
+        "size_bytes": 50956,
+        "loc": 1111,
         "todo_count": 0
       }
     },
@@ -235,8 +277,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 15561,
-        "loc": 268,
+        "size_bytes": 15380,
+        "loc": 284,
         "todo_count": 0
       }
     },
@@ -249,8 +291,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 16295,
-        "loc": 344,
+        "size_bytes": 16273,
+        "loc": 341,
         "todo_count": 0
       }
     },

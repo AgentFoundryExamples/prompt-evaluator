@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 19
+Total files: 22
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,17 @@ Total files: 19
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 47.00 KB  
-**LOC:** 936  
+**Size:** 53.22 KB  
+**LOC:** 1044  
+**TODOs/FIXMEs:** 0  
+
+## src/prompt_evaluator/comparison.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python core implementation  
+**Size:** 8.44 KB  
+**LOC:** 174  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/config.py
@@ -29,8 +38,8 @@ Total files: 19
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 21.87 KB  
-**LOC:** 439  
+**Size:** 21.74 KB  
+**LOC:** 433  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/dataset_evaluation.py
@@ -38,8 +47,8 @@ Total files: 19
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 16.16 KB  
-**LOC:** 342  
+**Size:** 16.12 KB  
+**LOC:** 340  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/models.py
@@ -47,8 +56,8 @@ Total files: 19
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 29.49 KB  
-**LOC:** 620  
+**Size:** 32.96 KB  
+**LOC:** 701  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -56,8 +65,8 @@ Total files: 19
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 24.55 KB  
-**LOC:** 503  
+**Size:** 24.54 KB  
+**LOC:** 500  
 **TODOs/FIXMEs:** 0  
 
 ## tests/__init__.py
@@ -74,8 +83,8 @@ Total files: 19
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 17.72 KB  
-**LOC:** 418  
+**Size:** 17.70 KB  
+**LOC:** 416  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_basic.py
@@ -83,8 +92,26 @@ Total files: 19
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 14.59 KB  
-**LOC:** 351  
+**Size:** 14.58 KB  
+**LOC:** 350  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_compare_runs_cli.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 12.92 KB  
+**LOC:** 316  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_comparison.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 15.31 KB  
+**LOC:** 312  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_config_models.py
@@ -110,8 +137,8 @@ Total files: 19
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 22.17 KB  
-**LOC:** 483  
+**Size:** 22.13 KB  
+**LOC:** 480  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_evaluate_dataset_cli.py
@@ -128,8 +155,8 @@ Total files: 19
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 33.48 KB  
-**LOC:** 775  
+**Size:** 33.44 KB  
+**LOC:** 769  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_generate_cli.py
@@ -137,8 +164,8 @@ Total files: 19
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 12.71 KB  
-**LOC:** 307  
+**Size:** 12.68 KB  
+**LOC:** 303  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_judge_models.py
@@ -146,8 +173,8 @@ Total files: 19
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 49.80 KB  
-**LOC:** 1115  
+**Size:** 49.76 KB  
+**LOC:** 1111  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_prompt_version_metadata.py
@@ -155,8 +182,8 @@ Total files: 19
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 15.20 KB  
-**LOC:** 268  
+**Size:** 15.02 KB  
+**LOC:** 284  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_rubric_cli.py
@@ -164,8 +191,8 @@ Total files: 19
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 15.91 KB  
-**LOC:** 344  
+**Size:** 15.89 KB  
+**LOC:** 341  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_rubric_models.py

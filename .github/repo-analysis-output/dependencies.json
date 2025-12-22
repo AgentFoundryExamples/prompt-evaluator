@@ -31,6 +31,21 @@
       }
     },
     {
+      "id": "src/prompt_evaluator/comparison.py",
+      "path": "src/prompt_evaluator/comparison.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "datetime.datetime",
+          "datetime.timezone",
+          "json",
+          "pathlib.Path",
+          "typing.Any"
+        ],
+        "third-party": []
+      }
+    },
+    {
       "id": "src/prompt_evaluator/config.py",
       "path": "src/prompt_evaluator/config.py",
       "type": "file",
@@ -140,6 +155,33 @@
       "type": "file",
       "external_dependencies": {
         "stdlib": [],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_compare_runs_cli.py",
+      "path": "tests/test_compare_runs_cli.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json"
+        ],
+        "third-party": [
+          "pytest",
+          "typer.testing.CliRunner"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_comparison.py",
+      "path": "tests/test_comparison.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json"
+        ],
         "third-party": [
           "pytest"
         ]
@@ -324,6 +366,14 @@
       "target": "src/prompt_evaluator/dataset_evaluation.py"
     },
     {
+      "source": "src/prompt_evaluator/cli.py",
+      "target": "src/prompt_evaluator/comparison.py"
+    },
+    {
+      "source": "src/prompt_evaluator/comparison.py",
+      "target": "src/prompt_evaluator/models.py"
+    },
+    {
       "source": "src/prompt_evaluator/config.py",
       "target": "src/prompt_evaluator/models.py"
     },
@@ -366,6 +416,14 @@
     {
       "source": "tests/test_basic.py",
       "target": "src/prompt_evaluator/provider.py"
+    },
+    {
+      "source": "tests/test_compare_runs_cli.py",
+      "target": "src/prompt_evaluator/cli.py"
+    },
+    {
+      "source": "tests/test_comparison.py",
+      "target": "src/prompt_evaluator/comparison.py"
     },
     {
       "source": "tests/test_config_models.py",

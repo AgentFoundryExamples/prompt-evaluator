@@ -35,6 +35,7 @@
   └── prompt_evaluator
     ├── __init__.py
     ├── cli.py
+    ├── comparison.py
     ├── config.py
     ├── dataset_evaluation.py
     ├── models.py
@@ -43,6 +44,8 @@
   ├── __init__.py
   ├── test_aggregation.py
   ├── test_basic.py
+  ├── test_compare_runs_cli.py
+  ├── test_comparison.py
   ├── test_config_models.py
   ├── test_dataset_evaluation.py
   ├── test_dataset_loader.py

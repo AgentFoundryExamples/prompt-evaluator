@@ -29,7 +29,7 @@ Total files: 22
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 8.44 KB  
+**Size:** 8.71 KB  
 **LOC:** 174  
 **TODOs/FIXMEs:** 0  
 
@@ -101,8 +101,8 @@ Total files: 22
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 12.92 KB  
-**LOC:** 316  
+**Size:** 25.61 KB  
+**LOC:** 638  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_comparison.py
@@ -110,8 +110,8 @@ Total files: 22
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 15.31 KB  
-**LOC:** 312  
+**Size:** 35.58 KB  
+**LOC:** 726  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_config_models.py

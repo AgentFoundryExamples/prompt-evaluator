@@ -1436,10 +1436,10 @@ def render_report(
                     )
 
         # Handle evaluation run report
-        else:
+        elif run:
             from prompt_evaluator.reporting import render_run_report
 
-            run_path = Path(run)  # type: ignore
+            run_path = Path(run)
 
             # Validate run directory
             if not run_path.exists():

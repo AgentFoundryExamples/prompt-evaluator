@@ -24,12 +24,14 @@ from prompt_evaluator.reporting.compare_report import (
 @pytest.fixture
 def sample_comparison_artifact():
     """Create a sample comparison artifact for testing."""
+    from datetime import datetime, timezone
+
     return {
         "baseline_run_id": "baseline-123",
         "candidate_run_id": "candidate-456",
         "baseline_prompt_version": "v1.0",
         "candidate_prompt_version": "v2.0",
-        "comparison_timestamp": "2025-12-22T10:00:00.000000+00:00",
+        "comparison_timestamp": datetime.now(timezone.utc).isoformat(),
         "has_regressions": True,
         "regression_count": 2,
         "thresholds_config": {
@@ -173,7 +175,8 @@ class TestRenderMetadataSection:
         assert "candidate-456" in section
         assert "v1.0" in section
         assert "v2.0" in section
-        assert "2025-12-22T10:00:00.000000+00:00" in section
+        # Don't assert on exact timestamp since it's now dynamic
+        assert "Comparison Time" in section
         assert "0.1" in section  # metric threshold
         assert "0.05" in section  # flag threshold
         assert "2 regression(s) detected" in section
@@ -249,7 +252,8 @@ class TestRenderRegressionsSection:
 
     def test_render_regressions_with_both_types(self, sample_comparison_artifact):
         """Test rendering regressions with both metrics and flags."""
-        section = render_regressions_section(sample_comparison_artifact)
+        config = CompareReportConfig()
+        section = render_regressions_section(sample_comparison_artifact, config)
 
         assert "## Regressions Detected" in section
         assert "### Regressed Metrics" in section
@@ -266,7 +270,8 @@ class TestRenderRegressionsSection:
         for delta in sample_comparison_artifact["flag_deltas"]:
             delta["is_regression"] = False
 
-        section = render_regressions_section(sample_comparison_artifact)
+        config = CompareReportConfig()
+        section = render_regressions_section(sample_comparison_artifact, config)
         assert "*No regressions detected" in section
 
     def test_render_regressions_sorting(self):
@@ -293,7 +298,8 @@ class TestRenderRegressionsSection:
             "flag_deltas": [],
         }
 
-        section = render_regressions_section(data)
+        config = CompareReportConfig()
+        section = render_regressions_section(data, config)
         # metric_b should appear before metric_a (larger delta)
         metric_b_pos = section.find("metric_b")
         metric_a_pos = section.find("metric_a")

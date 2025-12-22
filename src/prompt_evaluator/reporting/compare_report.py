@@ -23,8 +23,12 @@ logger = logging.getLogger(__name__)
 class CompareReportConfig:
     """Configuration for comparison report generation."""
 
-    top_cases_per_metric: int = 5  # Number of top regressed/improved cases to show per metric
+    top_cases_per_metric: int = 5  # Number of top regressed/improved cases per metric
     generate_html: bool = False  # Whether to generate HTML alongside Markdown
+    # Absolute delta for high severity metric regression
+    high_severity_metric_threshold: float = 0.5
+    # Absolute delta for high severity flag regression
+    high_severity_flag_threshold: float = 0.2
 
 
 def load_comparison_artifact(artifact_path: Path) -> dict[str, Any]:
@@ -259,12 +263,15 @@ def render_suite_flags_comparison_table(comparison_data: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_regressions_section(comparison_data: dict[str, Any]) -> str:
+def render_regressions_section(
+    comparison_data: dict[str, Any], config: CompareReportConfig
+) -> str:
     """
     Render section highlighting regressions.
 
     Args:
         comparison_data: Comparison artifact dictionary
+        config: Report configuration with severity thresholds
 
     Returns:
         Markdown-formatted regressions section
@@ -302,7 +309,8 @@ def render_regressions_section(comparison_data: dict[str, Any]) -> str:
 
             delta_str = format_delta_sign(delta_val)
             percent_str = format_percentage(percent)
-            severity = "**High**" if abs(delta_val or 0) > 0.5 else "**Medium**"
+            high_severity = abs(delta_val or 0) > config.high_severity_metric_threshold
+            severity = "**High**" if high_severity else "**Medium**"
 
             lines.append(
                 f"- **{metric_name}**: {baseline:.2f} → {candidate:.2f} "
@@ -330,7 +338,8 @@ def render_regressions_section(comparison_data: dict[str, Any]) -> str:
             else:
                 delta_str = "N/A"
             percent_str = format_percentage(percent)
-            severity = "**High**" if abs(delta_val or 0) > 0.2 else "**Medium**"
+            high_severity = abs(delta_val or 0) > config.high_severity_flag_threshold
+            severity = "**High**" if high_severity else "**Medium**"
 
             lines.append(
                 f"- **{flag_name}**: {baseline:.1%} → {candidate:.1%} "
@@ -447,7 +456,7 @@ def render_markdown_comparison_report(
         render_comparison_metadata_section(comparison_data),
         render_suite_comparison_table(comparison_data),
         render_suite_flags_comparison_table(comparison_data),
-        render_regressions_section(comparison_data),
+        render_regressions_section(comparison_data, config),
         render_improvements_section(comparison_data),
     ]
 

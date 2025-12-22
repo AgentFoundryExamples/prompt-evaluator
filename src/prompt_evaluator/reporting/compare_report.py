@@ -48,6 +48,9 @@ def load_comparison_artifact(artifact_path: Path) -> dict[str, Any]:
     if not artifact_path.exists():
         raise FileNotFoundError(f"Comparison artifact not found: {artifact_path}")
 
+    if not artifact_path.is_file():
+        raise ValueError(f"Path is not a file: {artifact_path}")
+
     try:
         with open(artifact_path, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
@@ -297,7 +300,7 @@ def render_regressions_section(
         # Sort by severity (absolute delta, descending)
         regressed_metrics_sorted = sorted(
             regressed_metrics,
-            key=lambda d: (abs(d.get("delta", 0)), d.get("metric_name", "")),
+            key=lambda d: (abs(d.get("delta") or 0), d.get("metric_name", "")),
             reverse=True,
         )
         for delta in regressed_metrics_sorted:
@@ -312,8 +315,11 @@ def render_regressions_section(
             high_severity = abs(delta_val or 0) > config.high_severity_metric_threshold
             severity = "**High**" if high_severity else "**Medium**"
 
+            baseline_str = f"{baseline:.2f}" if baseline is not None else "N/A"
+            candidate_str = f"{candidate:.2f}" if candidate is not None else "N/A"
+
             lines.append(
-                f"- **{metric_name}**: {baseline:.2f} → {candidate:.2f} "
+                f"- **{metric_name}**: {baseline_str} → {candidate_str} "
                 f"({delta_str}, {percent_str}) - Severity: {severity}"
             )
         lines.append("")
@@ -323,15 +329,15 @@ def render_regressions_section(
         # Sort by severity (absolute delta, descending)
         regressed_flags_sorted = sorted(
             regressed_flags,
-            key=lambda d: (abs(d.get("delta", 0)), d.get("flag_name", "")),
+            key=lambda d: (abs(d.get("delta") or 0), d.get("flag_name", "")),
             reverse=True,
         )
         for delta in regressed_flags_sorted:
             flag_name = escape_html_for_markdown(delta.get("flag_name", "unknown"))
             delta_val = delta.get("delta")
             percent = delta.get("percent_change")
-            baseline = delta.get("baseline_proportion", 0)
-            candidate = delta.get("candidate_proportion", 0)
+            baseline = delta.get("baseline_proportion")
+            candidate = delta.get("candidate_proportion")
 
             if delta_val is not None:
                 delta_str = format_delta_sign(delta_val * 100) + " pp"
@@ -341,8 +347,11 @@ def render_regressions_section(
             high_severity = abs(delta_val or 0) > config.high_severity_flag_threshold
             severity = "**High**" if high_severity else "**Medium**"
 
+            baseline_str = f"{baseline:.1%}" if baseline is not None else "N/A"
+            candidate_str = f"{candidate:.1%}" if candidate is not None else "N/A"
+
             lines.append(
-                f"- **{flag_name}**: {baseline:.1%} → {candidate:.1%} "
+                f"- **{flag_name}**: {baseline_str} → {candidate_str} "
                 f"({delta_str}, {percent_str}) - Severity: {severity}"
             )
         lines.append("")
@@ -389,7 +398,7 @@ def render_improvements_section(comparison_data: dict[str, Any]) -> str:
         # Sort by magnitude (absolute delta, descending)
         improved_metrics_sorted = sorted(
             improved_metrics,
-            key=lambda d: (abs(d.get("delta", 0)), d.get("metric_name", "")),
+            key=lambda d: (abs(d.get("delta") or 0), d.get("metric_name", "")),
             reverse=True,
         )
         for delta in improved_metrics_sorted:
@@ -402,8 +411,11 @@ def render_improvements_section(comparison_data: dict[str, Any]) -> str:
             delta_str = format_delta_sign(delta_val)
             percent_str = format_percentage(percent)
 
+            baseline_str = f"{baseline:.2f}" if baseline is not None else "N/A"
+            candidate_str = f"{candidate:.2f}" if candidate is not None else "N/A"
+
             lines.append(
-                f"- **{metric_name}**: {baseline:.2f} → {candidate:.2f} "
+                f"- **{metric_name}**: {baseline_str} → {candidate_str} "
                 f"({delta_str}, {percent_str})"
             )
         lines.append("")
@@ -413,15 +425,15 @@ def render_improvements_section(comparison_data: dict[str, Any]) -> str:
         # Sort by magnitude (absolute delta, descending)
         improved_flags_sorted = sorted(
             improved_flags,
-            key=lambda d: (abs(d.get("delta", 0)), d.get("flag_name", "")),
+            key=lambda d: (abs(d.get("delta") or 0), d.get("flag_name", "")),
             reverse=True,
         )
         for delta in improved_flags_sorted:
             flag_name = escape_html_for_markdown(delta.get("flag_name", "unknown"))
             delta_val = delta.get("delta")
             percent = delta.get("percent_change")
-            baseline = delta.get("baseline_proportion", 0)
-            candidate = delta.get("candidate_proportion", 0)
+            baseline = delta.get("baseline_proportion")
+            candidate = delta.get("candidate_proportion")
 
             if delta_val is not None:
                 delta_str = format_delta_sign(delta_val * 100) + " pp"
@@ -429,8 +441,11 @@ def render_improvements_section(comparison_data: dict[str, Any]) -> str:
                 delta_str = "N/A"
             percent_str = format_percentage(percent)
 
+            baseline_str = f"{baseline:.1%}" if baseline is not None else "N/A"
+            candidate_str = f"{candidate:.1%}" if candidate is not None else "N/A"
+
             lines.append(
-                f"- **{flag_name}**: {baseline:.1%} → {candidate:.1%} "
+                f"- **{flag_name}**: {baseline_str} → {candidate_str} "
                 f"({delta_str}, {percent_str})"
             )
         lines.append("")
@@ -476,6 +491,7 @@ def render_comparison_report(
     Args:
         comparison_artifact_path: Path to comparison artifact JSON file
         top_cases_per_metric: Number of top regressed/improved cases to show per metric
+                             (reserved for future use when per-test-case data is available)
         generate_html: Whether to generate HTML alongside Markdown
         output_name: Filename for Markdown report
         html_output_name: Filename for HTML report
@@ -487,14 +503,7 @@ def render_comparison_report(
         FileNotFoundError: If comparison artifact not found
         ValueError: If artifact is invalid
     """
-    # Validate comparison artifact file
-    if not comparison_artifact_path.exists():
-        raise FileNotFoundError(f"Comparison artifact not found: {comparison_artifact_path}")
-
-    if not comparison_artifact_path.is_file():
-        raise ValueError(f"Path is not a file: {comparison_artifact_path}")
-
-    # Load comparison artifact
+    # Load comparison artifact (includes validation)
     logger.info(f"Loading comparison artifact from {comparison_artifact_path}")
     comparison_data = load_comparison_artifact(comparison_artifact_path)
 

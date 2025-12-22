@@ -28,6 +28,8 @@ import pytest
 from typer.testing import CliRunner
 
 from prompt_evaluator.cli import app, compute_prompt_metadata
+from prompt_evaluator.models import Rubric, RubricMetric
+from prompt_evaluator.provider import OpenAIProvider
 
 
 # Helper to strip ANSI color codes from CLI output
@@ -165,8 +167,6 @@ class TestEvaluateSingleWithPromptMetadata:
         output_dir = tmp_path / "runs"
         
         # Mock the provider and functions to avoid real API calls
-        from prompt_evaluator.provider import OpenAIProvider
-        
         with patch("prompt_evaluator.cli.get_provider") as mock_get_provider, \
              patch("prompt_evaluator.cli.generate_completion") as mock_generate, \
              patch("prompt_evaluator.cli.judge_completion") as mock_judge, \
@@ -186,7 +186,6 @@ class TestEvaluateSingleWithPromptMetadata:
                 "judge_flags": {},
             }
             # Create proper Rubric mock using actual Rubric class
-            from prompt_evaluator.models import Rubric, RubricMetric
             mock_rubric_obj = Rubric(
                 metrics=[
                     RubricMetric(
@@ -263,8 +262,6 @@ class TestEvaluateSingleWithPromptMetadata:
         output_dir = tmp_path / "runs"
         
         # Mock the provider and functions
-        from prompt_evaluator.provider import OpenAIProvider
-        
         with patch("prompt_evaluator.cli.get_provider") as mock_get_provider, \
              patch("prompt_evaluator.cli.generate_completion") as mock_generate, \
              patch("prompt_evaluator.cli.judge_completion") as mock_judge, \
@@ -284,7 +281,6 @@ class TestEvaluateSingleWithPromptMetadata:
                 "judge_flags": {},
             }
             # Create proper Rubric mock using actual Rubric class
-            from prompt_evaluator.models import Rubric, RubricMetric
             mock_rubric_obj = Rubric(
                 metrics=[
                     RubricMetric(

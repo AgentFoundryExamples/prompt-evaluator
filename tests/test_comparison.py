@@ -416,8 +416,13 @@ class TestCompareRuns:
 class TestThresholdEdgeCases:
     """Tests for threshold boundary conditions and edge cases."""
 
-    def test_metric_delta_exactly_on_threshold_positive(self):
-        """Test metric delta equal to threshold - should not regress."""
+    def test_metric_delta_exactly_on_threshold(self):
+        """Test metric delta equal to threshold - should not regress.
+
+        Implementation uses strict inequality (>) not (>=), so delta == threshold
+        is not a regression. This behavior is intentional per issue requirements:
+        "Delta exactly equal to threshold remains unchanged rather than regressed."
+        """
         baseline_stats = {"mean_of_means": 5.0}
         candidate_stats = {"mean_of_means": 4.9}  # Delta = -0.1, exactly on threshold
 
@@ -447,7 +452,11 @@ class TestThresholdEdgeCases:
         assert delta.is_regression
 
     def test_flag_delta_exactly_on_threshold_positive(self):
-        """Test flag delta exactly equal to threshold - should not regress."""
+        """Test flag delta exactly equal to threshold - should not regress.
+
+        Implementation uses strict inequality (>) not (>=), so delta == threshold
+        is not a regression. This matches the metric behavior and issue requirements.
+        """
         baseline_stats = {"true_proportion": 0.1}
         candidate_stats = {"true_proportion": 0.15}  # Delta = 0.05, exactly on threshold
 
@@ -476,8 +485,14 @@ class TestThresholdEdgeCases:
         assert delta.delta == pytest.approx(0.051)
         assert delta.is_regression
 
-    def test_flag_zero_baseline_zero_candidate_no_division_error(self):
-        """Test flag with zero baseline and candidate doesn't cause division errors."""
+    def test_flag_delta_zero_baseline_zero_candidate_no_division_error(self):
+        """Test flag with zero baseline and candidate doesn't cause division errors.
+
+        When both baseline and candidate are 0.0, the implementation correctly returns:
+        - delta = 0.0
+        - percent_change = None (not inf or NaN)
+        This prevents division by zero and handles the edge case gracefully.
+        """
         baseline_stats = {"true_proportion": 0.0}
         candidate_stats = {"true_proportion": 0.0}
 

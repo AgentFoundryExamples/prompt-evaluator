@@ -2862,6 +2862,254 @@ Reports automatically:
 - **Artifact Links**: Reports include links back to raw JSON files for detailed inspection
 - **Deterministic Sorting**: Ties in regression/improvement lists sorted alphabetically for consistency
 
+### Reporting Workflow
+
+The typical workflow for using evaluation reports in prompt engineering:
+
+#### 1. Run Evaluation
+
+First, evaluate your prompt with a dataset:
+
+```bash
+# Run evaluation with your prompt
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt prompts/my-prompt.txt \
+  --num-samples 5 \
+  --prompt-version "v1.0" \
+  --output-dir runs/
+```
+
+This creates artifacts in `runs/<run_id>/dataset_evaluation.json`.
+
+#### 2. Generate Report
+
+Create a human-readable report from the raw artifacts:
+
+```bash
+# Generate Markdown report
+prompt-evaluator render-report \
+  --run runs/<run_id> \
+  --output report.md
+
+# Or generate both Markdown and HTML
+prompt-evaluator render-report \
+  --run runs/<run_id> \
+  --output report.md \
+  --html
+```
+
+**Tip**: On Windows, use backslashes for paths or quotes: `--run "runs\<run_id>"` or `--run runs/<run_id>` (forward slashes work in most shells).
+
+#### 3. Review Report
+
+Open the generated `report.md` in any Markdown viewer or the HTML file in a browser. The report highlights:
+
+- **🔴 WEAK** metrics: Scores below threshold (default: 3.0 on 1-5 scale)
+- **⚠️ UNSTABLE** metrics: High standard deviation (default: >1.0 or >20% of mean)
+- **⚠️ High flag rates**: Flags occurring >20% of the time (configurable)
+- **Qualitative examples**: Worst-performing samples with judge explanations
+
+#### 4. Iterate on Prompt
+
+Based on report insights:
+
+1. **Identify weak areas**: Look for metrics flagged as WEAK or UNSTABLE
+2. **Review examples**: Examine worst-performing samples to understand failure modes
+3. **Adjust prompt**: Add constraints, examples, or clarifications
+4. **Rerun evaluation**: Test improvements with the same dataset
+
+#### 5. Compare Runs
+
+Compare baseline vs improved prompt:
+
+```bash
+# Run with improved prompt
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt prompts/my-prompt-v2.txt \
+  --num-samples 5 \
+  --prompt-version "v2.0-improvements" \
+  --output-dir runs/
+
+# Compare runs
+prompt-evaluator compare-runs \
+  --baseline runs/<baseline-run-id>/dataset_evaluation.json \
+  --candidate runs/<candidate-run-id>/dataset_evaluation.json \
+  --output comparison.json
+
+# Generate comparison report
+prompt-evaluator render-report \
+  --compare comparison.json \
+  --output comparison-report.md \
+  --html
+```
+
+The comparison report shows:
+- **🔴 REGRESSION**: Metrics/flags that got worse
+- **✅ Improved**: Metrics/flags that got better
+- **Delta and % change**: Magnitude of changes
+
+### Interpreting Reports
+
+#### Single-Run Report Sections
+
+1. **Run Summary**: Overview of test cases, samples, models, and completion status
+2. **Overall Metric Statistics**: Suite-level aggregates (mean-of-means across test cases)
+3. **Overall Flag Statistics**: Suite-level flag occurrence rates with warnings for high rates
+4. **Test Case Details**: Per-case breakdown with stability annotations
+5. **Qualitative Examples**: Worst-performing samples showing failure patterns
+
+#### Understanding Instability
+
+**What it means**: A metric is marked **⚠️ UNSTABLE** when:
+- Standard deviation > 1.0 (absolute threshold), OR
+- Standard deviation > 20% of mean (relative threshold)
+
+**Why it matters**: High variance indicates inconsistent prompt behavior. The same input produces very different outputs across samples.
+
+**Example**:
+```
+clarity: mean=4.5, std=1.2 ⚠️ UNSTABLE
+  → Some outputs are very clear (5.0), others confusing (2.5-3.0)
+```
+
+**Action**: 
+- Lower temperature (try 0.3 instead of 0.7)
+- Add more specific constraints or examples to prompt
+- Increase sample count to confirm variance is real
+
+#### Understanding Weakness
+
+**What it means**: A metric is marked **🔴 WEAK** when:
+- Mean score < 3.0 (default threshold on 1-5 scale)
+
+**Why it matters**: Average performance is below acceptable level.
+
+**Example**:
+```
+semantic_fidelity: mean=2.8 🔴 WEAK
+  → Outputs often fail to preserve input meaning
+```
+
+**Action**:
+- Review qualitative examples to understand why scores are low
+- Adjust prompt to better address the evaluation criteria
+- Check if rubric expectations match prompt intent
+
+#### Understanding Flag Rates
+
+**What it means**: A flag is marked **⚠️** when:
+- True proportion > 20% (default threshold)
+
+**Why it matters**: The issue occurs frequently across samples.
+
+**Example**:
+```
+omitted_constraints: 35% ⚠️
+  → Over 1/3 of outputs miss required constraints
+```
+
+**Action**:
+- Add explicit constraint checklist to prompt
+- Include examples showing constraint compliance
+- Consider adding structured output format
+
+#### Comparison Report Indicators
+
+**🔴 REGRESSION**: 
+- Metric decreased by more than threshold (default: 0.1 on 1-5 scale)
+- Flag rate increased by more than threshold (default: 5 percentage points)
+- Requires attention before deploying prompt
+
+**✅ Improved**:
+- Metric increased (any positive delta)
+- Flag rate decreased (fewer problems)
+- Good sign, but check for tradeoffs
+
+**✅ Unchanged**:
+- Delta is below regression threshold
+- Effectively no meaningful change
+- Acceptable variance
+
+### Sample Reports
+
+Example reports are available in `examples/run-artifacts/`:
+- `report-sample.md` - Sample single-run evaluation report
+- `comparison-report-sample.md` - Sample comparison report
+
+These demonstrate the output format and annotation styles.
+
+### Report Constraints and Features
+
+**Offline-Friendly:**
+- Markdown reports require no external dependencies
+- HTML reports (optional) embed all CSS inline - no external assets
+- Can be viewed without internet connection
+
+**No JavaScript:**
+- HTML reports use pure CSS for styling
+- Works in any browser without JavaScript enabled
+- Printable and accessible
+
+**Links to Raw Artifacts:**
+- Reports include relative links to source JSON files
+- Navigate to detailed data for deeper investigation
+- Links work in both Markdown viewers and HTML
+
+**Cross-Platform Paths:**
+- CLI accepts both Unix (`/`) and Windows (`\`) path separators
+- Reports use relative paths when possible
+- Absolute paths displayed for clarity in metadata sections
+
+**Adjustable Thresholds:**
+- All warning thresholds are configurable via CLI flags
+- No hardcoded constants - tune for your use case
+- Thresholds documented in Configuration Reference section of each report
+
+### When to Generate Reports
+
+**Generate single-run reports when:**
+- Completing initial prompt evaluation
+- Assessing stability and quality metrics
+- Identifying weak areas or high-variance behaviors
+- Preparing for prompt review meetings
+- Documenting evaluation results
+
+**Generate comparison reports when:**
+- Comparing baseline vs candidate prompts
+- Validating prompt improvements
+- Detecting regressions before deployment
+- A/B testing different prompt variations
+- Tracking prompt evolution over time
+
+**Tip**: Generate both Markdown and HTML (`--html` flag) when sharing with non-technical stakeholders. HTML is easier to view in browsers.
+
+### Optional HTML Conversion
+
+HTML generation requires the `markdown` Python package:
+
+```bash
+# Install markdown support
+pip install markdown
+
+# Generate HTML report
+prompt-evaluator render-report \
+  --run runs/<run_id> \
+  --html \
+  --output report.md \
+  --html-output report.html
+```
+
+If the `markdown` package is not installed, the HTML report will be skipped with a warning. Markdown output always works.
+
+**HTML Features:**
+- Clean, responsive design
+- Embedded CSS (no external dependencies)
+- Syntax highlighting for code blocks
+- Works offline
+- Printable
+
 ### Reporting Specification
 
 For the complete specification including section structures, table formats, configuration parameters, and edge case handling, see [docs/reporting.md](docs/reporting.md).

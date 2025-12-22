@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 18,
+  "total_files": 19,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 45190,
-        "loc": 872,
+        "size_bytes": 48129,
+        "loc": 936,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 16156,
-        "loc": 333,
+        "size_bytes": 16545,
+        "loc": 342,
         "todo_count": 0
       }
     },
@@ -67,8 +67,8 @@
       "summary": "Python data models (role: model)",
       "summary_text": "Python data models (role: model)",
       "metrics": {
-        "size_bytes": 29229,
-        "loc": 602,
+        "size_bytes": 30197,
+        "loc": 620,
         "todo_count": 0
       }
     },
@@ -223,6 +223,20 @@
       "metrics": {
         "size_bytes": 51000,
         "loc": 1115,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_prompt_version_metadata.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 15561,
+        "loc": 268,
         "todo_count": 0
       }
     },

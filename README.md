@@ -2134,6 +2134,8 @@ Comparison results are output as JSON for programmatic consumption:
 }
 ```
 
+For a detailed comparison artifact schema with annotated examples and interpretation guidance, see `examples/run-artifacts/comparison-sample.json`.
+
 #### Extracting Key Information
 
 **Check if any regressions detected:**

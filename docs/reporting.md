@@ -221,9 +221,9 @@ Detailed statistics for each test case, with annotations for instability and wea
 | Metric | Mean | Std Dev | Min | Max | Count |
 |--------|------|---------|-----|-----|-------|
 | semantic_fidelity | 4.67 | 0.58 | 4.0 | 5.0 | 3 |
-| clarity | 4.67 | 0.29 ⚠️ UNSTABLE | 4.5 | 5.0 | 3 |
+| clarity | 4.67 | 1.10 ⚠️ UNSTABLE | 4.5 | 5.0 | 3 |
 
-**⚠️ UNSTABLE**: clarity has high standard deviation (0.29 > threshold or >20% of mean).
+**⚠️ UNSTABLE**: clarity has high standard deviation (1.10 > threshold of 1.0).
 
 #### Per-Flag Statistics
 
@@ -303,7 +303,7 @@ Representative samples selected to illustrate prompt performance. Samples are ch
 **Selection Criteria:**
 - **Best Performance**: Samples with highest average metric scores
 - **Worst Performance**: Samples with lowest average metric scores
-- **Ties**: Broken deterministically by sample_id (lexicographic order)
+- **Ties**: If multiple samples have the same average score, they are sorted by sample_id in ascending lexicographical order to ensure deterministic selection
 
 ### Best Performance Examples
 
@@ -399,7 +399,7 @@ def factorial(n):
 2. Sort by average score descending for best examples
 3. Sort by average score ascending for worst examples
 4. Select top N from each list
-5. **Tie-breaking**: If multiple samples have same average score, sort by `sample_id` lexicographically (deterministic)
+5. **Tie-breaking**: If multiple samples have the same average score, they are sorted by `sample_id` in ascending lexicographical order to ensure deterministic selection.
 
 **Default Limits:**
 - `max_best_examples`: **3** (configurable)
@@ -471,8 +471,8 @@ A compare-runs report presents the comparison between two dataset evaluation run
 4. **Flag Delta Summary**
 5. **Regression Details**
 6. **Improvement Details**
-7. **Top Regressed Cases** (per metric)
-8. **Top Improved Cases** (per metric)
+7. **Top Regressed Cases** (per metric) - *Future Enhancement*
+8. **Top Improved Cases** (per metric) - *Future Enhancement*
 9. **Configuration Reference**
 
 ### 1. Header and Metadata
@@ -569,8 +569,9 @@ Comparison of overall metric statistics between baseline and candidate runs.
 
 **Status Determination:**
 - 🔴 **REGRESSION**: `is_regression == true`
-- ✅ **Improved**: `delta > 0 and is_regression == false`
-- ✅ **Unchanged**: `delta <= 0 and is_regression == false` (below threshold)
+- ✅ **Improved**: `delta > 0`
+- ⚠️ **Degraded**: `delta < 0 and is_regression == false` (negative delta below threshold)
+- ✅ **Unchanged**: `delta == 0`
 
 **Edge Cases:**
 - **Null baseline or candidate**: Display "N/A" for mean, delta, and percent change

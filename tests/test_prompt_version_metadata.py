@@ -18,7 +18,9 @@ Tests validate prompt hashing, version metadata computation,
 and integration with CLI commands.
 """
 
+import hashlib
 import json
+import re
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -26,6 +28,15 @@ import pytest
 from typer.testing import CliRunner
 
 from prompt_evaluator.cli import app, compute_prompt_metadata
+
+
+# Helper to strip ANSI color codes from CLI output
+ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI color codes from text."""
+    return ANSI_ESCAPE.sub('', text)
 
 
 @pytest.fixture
@@ -47,7 +58,6 @@ class TestComputePromptMetadata:
         assert version_id == "v1.0"
         assert len(prompt_hash) == 64  # SHA-256 hex digest
         # Hash should be consistent for the same content
-        import hashlib
         expected_hash = hashlib.sha256(b"You are a helpful assistant.").hexdigest()
         assert prompt_hash == expected_hash
 
@@ -129,10 +139,7 @@ class TestEvaluateSingleWithPromptMetadata:
         result = cli_runner.invoke(app, ["evaluate-single", "--help"])
         
         assert result.exit_code == 0
-        # Strip ANSI codes for comparison
-        import re
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        clean_output = ansi_escape.sub('', result.stdout)
+        clean_output = strip_ansi(result.stdout)
         assert "--prompt-version" in clean_output
 
     def test_evaluate_single_help_shows_run_note(self, cli_runner):
@@ -140,10 +147,7 @@ class TestEvaluateSingleWithPromptMetadata:
         result = cli_runner.invoke(app, ["evaluate-single", "--help"])
         
         assert result.exit_code == 0
-        # Strip ANSI codes for comparison
-        import re
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        clean_output = ansi_escape.sub('', result.stdout)
+        clean_output = strip_ansi(result.stdout)
         assert "--run-note" in clean_output
 
 
@@ -177,10 +181,7 @@ class TestEvaluateDatasetWithPromptMetadata:
         
         # Just checking that the option is recognized (help should work)
         assert result.exit_code == 0
-        # Strip ANSI codes for comparison
-        import re
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        clean_output = ansi_escape.sub('', result.stdout)
+        clean_output = strip_ansi(result.stdout)
         assert "--prompt-version" in clean_output
 
     def test_evaluate_dataset_with_run_note_option(
@@ -198,8 +199,5 @@ class TestEvaluateDatasetWithPromptMetadata:
         )
         
         assert result.exit_code == 0
-        # Strip ANSI codes for comparison
-        import re
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        clean_output = ansi_escape.sub('', result.stdout)
+        clean_output = strip_ansi(result.stdout)
         assert "--run-note" in clean_output

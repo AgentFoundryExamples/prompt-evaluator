@@ -18,6 +18,7 @@ This module generates Markdown (and optionally HTML) reports from evaluation
 run artifacts, including metrics, flags, and qualitative examples.
 """
 
+import html
 import json
 import logging
 from dataclasses import dataclass
@@ -25,6 +26,22 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def escape_html_for_markdown(text: str) -> str:
+    """
+    Escape HTML entities in text that will be embedded in markdown.
+
+    This is used for user-provided content that appears outside code blocks
+    to prevent HTML injection when markdown is converted to HTML.
+
+    Args:
+        text: Text to escape
+
+    Returns:
+        Text with HTML entities escaped
+    """
+    return html.escape(text)
 
 
 @dataclass
@@ -201,43 +218,10 @@ def truncate_text(text: str, max_length: int) -> str:
     """
     if len(text) <= max_length:
         return text
+    # Handle edge case where max_length is too small for ellipsis
+    if max_length < 3:
+        return text[:max_length]
     return text[:max_length - 3] + "..."
-
-
-def escape_markdown(text: str) -> str:
-    """
-    Escape special Markdown characters in text.
-
-    Args:
-        text: Text to escape
-
-    Returns:
-        Escaped text safe for Markdown
-    """
-    # Escape common Markdown special characters
-    replacements = {
-        "\\": "\\\\",
-        "`": "\\`",
-        "*": "\\*",
-        "_": "\\_",
-        "{": "\\{",
-        "}": "\\}",
-        "[": "\\[",
-        "]": "\\]",
-        "(": "\\(",
-        ")": "\\)",
-        "#": "\\#",
-        "+": "\\+",
-        "-": "\\-",
-        ".": "\\.",
-        "!": "\\!",
-        "|": "\\|",
-    }
-
-    for char, replacement in replacements.items():
-        text = text.replace(char, replacement)
-
-    return text
 
 
 def render_metadata_section(run_data: dict[str, Any]) -> str:
@@ -270,7 +254,9 @@ def render_metadata_section(run_data: dict[str, Any]) -> str:
     ]
 
     if run_data.get('run_notes'):
-        lines.append(f"- **Notes**: {run_data['run_notes']}")
+        # Escape HTML in run_notes to prevent injection
+        escaped_notes = escape_html_for_markdown(run_data['run_notes'])
+        lines.append(f"- **Notes**: {escaped_notes}")
 
     # Add link to artifact
     lines.append("\n[View Raw Artifact JSON](./dataset_evaluation.json)\n")
@@ -295,10 +281,9 @@ def render_suite_metrics_table(run_data: dict[str, Any]) -> str:
     ]
 
     overall_metric_stats = run_data.get("overall_metric_stats", {})
+    metrics_rendered = 0
 
-    if not overall_metric_stats:
-        lines.append("| *No metrics available* | - | - | - | - | - |")
-    else:
+    if overall_metric_stats:
         for metric_name, stats in sorted(overall_metric_stats.items()):
             # Skip comment fields (keys starting with _)
             if metric_name.startswith("_"):
@@ -319,9 +304,17 @@ def render_suite_metrics_table(run_data: dict[str, Any]) -> str:
             min_str = f"{min_of_means:.2f}" if min_of_means is not None else "N/A"
             max_str = f"{max_of_means:.2f}" if max_of_means is not None else "N/A"
 
+            # Escape metric name for HTML safety
+            escaped_metric_name = escape_html_for_markdown(metric_name)
+
             lines.append(
-                f"| {metric_name} | {mean_str} | {std_str} | {min_str} | {max_str} | {num_cases} |"
+                f"| {escaped_metric_name} | {mean_str} | {std_str} | "
+                f"{min_str} | {max_str} | {num_cases} |"
             )
+            metrics_rendered += 1
+
+    if metrics_rendered == 0:
+        lines.append("| *No metrics available* | - | - | - | - | - |")
 
     return "\n".join(lines) + "\n"
 
@@ -361,8 +354,11 @@ def render_suite_flags_table(run_data: dict[str, Any]) -> str:
             total_count = stats.get("total_count", 0)
             true_proportion = stats.get("true_proportion", 0.0)
 
+            # Escape flag name for HTML safety
+            escaped_flag_name = escape_html_for_markdown(flag_name)
+
             lines.append(
-                f"| {flag_name} | {true_count} | {false_count} | "
+                f"| {escaped_flag_name} | {true_count} | {false_count} | "
                 f"{total_count} | {true_proportion:.1%} |"
             )
 
@@ -401,19 +397,27 @@ def render_test_case_table(
             status = tc.get("status", "unknown")
             num_samples = tc.get("num_samples", 0)
 
+            # Escape test case ID for HTML safety
+            escaped_test_case_id = escape_html_for_markdown(test_case_id)
+
             # Build annotations
             annotations = []
             if test_case_id in unstable_by_case:
-                metrics = ", ".join(unstable_by_case[test_case_id])
+                # Escape metric names in annotations
+                unstable_metrics = unstable_by_case[test_case_id]
+                escaped_metrics = [escape_html_for_markdown(m) for m in unstable_metrics]
+                metrics = ", ".join(escaped_metrics)
                 annotations.append(f"⚠️ **UNSTABLE** ({metrics})")
             if test_case_id in weak_by_case:
-                metrics = ", ".join(weak_by_case[test_case_id])
+                # Escape metric names in annotations
+                escaped_metrics = [escape_html_for_markdown(m) for m in weak_by_case[test_case_id]]
+                metrics = ", ".join(escaped_metrics)
                 annotations.append(f"⚠️ **WEAK** ({metrics})")
 
             annotations_str = "; ".join(annotations) if annotations else "-"
 
             lines.append(
-                f"| `{test_case_id}` | {status} | {num_samples} | {annotations_str} |"
+                f"| `{escaped_test_case_id}` | {status} | {num_samples} | {annotations_str} |"
             )
 
     return "\n".join(lines) + "\n"
@@ -447,7 +451,10 @@ def render_qualitative_section(
         samples = tc.get("samples", [])
         per_metric_stats = tc.get("per_metric_stats", {})
 
-        lines.append(f"### Example {idx}: `{test_case_id}`\n")
+        # Escape test case ID for HTML safety
+        escaped_test_case_id = escape_html_for_markdown(test_case_id)
+
+        lines.append(f"### Example {idx}: `{escaped_test_case_id}`\n")
 
         # Show metric scores for this case
         if per_metric_stats:
@@ -465,7 +472,9 @@ def render_qualitative_section(
                 std = stats.get("std")
                 mean_str = f"{mean:.2f}" if mean is not None else "N/A"
                 std_str = f"{std:.2f}" if std is not None else "N/A"
-                lines.append(f"- {metric_name}: mean={mean_str}, std={std_str}")
+                # Escape metric name for HTML safety
+                escaped_metric_name = escape_html_for_markdown(metric_name)
+                lines.append(f"- {escaped_metric_name}: mean={mean_str}, std={std_str}")
             lines.append("")
 
         # Show input
@@ -494,7 +503,9 @@ def render_qualitative_section(
 
                     score = metric_data.get("score")
                     if score is not None:
-                        metrics_summary.append(f"{metric_name}={score:.1f}")
+                        # Escape metric name for HTML safety
+                        escaped_metric_name = escape_html_for_markdown(metric_name)
+                        metrics_summary.append(f"{escaped_metric_name}={score:.1f}")
 
                 metrics_str = ", ".join(metrics_summary) if metrics_summary else "no scores"
 
@@ -516,7 +527,9 @@ def render_qualitative_section(
                         rationale = metric_data.get("rationale", "")
                         if rationale:
                             truncated_rationale = truncate_text(rationale, 200)
-                            lines.append(f"- **{metric_name}**: {truncated_rationale}")
+                            # Escape metric name for HTML safety
+                            escaped_metric_name = escape_html_for_markdown(metric_name)
+                            lines.append(f"- **{escaped_metric_name}**: {truncated_rationale}")
                     lines.append("")
         else:
             lines.append("*No samples available for this case.*\n")

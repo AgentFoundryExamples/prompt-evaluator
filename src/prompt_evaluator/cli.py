@@ -1377,6 +1377,10 @@ def render_report(
             typer.echo("Error: --std-threshold must be non-negative", err=True)
             raise typer.Exit(1)
 
+        if weak_score_threshold < 0:
+            typer.echo("Error: --weak-threshold must be non-negative", err=True)
+            raise typer.Exit(1)
+
         if qualitative_count < 0:
             typer.echo("Error: --qualitative-count must be non-negative", err=True)
             raise typer.Exit(1)

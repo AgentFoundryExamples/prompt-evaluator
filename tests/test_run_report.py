@@ -367,6 +367,18 @@ class TestTruncateText:
         truncated = truncate_text(text, max_length=50)
         assert truncated == text
 
+    def test_truncate_with_small_max_length(self):
+        """Test truncation when max_length is less than 3."""
+        text = "hello world"
+        # When max_length < 3, should return text[:max_length] without ellipsis
+        truncated = truncate_text(text, max_length=2)
+        assert truncated == "he"
+        assert len(truncated) == 2
+
+        truncated = truncate_text(text, max_length=1)
+        assert truncated == "h"
+        assert len(truncated) == 1
+
 
 class TestRenderMarkdownReport:
     """Tests for Markdown report rendering."""

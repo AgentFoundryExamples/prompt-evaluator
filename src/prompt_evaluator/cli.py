@@ -121,7 +121,7 @@ def compute_prompt_metadata(
 
         return prompt_version_id, prompt_hash
 
-    except (OSError, UnicodeDecodeError) as e:
+    except OSError as e:
         raise ValueError(f"Failed to read system prompt file {system_prompt_path}: {str(e)}") from e
 
 

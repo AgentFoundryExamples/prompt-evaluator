@@ -351,10 +351,435 @@ prompt-evaluator evaluate-dataset \
   --system-prompt prompts/system.txt \
   --num-samples 5
 
-# 5. Analyze results and iterate
-# Review per-case statistics to identify problematic inputs
+# 5. Generate report for human review
+prompt-evaluator render-report \
+  --run runs/<run_id> \
+  --output evaluation-report.md \
+  --html
+
+# 6. Analyze results and iterate
+# Review report to identify problematic inputs
 # Adjust prompt or parameters based on variance and flag rates
 ```
+
+### Evaluation-to-Report Workflow
+
+The complete workflow from evaluation to actionable insights:
+
+#### Step 1: Prepare Dataset
+
+Create or curate a dataset with representative test cases:
+
+```yaml
+# examples/datasets/my-dataset.yaml
+- id: case-001
+  input: Explain what Python is
+  task: Programming language explanation
+  difficulty: easy
+
+- id: case-002
+  input: Write a factorial function
+  task: Code generation
+  difficulty: medium
+```
+
+**Best practices:**
+- Start with 10-20 test cases
+- Include diverse inputs (easy, medium, hard)
+- Add metadata for filtering and analysis
+
+#### Step 2: Run Smoke Test
+
+Validate prompt works before committing to long runs:
+
+```bash
+# Quick test: 2 samples × 5 cases = ~20 API calls ≈ 40 seconds
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/my-dataset.yaml \
+  --system-prompt prompts/my-prompt.txt \
+  --max-cases 5 \
+  --quick \
+  --prompt-version "v1.0-baseline" \
+  --run-note "Initial smoke test"
+```
+
+**Check for:**
+- Generation errors (API issues, rate limits)
+- Judge errors (malformed responses)
+- Unexpected score distributions
+
+#### Step 3: Run Full Evaluation
+
+If smoke test passes, run on full dataset:
+
+```bash
+# Full evaluation: 5 samples × 20 cases = 200 API calls ≈ 6-10 minutes
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/my-dataset.yaml \
+  --system-prompt prompts/my-prompt.txt \
+  --num-samples 5 \
+  --prompt-version "v1.0-baseline" \
+  --run-note "Full evaluation for baseline" \
+  --seed 42 \
+  --output-dir runs/baselines
+```
+
+**Note the run ID** from output (e.g., `runs/baselines/abc123-def456-...`) for report generation. The run ID appears in the command output and is the directory name where artifacts are saved.
+
+#### Step 4: Generate Report
+
+Transform raw JSON artifacts into readable reports. Replace `<run_id>` with the actual run ID from Step 3:
+
+```bash
+# Markdown only (fast, no dependencies)
+# Replace <run_id> with actual value like: abc123-def456-7890-abcd-ef1234567890
+prompt-evaluator render-report \
+  --run runs/baselines/<run_id> \
+  --output baseline-report.md
+
+# With HTML for sharing
+prompt-evaluator render-report \
+  --run runs/baselines/<run_id> \
+  --output baseline-report.md \
+  --html
+
+# Custom thresholds for stricter analysis
+prompt-evaluator render-report \
+  --run runs/baselines/<run_id> \
+  --std-threshold 0.8 \
+  --weak-threshold 3.5 \
+  --qualitative-count 5 \
+  --output strict-report.md
+```
+
+**Outputs:**
+- `baseline-report.md` - Markdown report
+- `baseline-report.html` - HTML report (if `--html` specified)
+- Reports saved alongside dataset_evaluation.json or at specified path
+
+#### Step 5: Review Report
+
+Open report in Markdown viewer or browser:
+
+```bash
+# View Markdown (requires Markdown viewer)
+code baseline-report.md  # VS Code
+open baseline-report.md  # macOS with Markdown app
+xdg-open baseline-report.md  # Linux
+
+# View HTML (any browser)
+open baseline-report.html  # macOS
+start baseline-report.html  # Windows
+xdg-open baseline-report.html  # Linux
+```
+
+**Focus on:**
+1. **Overall Metric Statistics**: Are scores acceptable? (e.g., mean > 4.0 on 1-5 scale)
+2. **Unstable Metrics**: High std deviation indicates inconsistency
+3. **Weak Metrics**: Low mean scores indicate systematic issues
+4. **High Flag Rates**: Flags occurring >20% indicate common problems
+5. **Qualitative Examples**: Understand failure modes from worst-performing samples
+
+**Example findings:**
+```markdown
+## Overall Metric Statistics
+
+| Metric | Mean | Min | Max | Cases |
+|--------|------|-----|-----|-------|
+| semantic_fidelity | 4.39 | 4.10 | 4.67 | 20 |
+| clarity | 3.85 ⚠️ UNSTABLE | 2.50 | 4.67 | 20 |
+
+## Overall Flag Statistics
+
+| Flag | True Count | False Count | Total | True Proportion |
+|------|------------|-------------|-------|-----------------|
+| omitted_constraints | 25 | 75 | 100 | 0.25 (25%) ⚠️ |
+```
+
+**Interpretation:**
+- ✅ Semantic fidelity is good and stable
+- ⚠️ Clarity is inconsistent (high variance)
+- ⚠️ 25% of samples omit constraints
+
+#### Step 6: Identify Issues
+
+Use report annotations to find problems:
+
+**For UNSTABLE metrics:**
+```markdown
+### Test Case: case-005
+
+**Input**: Write a factorial function
+
+#### Per-Metric Statistics
+
+| Metric | Mean | Std Dev | Min | Max | Count |
+|--------|------|---------|-----|-----|-------|
+| clarity | 4.20 | 1.30 ⚠️ UNSTABLE | 2.0 | 5.0 | 5 |
+
+**⚠️ UNSTABLE**: clarity has high standard deviation (1.30 > threshold of 1.0).
+```
+
+→ **Action**: Lower temperature or add clarity guidelines
+
+**For WEAK metrics:**
+```markdown
+| Metric | Mean | Std Dev | Min | Max | Count |
+|--------|------|---------|-----|-----|-------|
+| constraint_adherence | 2.80 🔴 WEAK | 0.50 | 2.0 | 3.5 | 5 |
+
+**🔴 WEAK**: constraint_adherence has low mean (2.80 < threshold of 3.0).
+```
+
+→ **Action**: Add explicit constraint checklist to prompt
+
+**For high flag rates:**
+```markdown
+| Flag | True Count | False Count | Total | True Proportion |
+|------|------------|-------------|-------|-----------------|
+| omitted_constraints | 12 | 8 | 20 | 0.60 (60%) ⚠️ |
+```
+
+→ **Action**: Prompt doesn't emphasize constraints enough
+
+#### Step 7: Review Qualitative Examples
+
+Understand failure patterns from worst-performing samples:
+
+```markdown
+## Qualitative Examples
+
+### Worst Performance Examples
+
+#### Example 1: test-002, sample-3
+
+**Input**: Write a factorial function in Python.
+
+**Generator Output**:
+```python
+def factorial(n):
+    result = 1
+    for i in range(1, n + 1):
+        result *= i
+    return result
+```
+
+**Judge Evaluation**:
+- **semantic_fidelity**: 4.0/5.0 - "Correct implementation but uses iteration..."
+- **constraint_adherence**: 2.0/5.0 - "Missing docstring and type hints"
+- **Flags**: omitted_constraints=true ⚠️
+
+→ **Insight**: Prompt needs to explicitly require docstrings and type hints
+
+#### Step 8: Adjust Prompt
+
+Based on report insights, modify prompt:
+
+**Before:**
+```
+You are a Python expert. Write clean, functional code.
+```
+
+**After:**
+```
+You are a Python expert. Write clean, functional code following these guidelines:
+- Always include docstrings (Google style)
+- Use type hints for all parameters and return values
+- Follow PEP 8 conventions
+- Add inline comments for complex logic
+```
+
+#### Step 9: Rerun Evaluation
+
+Test improvements with **same dataset and settings**:
+
+```bash
+# Run with improved prompt
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/my-dataset.yaml \
+  --system-prompt prompts/my-prompt-v2.txt \
+  --num-samples 5 \
+  --prompt-version "v2.0-explicit-constraints" \
+  --run-note "Added explicit code guidelines" \
+  --seed 42 \
+  --output-dir runs/candidates
+
+# Note the new run ID from output (different from baseline run ID)
+# Generate report using the new run ID
+prompt-evaluator render-report \
+  --run runs/candidates/<run_id> \
+  --output candidate-report.md \
+  --html
+```
+
+**Critical**: Use same dataset, num-samples, seed, and models for valid comparison.
+
+#### Step 10: Compare Runs
+
+Detect regressions and improvements:
+
+```bash
+# Compare baseline vs candidate
+prompt-evaluator compare-runs \
+  --baseline runs/baselines/<baseline-run-id>/dataset_evaluation.json \
+  --candidate runs/candidates/<candidate-run-id>/dataset_evaluation.json \
+  --metric-threshold 0.1 \
+  --flag-threshold 0.05 \
+  --output comparison.json
+
+# Generate comparison report
+prompt-evaluator render-report \
+  --compare comparison.json \
+  --output comparison-report.md \
+  --html
+```
+
+#### Step 11: Review Comparison Report
+
+Check for regressions:
+
+```markdown
+# Run Comparison Report
+
+**Comparison Result**: ✅ **NO REGRESSIONS**
+
+## Metric Delta Summary
+
+| Metric | Baseline | Candidate | Delta | % Change | Status |
+|--------|----------|-----------|-------|----------|--------|
+| semantic_fidelity | 4.39 | 4.42 | +0.03 | +0.7% | ✅ Unchanged |
+| clarity | 3.85 | 4.10 | +0.25 | +6.5% | ✅ Improved |
+| constraint_adherence | 2.80 | 3.50 | +0.70 | +25.0% | ✅ Improved |
+
+## Flag Delta Summary
+
+| Flag | Baseline | Candidate | Delta | % Change | Status |
+|------|----------|-----------|-------|----------|--------|
+| omitted_constraints | 25.0% | 8.0% | -17.0pp | -68.0% | ✅ Improved |
+```
+
+**Decision**: No regressions, significant improvements → **Deploy candidate prompt**
+
+**If regressions found:**
+```markdown
+## Metric Delta Summary
+
+| Metric | Baseline | Candidate | Delta | % Change | Status |
+|--------|----------|-----------|-------|----------|--------|
+| clarity | 4.50 | 4.05 | -0.45 | -10.0% | 🔴 **REGRESSION** |
+```
+
+**Decision**: Review what changed, decide if tradeoff is acceptable, or iterate further.
+
+#### Step 12: Prompt Review Meeting
+
+Bring reports to team review:
+
+**Suggested agenda:**
+1. **Context** (5 min): Explain prompt changes and motivation
+2. **Report walkthrough** (10 min):
+   - Show overall metrics and flag rates
+   - Highlight unstable/weak areas
+   - Review qualitative examples
+3. **Comparison review** (10 min):
+   - Show improvements and regressions
+   - Discuss tradeoffs if any regressions exist
+4. **Decision** (5 min): Deploy, iterate, or rollback
+
+**Sharing reports:**
+- Email HTML files (self-contained, no server needed)
+- Commit Markdown to git for version control
+- Share links if reports are in shared filesystem
+- Print PDF for offline review (print HTML to PDF)
+
+### Report Customization
+
+Adjust thresholds for your team's standards:
+
+```bash
+# Strict thresholds (catch smaller issues)
+prompt-evaluator render-report \
+  --run runs/<run_id> \
+  --std-threshold 0.5 \
+  --weak-threshold 3.5 \
+  --flag-warning-threshold 0.15 \
+  --output strict-report.md
+
+# Relaxed thresholds (exploratory phase)
+prompt-evaluator render-report \
+  --run runs/<run_id> \
+  --std-threshold 1.5 \
+  --weak-threshold 2.5 \
+  --flag-warning-threshold 0.30 \
+  --output relaxed-report.md
+```
+
+**Threshold guidelines:**
+
+| Threshold | Strict | Standard | Relaxed |
+|-----------|--------|----------|---------|
+| `--std-threshold` | 0.5 | 1.0 | 1.5 |
+| `--weak-threshold` | 3.5 | 3.0 | 2.5 |
+| `--flag-warning-threshold` | 0.15 | 0.20 | 0.30 |
+| `--qualitative-count` | 5 | 3 | 2 |
+
+**When to use:**
+- **Strict**: Production deploys, critical prompts
+- **Standard**: Regular development, most use cases
+- **Relaxed**: Early prototypes, exploratory work
+
+### Report Constraints
+
+**Offline-Friendly:**
+- Markdown reports work anywhere (no dependencies)
+- HTML reports embed all CSS inline (no external assets)
+- No JavaScript required
+- Viewable without internet connection
+
+**File-Based:**
+- All data comes from JSON artifacts on disk
+- No database or server needed
+- Portable across systems
+- Version control friendly
+
+**Cross-Platform:**
+- Works on macOS, Linux, Windows
+- Paths use forward slashes (`/`) or backslashes (`\`)
+- Reports use relative links when possible
+
+### Linking to Raw Artifacts
+
+Reports include links to source JSON files:
+
+```markdown
+---
+
+**Raw Artifacts:**
+- [Run artifact (JSON)](../runs/<run_id>/dataset_evaluation.json)
+- [Per-case artifacts](../runs/<run_id>/)
+
+---
+```
+
+**Use links to:**
+- Inspect full sample data (not truncated)
+- Review judge raw responses for errors
+- Export data to other tools (dashboards, notebooks)
+- Verify report calculations
+
+### Sample Reports
+
+Example reports available in `examples/run-artifacts/`:
+- `report-sample.md` - Single-run evaluation report
+- `comparison-report-sample.md` - Comparison report
+
+These demonstrate:
+- Report structure and formatting
+- Annotation styles (UNSTABLE, WEAK, regressions)
+- Qualitative examples section
+- Links to artifacts
+
+**Generated from synthetic data** - clearly labeled as examples.
 
 ### Command Overview
 

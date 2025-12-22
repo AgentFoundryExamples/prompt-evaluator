@@ -1,0 +1,193 @@
+# Run Comparison Report
+
+> **Note**: This is a sample comparison report generated from synthetic data for documentation purposes.
+
+**Baseline Run**: `v1.0-baseline` (ID: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`)  
+**Candidate Run**: `v2.0-clarity-improvements` (ID: `b2c3d4e5-f6g7-8901-bcde-fg2345678901`)  
+**Comparison Timestamp**: 2025-12-22 03:00:00 UTC  
+**Comparison Result**: ✅ **NO REGRESSIONS**
+
+---
+
+## Run Metadata
+
+| Property | Baseline | Candidate | Match |
+|----------|----------|-----------|-------|
+| Prompt Version | v1.0-baseline | v2.0-clarity-improvements | - |
+| Prompt Hash | 1a2b3c4d... | 2b3c4d5e... | - |
+| Dataset Hash | sha256:abc123... | sha256:abc123... | ✅ |
+| Generator Model | gpt-5.1 | gpt-5.1 | ✅ |
+| Judge Model | gpt-5.1 | gpt-5.1 | ✅ |
+| Rubric Hash | sha256:def456... | sha256:def456... | ✅ |
+
+**✅ Match**: Property values are identical between runs (valid comparison)  
+**Dataset Hash Match**: Essential for valid comparison (same test cases)  
+**Model Match**: Recommended for isolating prompt effects
+
+---
+
+## Comparison Summary
+
+**Regressions Detected**: 0  
+**Metrics Compared**: 3  
+**Flags Compared**: 2  
+
+**Thresholds Used:**
+- Metric regression threshold: 0.10 (absolute delta)
+- Flag regression threshold: 0.05 (absolute proportion change)
+
+**Overall Assessment**: 
+The candidate run shows no regressions and includes improvements in clarity (+6.5%) and decomposition_quality (+8.6%). The omitted_constraints flag rate decreased from 13% to 5%, indicating better constraint adherence.
+
+---
+
+## Metric Delta Summary
+
+Comparison of overall metric statistics between baseline and candidate runs.
+
+| Metric | Baseline | Candidate | Delta | % Change | Status |
+|--------|----------|-----------|-------|----------|--------|
+| semantic_fidelity | 4.39 | 4.42 | +0.03 | +0.7% | ✅ Unchanged |
+| clarity | 4.59 | 4.89 | +0.30 | +6.5% | ✅ Improved |
+| decomposition_quality | 3.85 | 4.18 | +0.33 | +8.6% | ✅ Improved |
+
+**Legend:**
+- ✅ **Improved**: Positive delta, candidate score is higher
+- ✅ **Unchanged**: Delta below regression threshold (not significant)
+- 🔴 **REGRESSION**: Negative delta exceeding threshold
+
+---
+
+## Flag Delta Summary
+
+Comparison of overall flag statistics between baseline and candidate runs.
+
+| Flag | Baseline | Candidate | Delta | % Change | Status |
+|------|----------|-----------|-------|----------|--------|
+| invented_constraints | 0.0% | 0.0% | 0.0pp | 0.0% | ✅ Unchanged |
+| omitted_constraints | 13.0% | 5.0% | -8.0pp | -61.5% | ✅ Improved |
+
+**Legend:**
+- ✅ **Improved**: Negative delta (fewer problems in candidate)
+- ✅ **Unchanged**: Delta below regression threshold (not significant)
+- 🔴 **REGRESSION**: Positive delta exceeding threshold (more problems in candidate)
+
+**Note**: For flags, positive delta indicates regression (more occurrences of the issue).
+
+---
+
+## Regression Details
+
+No regressions detected. All metrics and flags meet acceptance criteria.
+
+---
+
+## Improvement Details
+
+Metrics and flags that improved in the candidate run.
+
+### Metric Improvements
+
+#### clarity: +0.30 (+6.5%)
+
+- **Baseline**: 4.59
+- **Candidate**: 4.89
+- **Delta**: +0.30
+- **Assessment**: Candidate mean increased by 0.30, indicating improved clarity. The prompt changes successfully addressed output comprehensibility.
+
+---
+
+#### decomposition_quality: +0.33 (+8.6%)
+
+- **Baseline**: 3.85
+- **Candidate**: 4.18
+- **Delta**: +0.33
+- **Assessment**: Candidate mean increased by 0.33, showing better decomposition of complex concepts. Outputs are more structured and logically organized.
+
+---
+
+### Flag Improvements
+
+#### omitted_constraints: -8.0pp (-61.5%)
+
+- **Baseline**: 13.0% (13 occurrences out of 100 samples)
+- **Candidate**: 5.0% (5 occurrences out of 100 samples)
+- **Delta**: -8.0 percentage points
+- **Assessment**: Flag occurrence rate decreased by 8 percentage points. Significantly fewer samples are omitting constraints in the candidate run. The prompt improvements successfully addressed constraint adherence.
+
+---
+
+## Configuration Reference
+
+This comparison report was generated with the following configuration:
+
+**Regression Thresholds:**
+- Metric threshold: 0.10 (absolute delta)
+- Flag threshold: 0.05 (absolute proportion change)
+
+**Report Format:**
+- Output format: Markdown
+- HTML conversion: Disabled
+
+**Sections Included:**
+- Metric Delta Summary: Yes
+- Flag Delta Summary: Yes
+- Regression Details: Yes (none detected)
+- Improvement Details: Yes
+
+---
+
+**Artifact Paths:**
+- Baseline run: `runs/a1b2c3d4.../dataset_evaluation.json`
+- Candidate run: `runs/b2c3d4e5.../dataset_evaluation.json`
+- Comparison artifact: `comparison-result.json`
+- Generated report: `comparison-report.md`
+
+**Raw Artifacts:**
+- [Baseline run (JSON)](run-sample.json)
+- [Candidate run (JSON)](run-sample.json) _(Note: In practice, baseline and candidate would be different files)_
+- [Comparison artifact (JSON)](comparison-sample.json)
+
+---
+
+_Report generated by prompt-evaluator v0.1.0 on 2025-12-22_
+
+---
+
+## Example: Comparison with Regressions
+
+Below is an example showing how the report would look if regressions were detected:
+
+### Metric Delta Summary (with regression)
+
+| Metric | Baseline | Candidate | Delta | % Change | Status |
+|--------|----------|-----------|-------|----------|--------|
+| semantic_fidelity | 4.39 | 4.42 | +0.03 | +0.7% | ✅ Unchanged |
+| clarity | 4.59 | 4.05 | -0.54 | -11.8% | 🔴 **REGRESSION** |
+| decomposition_quality | 3.85 | 4.18 | +0.33 | +8.6% | ✅ Improved |
+
+### Regression Details (example)
+
+#### clarity: -0.54 (-11.8%)
+
+- **Baseline**: 4.59
+- **Candidate**: 4.05
+- **Delta**: -0.54
+- **Threshold Used**: 0.10
+- **Assessment**: Candidate mean decreased by 0.54, exceeding the regression threshold. This indicates a measurable decline in clarity. Review qualitative examples and per-case statistics to understand why outputs became less clear. Possible causes: prompt changes introduced ambiguity, temperature increased variance, or new constraints conflicted with clarity requirements.
+
+**Recommended Actions:**
+1. Review per-case breakdown to identify which test cases regressed
+2. Examine worst-performing samples from candidate run
+3. Compare prompt versions to identify changes affecting clarity
+4. Consider whether tradeoffs are acceptable (e.g., better decomposition at cost of some clarity)
+5. If unacceptable, iterate on prompt to address clarity issues while preserving improvements
+
+---
+
+**Decision Guide:**
+
+- **No regressions + improvements**: ✅ Safe to deploy
+- **Minor regression on non-critical metric**: ⚠️ Review and decide if acceptable tradeoff
+- **Major regression on critical metric**: 🔴 Iterate further, do not deploy
+- **Multiple regressions**: 🔴 Significant issues, rollback or major revision needed

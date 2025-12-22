@@ -2764,6 +2764,38 @@ Sample datasets are provided in `examples/datasets/`:
 
 For comprehensive information about dataset formats, schema, validation rules, and best practices, see [docs/datasets.md](docs/datasets.md).
 
+## Evaluation Reporting
+
+The Prompt Evaluator includes a comprehensive specification for generating human-readable evaluation reports from JSON artifacts. These reports transform raw evaluation data into structured Markdown documents (with optional HTML conversion) for reviewing prompt quality, stability, and regressions.
+
+### Report Types
+
+**Single-Run Reports:**
+- Present results from a single `evaluate-dataset` execution
+- Include metadata, overall statistics, per-case breakdowns, and qualitative examples
+- Annotate unstable metrics (high std deviation) and weak performance (low scores)
+- Highlight high flag occurrence rates
+
+**Compare-Runs Reports:**
+- Compare baseline vs candidate runs to detect regressions and improvements
+- Show metric and flag deltas with regression detection
+- Provide detailed breakdowns of improvements and regressions
+- Validate dataset and model compatibility
+
+### Key Features
+
+- **Pure Consumer**: Reports are generated from existing JSON artifacts without modifying schemas
+- **Fully Configurable**: All thresholds, limits, and formatting options are adjustable via CLI or config
+- **Edge Case Handling**: Gracefully handles missing metrics, small datasets, and failed test cases
+- **HTML Conversion**: Optional HTML output with clean styling for sharing
+- **Artifact Links**: Reports include links back to raw JSON files for detailed inspection
+
+### Reporting Specification
+
+For the complete specification including section structures, table formats, configuration parameters, and edge case handling, see [docs/reporting.md](docs/reporting.md).
+
+**Note**: Report generation commands (`report-single`, `report-compare`) are documented in the specification and will be implemented in future versions. Currently, the specification serves as a contract for future implementation.
+
 ## Development
 
 ### Testing

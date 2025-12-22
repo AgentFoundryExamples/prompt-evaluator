@@ -338,6 +338,9 @@ class SingleEvaluationRun:
         generator_config: Configuration for the generator model
         judge_config: Configuration for the judge model
         samples: List of Sample objects with results
+        prompt_version_id: Version identifier for the prompt (user-provided or auto-generated hash)
+        prompt_hash: SHA-256 hash of the system prompt file contents
+        run_notes: Optional user-provided notes about this run
     """
 
     run_id: str
@@ -346,6 +349,9 @@ class SingleEvaluationRun:
     generator_config: GeneratorConfig
     judge_config: JudgeConfig
     samples: list[Sample] = field(default_factory=list)
+    prompt_version_id: str | None = None
+    prompt_hash: str | None = None
+    run_notes: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -361,6 +367,9 @@ class SingleEvaluationRun:
             "generator_config": asdict(self.generator_config),
             "judge_config": asdict(self.judge_config),
             "samples": [sample.to_dict() for sample in self.samples],
+            "prompt_version_id": self.prompt_version_id,
+            "prompt_hash": self.prompt_hash,
+            "run_notes": self.run_notes,
         }
 
 
@@ -701,6 +710,9 @@ class DatasetEvaluationRun:
         timestamp_start: When the evaluation run started
         timestamp_end: When the evaluation run completed
         system_prompt_path: Path to the system prompt file used
+        prompt_version_id: Version identifier for the prompt (user-provided or auto-generated hash)
+        prompt_hash: SHA-256 hash of the system prompt file contents
+        run_notes: Optional user-provided notes about this run
     """
 
     run_id: str
@@ -718,6 +730,9 @@ class DatasetEvaluationRun:
     timestamp_start: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     timestamp_end: datetime | None = None
     system_prompt_path: str | None = None
+    prompt_version_id: str | None = None
+    prompt_hash: str | None = None
+    run_notes: str | None = None
 
     def __post_init__(self) -> None:
         """Validate dataset evaluation run fields."""
@@ -748,5 +763,8 @@ class DatasetEvaluationRun:
             "timestamp_start": self.timestamp_start.isoformat(),
             "timestamp_end": self.timestamp_end.isoformat() if self.timestamp_end else None,
             "system_prompt_path": self.system_prompt_path,
+            "prompt_version_id": self.prompt_version_id,
+            "prompt_hash": self.prompt_hash,
+            "run_notes": self.run_notes,
         }
         return result

@@ -64,9 +64,7 @@ class TestEvaluateSingleCLI:
         assert result.exit_code != 0
         assert "Missing option" in result.stdout or "required" in result.stdout.lower()
 
-    def test_evaluate_single_missing_system_prompt_file(
-        self, cli_runner, tmp_path, monkeypatch
-    ):
+    def test_evaluate_single_missing_system_prompt_file(self, cli_runner, tmp_path, monkeypatch):
         """Test error handling when system prompt file doesn't exist."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
@@ -110,9 +108,7 @@ class TestEvaluateSingleCLI:
         assert result.exit_code == 1
         assert "not found" in result.stdout
 
-    def test_evaluate_single_invalid_num_samples(
-        self, cli_runner, temp_prompts, monkeypatch
-    ):
+    def test_evaluate_single_invalid_num_samples(self, cli_runner, temp_prompts, monkeypatch):
         """Test error handling when num_samples is non-positive (zero or negative)."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
@@ -716,9 +712,7 @@ class TestEvaluateSingleCLI:
         assert judge_config.model_name == "test-judge-model"
         assert judge_config.temperature == 0.0  # Judge uses deterministic temperature
 
-    def test_evaluate_single_unreadable_prompt_path(
-        self, cli_runner, tmp_path, monkeypatch
-    ):
+    def test_evaluate_single_unreadable_prompt_path(self, cli_runner, tmp_path, monkeypatch):
         """Test error handling for unreadable prompt files."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
@@ -816,6 +810,7 @@ class TestEvaluateSingleCLI:
         assert evaluation_file.exists()
 
         import json
+
         evaluation = json.loads(evaluation_file.read_text())
 
         # Verify rubric metadata is present
@@ -942,6 +937,7 @@ flags:
         evaluation_file = run_dirs[0] / "evaluate-single.json"
 
         import json
+
         evaluation = json.loads(evaluation_file.read_text())
 
         # Verify rubric metadata is present
@@ -965,4 +961,3 @@ flags:
         assert stats["flag_stats"]["test_flag"]["total_count"] == 2
         assert stats["flag_stats"]["test_flag"]["true_count"] == 1
         assert stats["flag_stats"]["test_flag"]["true_proportion"] == 0.5
-

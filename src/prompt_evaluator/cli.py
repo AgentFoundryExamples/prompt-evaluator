@@ -216,8 +216,7 @@ def compute_aggregate_statistics(
             flag_values = [
                 s.judge_flags[flag_name]
                 for s in valid_samples
-                if s.status == "completed"
-                and flag_name in s.judge_flags
+                if s.status == "completed" and flag_name in s.judge_flags
             ]
 
             true_count = sum(1 for v in flag_values if v)
@@ -346,8 +345,7 @@ def generate(
         # Validate output path is a directory
         if output_dir_path.exists() and not output_dir_path.is_dir():
             typer.echo(
-                f"Error: Output path '{output_dir}' exists and is not a directory.",
-                err=True
+                f"Error: Output path '{output_dir}' exists and is not a directory.", err=True
             )
             raise typer.Exit(1)
 
@@ -409,18 +407,14 @@ def evaluate_single(
     system_prompt: str = typer.Option(
         ..., "--system-prompt", "-s", help="Path to generator system prompt file"
     ),
-    input_path: str = typer.Option(
-        ..., "--input", "-i", help="Path to input file"
-    ),
+    input_path: str = typer.Option(..., "--input", "-i", help="Path to input file"),
     num_samples: int = typer.Option(
         ..., "--num-samples", "-n", help="Number of samples to generate"
     ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
     ),
-    judge_model: str | None = typer.Option(
-        None, "--judge-model", help="Judge model name override"
-    ),
+    judge_model: str | None = typer.Option(None, "--judge-model", help="Judge model name override"),
     judge_system_prompt: str | None = typer.Option(
         None, "--judge-system-prompt", help="Path to custom judge system prompt file"
     ),
@@ -556,8 +550,7 @@ def evaluate_single(
         # Validate output path is a directory
         if output_dir_path.exists() and not output_dir_path.is_dir():
             typer.echo(
-                f"Error: Output path '{output_dir}' exists and is not a directory.",
-                err=True
+                f"Error: Output path '{output_dir}' exists and is not a directory.", err=True
             )
             raise typer.Exit(1)
 
@@ -570,8 +563,8 @@ def evaluate_single(
         # Generate and judge samples
         samples: list[Sample] = []
         for i in range(num_samples):
-            sample_id = f"{run_id}-sample-{i+1}"
-            typer.echo(f"  Sample {i+1}/{num_samples}...", err=True)
+            sample_id = f"{run_id}-sample-{i + 1}"
+            typer.echo(f"  Sample {i + 1}/{num_samples}...", err=True)
 
             try:
                 # Generate completion
@@ -619,20 +612,20 @@ def evaluate_single(
                         # Legacy single-metric mode
                         typer.echo(
                             f"    ✓ Generated and judged (score: {sample.judge_score:.1f}/5.0)",
-                            err=True
+                            err=True,
                         )
                     else:
                         # Rubric mode - show summary of metrics
                         num_metrics = len(sample.judge_metrics)
                         typer.echo(
                             f"    ✓ Generated and judged ({num_metrics} metrics evaluated)",
-                            err=True
+                            err=True,
                         )
                 elif sample.status == "judge_invalid_response":
-                    error_msg = judge_result.get('error', 'Invalid judge response')
+                    error_msg = judge_result.get("error", "Invalid judge response")
                     typer.echo(f"    ⚠ Generated but judge response invalid: {error_msg}", err=True)
                 else:
-                    error_msg = judge_result.get('error')
+                    error_msg = judge_result.get("error")
                     typer.echo(f"    ⚠ Generated but judge error: {error_msg}", err=True)
 
             except Exception as e:
@@ -655,7 +648,9 @@ def evaluate_single(
 
         # Compute prompt metadata
         try:
-            prompt_version_id, prompt_hash = compute_prompt_metadata(system_prompt_path, prompt_version)
+            prompt_version_id, prompt_hash = compute_prompt_metadata(
+                system_prompt_path, prompt_version
+            )
         except (FileNotFoundError, ValueError) as e:
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
@@ -717,7 +712,7 @@ def evaluate_single(
                         f"min={metric_data['min']:.2f}, "
                         f"max={metric_data['max']:.2f}, "
                         f"count={metric_data['count']}",
-                        err=True
+                        err=True,
                     )
                 else:
                     typer.echo(f"  {metric_name}: No valid scores", err=True)
@@ -732,7 +727,7 @@ def evaluate_single(
                         f"true={flag_data['true_count']}, "
                         f"false={flag_data['false_count']}, "
                         f"proportion={flag_data['true_proportion']:.2%}",
-                        err=True
+                        err=True,
                     )
                 else:
                     typer.echo(f"  {flag_name}: No samples evaluated", err=True)
@@ -813,9 +808,7 @@ def evaluate_dataset(
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
     ),
-    judge_model: str | None = typer.Option(
-        None, "--judge-model", help="Judge model name override"
-    ),
+    judge_model: str | None = typer.Option(None, "--judge-model", help="Judge model name override"),
     judge_system_prompt: str | None = typer.Option(
         None, "--judge-system-prompt", help="Path to custom judge system prompt file"
     ),
@@ -880,7 +873,7 @@ def evaluate_dataset(
             typer.echo(
                 "Warning: Both --quick and --num-samples provided. "
                 f"Using explicit --num-samples={num_samples}",
-                err=True
+                err=True,
             )
         elif quick:
             num_samples = QUICK_MODE_NUM_SAMPLES
@@ -920,14 +913,8 @@ def evaluate_dataset(
             # Validate all requested IDs exist
             unknown_ids = [cid for cid in requested_ids if cid not in available_ids]
             if unknown_ids:
-                typer.echo(
-                    f"Error: Unknown test case IDs: {', '.join(unknown_ids)}",
-                    err=True
-                )
-                typer.echo(
-                    f"Available IDs: {', '.join(sorted(available_ids))}",
-                    err=True
-                )
+                typer.echo(f"Error: Unknown test case IDs: {', '.join(unknown_ids)}", err=True)
+                typer.echo(f"Available IDs: {', '.join(sorted(available_ids))}", err=True)
                 raise typer.Exit(1)
 
             # Filter test cases, preserving user-specified order
@@ -1009,8 +996,7 @@ def evaluate_dataset(
         output_dir_path = Path(output_dir)
         if output_dir_path.exists() and not output_dir_path.is_dir():
             typer.echo(
-                f"Error: Output path '{output_dir}' exists and is not a directory.",
-                err=True
+                f"Error: Output path '{output_dir}' exists and is not a directory.", err=True
             )
             raise typer.Exit(1)
 
@@ -1019,7 +1005,9 @@ def evaluate_dataset(
 
         # Compute prompt metadata
         try:
-            prompt_version_id, prompt_hash = compute_prompt_metadata(system_prompt_path, prompt_version)
+            prompt_version_id, prompt_hash = compute_prompt_metadata(
+                system_prompt_path, prompt_version
+            )
         except (FileNotFoundError, ValueError) as e:
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
@@ -1067,12 +1055,8 @@ def evaluate_dataset(
         num_completed = sum(
             1 for tc in evaluation_run.test_case_results if tc.status == "completed"
         )
-        num_partial = sum(
-            1 for tc in evaluation_run.test_case_results if tc.status == "partial"
-        )
-        num_failed = sum(
-            1 for tc in evaluation_run.test_case_results if tc.status == "failed"
-        )
+        num_partial = sum(1 for tc in evaluation_run.test_case_results if tc.status == "partial")
+        num_failed = sum(1 for tc in evaluation_run.test_case_results if tc.status == "failed")
 
         typer.echo(f"Test Cases Completed: {num_completed}/{len(test_cases)}", err=True)
         if num_partial > 0:
@@ -1112,8 +1096,7 @@ def evaluate_dataset(
                             mean_str = f"mean={mean:.2f}" if mean is not None else "mean=N/A"
 
                             typer.echo(
-                                f"    {metric_name}: {mean_str}, {std_str}{std_warning}",
-                                err=True
+                                f"    {metric_name}: {mean_str}, {std_str}{std_warning}", err=True
                             )
 
         # Print overall metric statistics
@@ -1153,7 +1136,7 @@ def evaluate_dataset(
                         f"true={flag_data['true_count']}, "
                         f"false={flag_data['false_count']}, "
                         f"proportion={flag_data['true_proportion']:.2%}",
-                        err=True
+                        err=True,
                     )
                 else:
                     typer.echo(f"  {flag_name}: No samples evaluated", err=True)
@@ -1170,6 +1153,165 @@ def evaluate_dataset(
         raise typer.Exit(1)
     except FileNotFoundError as e:
         typer.echo(f"File error: {e}", err=True)
+        raise typer.Exit(1)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command()
+def compare_runs(
+    baseline: str = typer.Option(
+        ..., "--baseline", "-b", help="Path to baseline run artifact JSON file"
+    ),
+    candidate: str = typer.Option(
+        ..., "--candidate", "-c", help="Path to candidate run artifact JSON file"
+    ),
+    metric_threshold: float = typer.Option(
+        0.1,
+        "--metric-threshold",
+        help="Absolute threshold for metric regression (default: 0.1)",
+    ),
+    flag_threshold: float = typer.Option(
+        0.05,
+        "--flag-threshold",
+        help="Absolute threshold for flag regression (default: 0.05)",
+    ),
+    output_file: str | None = typer.Option(
+        None, "--output", "-o", help="Optional output file for comparison JSON"
+    ),
+) -> None:
+    """
+    Compare two evaluation runs and detect regressions.
+
+    This command compares baseline and candidate run artifacts, computing
+    metric and flag deltas. Regressions are flagged when:
+    - A metric's mean decreases by more than metric_threshold
+    - A flag's true proportion increases by more than flag_threshold
+
+    The comparison result includes:
+    - Metric deltas (mean, delta, percent change, regression flag)
+    - Flag deltas (proportion, delta, percent change, regression flag)
+    - Overall regression summary
+
+    Results are printed to stdout as JSON and optionally saved to a file.
+    A human-readable summary is printed to stderr.
+    """
+    try:
+        from prompt_evaluator.comparison import compare_runs as run_comparison
+
+        baseline_path = Path(baseline)
+        candidate_path = Path(candidate)
+
+        # Validate thresholds
+        if metric_threshold < 0:
+            typer.echo("Error: --metric-threshold must be non-negative", err=True)
+            raise typer.Exit(1)
+        if flag_threshold < 0:
+            typer.echo("Error: --flag-threshold must be non-negative", err=True)
+            raise typer.Exit(1)
+
+        typer.echo("Loading run artifacts...", err=True)
+        typer.echo(f"  Baseline: {baseline_path}", err=True)
+        typer.echo(f"  Candidate: {candidate_path}", err=True)
+
+        # Run comparison
+        result = run_comparison(
+            baseline_artifact=baseline_path,
+            candidate_artifact=candidate_path,
+            metric_threshold=metric_threshold,
+            flag_threshold=flag_threshold,
+        )
+
+        # Convert to dictionary
+        result_dict = result.to_dict()
+
+        # Save to file if requested
+        if output_file:
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(json.dumps(result_dict, indent=2), encoding="utf-8")
+            typer.echo(f"\nComparison saved to: {output_path}", err=True)
+
+        # Print human-readable summary to stderr
+        typer.echo("\n" + "=" * 60, err=True)
+        typer.echo("Run Comparison Summary", err=True)
+        typer.echo("=" * 60, err=True)
+        typer.echo(f"Baseline Run ID: {result.baseline_run_id}", err=True)
+        typer.echo(f"Candidate Run ID: {result.candidate_run_id}", err=True)
+
+        if result.baseline_prompt_version or result.candidate_prompt_version:
+            typer.echo(f"Baseline Prompt: {result.baseline_prompt_version or 'N/A'}", err=True)
+            typer.echo(f"Candidate Prompt: {result.candidate_prompt_version or 'N/A'}", err=True)
+
+        typer.echo("\nThresholds:", err=True)
+        typer.echo(f"  Metric Threshold: {metric_threshold}", err=True)
+        typer.echo(f"  Flag Threshold: {flag_threshold}", err=True)
+
+        # Print metric deltas
+        if result.metric_deltas:
+            typer.echo(f"\n{'Metric Deltas':-^60}", err=True)
+            for delta in result.metric_deltas:
+                status = "🔴 REGRESSION" if delta.is_regression else "✓"
+                typer.echo(f"\n  {delta.metric_name}: {status}", err=True)
+
+                baseline_str = (
+                    f"{delta.baseline_mean:.3f}" if delta.baseline_mean is not None else "N/A"
+                )
+                candidate_str = (
+                    f"{delta.candidate_mean:.3f}" if delta.candidate_mean is not None else "N/A"
+                )
+                typer.echo(f"    Baseline:  {baseline_str}", err=True)
+                typer.echo(f"    Candidate: {candidate_str}", err=True)
+
+                if delta.delta is not None:
+                    sign = "+" if delta.delta >= 0 else ""
+                    typer.echo(f"    Delta: {sign}{delta.delta:.3f}", err=True)
+                    if delta.percent_change is not None and abs(delta.percent_change) != float(
+                        "inf"
+                    ):
+                        typer.echo(f"    Change: {sign}{delta.percent_change:.2f}%", err=True)
+
+        # Print flag deltas
+        if result.flag_deltas:
+            typer.echo(f"\n{'Flag Deltas':-^60}", err=True)
+            for flag_delta in result.flag_deltas:
+                status = "🔴 REGRESSION" if flag_delta.is_regression else "✓"
+                typer.echo(f"\n  {flag_delta.flag_name}: {status}", err=True)
+                typer.echo(f"    Baseline:  {flag_delta.baseline_proportion:.2%}", err=True)
+                typer.echo(f"    Candidate: {flag_delta.candidate_proportion:.2%}", err=True)
+
+                sign = "+" if flag_delta.delta >= 0 else ""
+                typer.echo(f"    Delta: {sign}{flag_delta.delta:.2%}", err=True)
+                if (
+                    flag_delta.percent_change is not None
+                    and abs(flag_delta.percent_change) != float("inf")
+                ):
+                    typer.echo(f"    Change: {sign}{flag_delta.percent_change:.2f}%", err=True)
+
+        # Print regression summary
+        typer.echo(f"\n{'Summary':-^60}", err=True)
+        if result.has_regressions:
+            typer.echo(f"  🔴 {result.regression_count} regression(s) detected", err=True)
+        else:
+            typer.echo("  ✓ No regressions detected", err=True)
+
+        typer.echo("=" * 60, err=True)
+
+        # Print JSON to stdout
+        typer.echo(json.dumps(result_dict, indent=2))
+
+        # Exit with error code if regressions detected
+        if result.has_regressions:
+            raise typer.Exit(1)
+
+    except FileNotFoundError as e:
+        typer.echo(f"File error: {e}", err=True)
+        raise typer.Exit(1)
+    except ValueError as e:
+        typer.echo(f"Validation error: {e}", err=True)
         raise typer.Exit(1)
     except (KeyboardInterrupt, SystemExit):
         raise

@@ -230,8 +230,7 @@ class TestLoadDatasetJSONL:
         """Test that duplicate IDs raise error with line context."""
         dataset_path = tmp_path / "test.jsonl"
         dataset_path.write_text(
-            '{"id": "test-001", "input": "First"}\n'
-            '{"id": "test-001", "input": "Duplicate"}\n'
+            '{"id": "test-001", "input": "First"}\n{"id": "test-001", "input": "Duplicate"}\n'
         )
 
         with pytest.raises(ValueError, match="Duplicate test case ID 'test-001' found at line 2"):
@@ -436,9 +435,7 @@ class TestLoadDatasetYAML:
 """
         )
 
-        with pytest.raises(
-            ValueError, match="Record at index 0 is missing required field: input"
-        ):
+        with pytest.raises(ValueError, match="Record at index 0 is missing required field: input"):
             load_dataset(dataset_path)
 
     def test_load_yaml_not_a_list_raises_error(self, tmp_path):

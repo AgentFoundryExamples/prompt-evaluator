@@ -530,9 +530,7 @@ def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:
                 if "id" not in record:
                     raise ValueError(f"Record at line {line_num} is missing required field: id")
                 if "input" not in record:
-                    raise ValueError(
-                        f"Record at line {line_num} is missing required field: input"
-                    )
+                    raise ValueError(f"Record at line {line_num} is missing required field: input")
 
                 # Check for duplicate IDs
                 record_id = record["id"]
@@ -547,9 +545,7 @@ def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:
                     test_case = TestCase(**record)
                     test_cases.append(test_case)
                 except ValidationError as e:
-                    raise ValueError(
-                        f"Invalid test case at line {line_num}: {str(e)}"
-                    ) from e
+                    raise ValueError(f"Invalid test case at line {line_num}: {str(e)}") from e
 
         else:
             # YAML format: list of objects, parse from memory
@@ -585,9 +581,7 @@ def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:
                 # Check for duplicate IDs
                 record_id = record["id"]
                 if record_id in seen_ids:
-                    raise ValueError(
-                        f"Duplicate test case ID '{record_id}' found at index {index}"
-                    )
+                    raise ValueError(f"Duplicate test case ID '{record_id}' found at index {index}")
                 seen_ids.add(record_id)
 
                 # Parse into TestCase, handling extra fields

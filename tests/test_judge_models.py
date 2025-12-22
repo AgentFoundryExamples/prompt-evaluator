@@ -290,12 +290,8 @@ class TestSingleEvaluationRun:
         judge_config = JudgeConfig()
         timestamp = datetime.now(timezone.utc)
 
-        sample1 = Sample(
-            sample_id="s1", input_text="input1", generator_output="output1"
-        )
-        sample2 = Sample(
-            sample_id="s2", input_text="input2", generator_output="output2"
-        )
+        sample1 = Sample(sample_id="s1", input_text="input1", generator_output="output1")
+        sample2 = Sample(sample_id="s2", input_text="input2", generator_output="output2")
 
         run = SingleEvaluationRun(
             run_id="run-456",

@@ -724,6 +724,299 @@ Example index structure:
 }
 ```
 
+## Prompt Versioning in Dataset Evaluations
+
+When running dataset evaluations, prompt version metadata is automatically included in artifacts. This enables tracking which prompt version was used for each evaluation and comparing results across prompt iterations.
+
+### Prompt Metadata in Artifacts
+
+Every dataset evaluation artifact includes:
+
+```json
+{
+  "run_id": "abc123-def456-...",
+  "prompt_version_id": "v1.2-baseline",
+  "prompt_hash": "a1b2c3d4e5f6...",
+  "run_notes": "Baseline evaluation before Q4 optimization",
+  "dataset_path": "/path/to/dataset.yaml",
+  "dataset_hash": "sha256:1a2b3c...",
+  // ... rest of evaluation results
+}
+```
+
+**Key fields:**
+- `prompt_version_id`: Human-readable version (from `--prompt-version` or auto-generated hash)
+- `prompt_hash`: SHA-256 hash of system prompt file content (always computed)
+- `run_notes`: Optional notes about this run (from `--run-note`)
+- `dataset_hash`: SHA-256 hash of dataset file content (for reproducibility)
+
+### Tracking Prompt Versions Across Runs
+
+Use `--prompt-version` to tag evaluations with meaningful identifiers:
+
+```bash
+# Baseline evaluation
+prompt-evaluator evaluate-dataset \
+  --dataset datasets/test_suite.yaml \
+  --system-prompt prompts/v1.txt \
+  --num-samples 10 \
+  --prompt-version "v1.0-baseline" \
+  --run-note "Baseline before optimization"
+
+# Candidate evaluation with improved prompt
+prompt-evaluator evaluate-dataset \
+  --dataset datasets/test_suite.yaml \
+  --system-prompt prompts/v2.txt \
+  --num-samples 10 \
+  --prompt-version "v2.0-clarity-improvements" \
+  --run-note "Added structured output format"
+```
+
+### Verifying Reproducibility
+
+Use hashes to ensure fair comparison:
+
+**Same dataset_hash → identical test cases:**
+```bash
+# Extract dataset hash from two runs
+jq -r '.dataset_hash' runs/baseline-run/dataset_evaluation.json
+jq -r '.dataset_hash' runs/candidate-run/dataset_evaluation.json
+
+# If hashes match: same dataset = valid comparison
+# If hashes differ: different dataset = invalid comparison
+```
+
+**Same prompt_hash → identical prompts:**
+```bash
+# Check if prompt actually changed
+jq -r '.prompt_hash' runs/run1/dataset_evaluation.json
+jq -r '.prompt_hash' runs/run2/dataset_evaluation.json
+
+# Different hashes = prompt was modified
+# Same hash = identical prompt content
+```
+
+### Finding Runs by Prompt Version
+
+Track runs manually or with scripts:
+
+```bash
+# Find all runs using a specific prompt version
+find runs -name 'dataset_evaluation.json' -exec \
+  jq -r 'select(.prompt_version_id == "v1.0-baseline") | 
+  "\(.run_id): \(.timestamp_start) - \(.status)"' {} \;
+
+# Output:
+# abc123-def456: 2025-12-21T10:00:00+00:00 - completed
+# def456-abc789: 2025-12-22T14:30:00+00:00 - partial
+```
+
+### Creating a Run Index
+
+For systematic tracking, create a manual index file (see `examples/run-artifacts/index.json`):
+
+```json
+{
+  "runs": [
+    {
+      "run_id": "abc123...",
+      "prompt_version_id": "v1.0-baseline",
+      "dataset_hash": "sha256:1a2b3c...",
+      "overall_metrics": { ... },
+      "notes": "Baseline evaluation"
+    },
+    {
+      "run_id": "def456...",
+      "prompt_version_id": "v2.0-candidate",
+      "dataset_hash": "sha256:1a2b3c...",
+      "overall_metrics": { ... },
+      "notes": "Candidate with clarity improvements"
+    }
+  ]
+}
+```
+
+## Comparison Workflow with Datasets
+
+When comparing two dataset evaluation runs, ensure compatibility to get meaningful results.
+
+### Valid Comparison Requirements
+
+For a valid comparison, baseline and candidate must have:
+
+**✅ Required:**
+1. **Identical dataset** (matching `dataset_hash`)
+   - Same test cases in same order
+   - Same test case content
+2. **Same number of samples per test case**
+   - Affects statistical power and variance
+
+**✅ Recommended:**
+3. **Same generator model and settings**
+   - Same model version (e.g., both gpt-5.1)
+   - Same temperature, max_tokens, seed
+4. **Same judge model and rubric**
+   - Same judge model version
+   - Same rubric file (matching `rubric_hash`)
+
+**⚠️ Acceptable with caution:**
+5. **Different prompt versions** (obviously - this is what we're comparing!)
+6. **Different run timestamps** (time gaps are fine if other factors controlled)
+
+### Invalid Comparisons
+
+**❌ Different Datasets:**
+```bash
+# Baseline used dataset-v1.yaml (50 cases)
+# Candidate used dataset-v2.yaml (75 cases)
+# → Invalid: cannot isolate prompt changes from dataset changes
+```
+
+Even if datasets partially overlap, comparison is invalid:
+- Overall statistics aggregate different test cases
+- Cannot determine if delta is from prompt or dataset
+
+**Solution:** Always use the exact same dataset file.
+
+**❌ Different Rubrics:**
+```bash
+# Baseline used default.yaml (semantic_fidelity, clarity)
+# Candidate used custom.yaml (accuracy, completeness)
+# → Invalid: metrics have different names/definitions
+```
+
+**Solution:** Use the same rubric for both runs. If rubric changes, re-run baseline with new rubric.
+
+### Handling Dataset Changes
+
+If you must change the dataset:
+
+**Option 1: Re-run Baseline**
+```bash
+# Dataset changed: added new test cases
+# → Re-run baseline with new dataset
+prompt-evaluator evaluate-dataset \
+  --dataset datasets/test_suite-v2.yaml \
+  --system-prompt prompts/baseline.txt \
+  --num-samples 10 \
+  --prompt-version "v1.0-baseline-rerun"
+
+# → Now baseline and candidate use same dataset
+```
+
+**Option 2: Filter to Common Test Cases**
+```bash
+# If only some test cases changed, filter both runs to common cases
+# Use --case-ids to evaluate only overlapping test cases
+prompt-evaluator evaluate-dataset \
+  --dataset datasets/test_suite-v2.yaml \
+  --system-prompt prompts/baseline.txt \
+  --case-ids case-001,case-002,case-003 \
+  --num-samples 10
+```
+
+**Option 3: Accept Incompatibility**
+- Document that comparison is not apples-to-apples
+- Use only for rough directional guidance
+- Do not rely on regression detection
+
+### Cross-Model Comparison Cautions
+
+The tool does not enforce model compatibility. You can compare runs with different models, but results may be confounded.
+
+**Example: Comparing Across Models**
+```bash
+# Baseline: gpt-4 generator, gpt-4 judge
+# Candidate: gpt-5.1 generator, gpt-5.1 judge
+
+# Comparison will succeed but deltas include:
+# - Prompt improvements
+# - Model capability differences
+# → Cannot isolate prompt effect
+```
+
+**When cross-model comparison is acceptable:**
+- Evaluating overall system performance (prompt + model together)
+- Documenting that you're testing a model upgrade, not just prompt changes
+- Exploratory analysis (not production decisions)
+
+**Best practice:**
+```bash
+# Keep models consistent for prompt comparison
+# If testing model upgrade, run separate experiment:
+
+# Experiment 1: Same prompt, different models
+prompt-evaluator evaluate-dataset -d dataset.yaml -s prompt-v1.txt --generator-model gpt-4
+prompt-evaluator evaluate-dataset -d dataset.yaml -s prompt-v1.txt --generator-model gpt-5.1
+
+# Experiment 2: Same model, different prompts
+prompt-evaluator evaluate-dataset -d dataset.yaml -s prompt-v1.txt --generator-model gpt-5.1
+prompt-evaluator evaluate-dataset -d dataset.yaml -s prompt-v2.txt --generator-model gpt-5.1
+```
+
+### Dataset Compatibility Validation
+
+The comparison tool automatically checks dataset compatibility:
+
+```bash
+prompt-evaluator compare-runs \
+  --baseline runs/baseline/dataset_evaluation.json \
+  --candidate runs/candidate/dataset_evaluation.json
+
+# If datasets differ, tool will still compare but results may be meaningless
+# Check dataset_hash in output to verify compatibility
+```
+
+**Manual verification:**
+```bash
+# Extract dataset hashes
+BASELINE_HASH=$(jq -r '.dataset_hash' runs/baseline/dataset_evaluation.json)
+CANDIDATE_HASH=$(jq -r '.dataset_hash' runs/candidate/dataset_evaluation.json)
+
+if [ "$BASELINE_HASH" == "$CANDIDATE_HASH" ]; then
+  echo "✅ Datasets match - comparison is valid"
+else
+  echo "❌ Datasets differ - comparison may be invalid"
+  echo "Baseline:  $BASELINE_HASH"
+  echo "Candidate: $CANDIDATE_HASH"
+fi
+```
+
+### Metric Availability Across Runs
+
+If rubrics differ, not all metrics will be present in both runs:
+
+**Example:**
+```json
+// Baseline: default.yaml
+{
+  "overall_metric_stats": {
+    "semantic_fidelity": { "mean_of_means": 4.2 },
+    "clarity": { "mean_of_means": 4.5 }
+  }
+}
+
+// Candidate: custom.yaml
+{
+  "overall_metric_stats": {
+    "semantic_fidelity": { "mean_of_means": 4.3 },
+    "accuracy": { "mean_of_means": 4.0 }
+  }
+}
+```
+
+**Comparison behavior:**
+- `semantic_fidelity`: Present in both → delta computed
+- `clarity`: Only in baseline → delta is null, no regression flagged
+- `accuracy`: Only in candidate → delta is null, no regression flagged
+
+**Interpretation:**
+- Only overlapping metrics are compared
+- New metrics are ignored (cannot compare without baseline)
+- Removed metrics are ignored (cannot compare without candidate)
+
+**Recommendation:** Use the same rubric for both runs to get full metric coverage.
+
 ## Best Practices
 
 1. **Version Control**: Keep datasets in version control to track changes over time
@@ -732,6 +1025,10 @@ Example index structure:
 4. **Validate Early**: Use `load_dataset()` to validate datasets before running evaluations
 5. **Start Small**: Begin with a small dataset (5-10 cases) and expand as needed
 6. **Use Both Formats**: YAML for human editing, JSONL for machine-generated datasets
+7. **Tag All Runs**: Always use `--prompt-version` and `--run-note` for traceability
+8. **Check Hashes**: Verify `dataset_hash` matches when comparing runs
+9. **Keep Models Consistent**: Use same generator and judge models for valid comparisons
+10. **Document Comparisons**: Save comparison artifacts and notes about decisions
 
 ## Troubleshooting
 

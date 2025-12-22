@@ -1,0 +1,209 @@
+{
+  "_comment": "This is a sample comparison artifact showing the structure of compare-runs output.",
+  "_comment_usage": "This file demonstrates the JSON structure returned by the compare-runs command. It shows how to interpret metric deltas, flag deltas, and regression detection results.",
+  
+  "baseline_run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "_comment_baseline_run_id": "Unique identifier for the baseline run being compared against",
+  
+  "candidate_run_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+  "_comment_candidate_run_id": "Unique identifier for the candidate run being evaluated",
+  
+  "baseline_prompt_version": "v1.0-baseline",
+  "_comment_baseline_prompt_version": "Prompt version identifier from baseline run (from prompt_version_id field). May be null if not provided in the original run.",
+  
+  "candidate_prompt_version": "v2.0-clarity-improvements",
+  "_comment_candidate_prompt_version": "Prompt version identifier from candidate run. May be null if not provided in the original run.",
+  
+  "metric_deltas": [
+    {
+      "metric_name": "semantic_fidelity",
+      "_comment_metric_name": "Name of the metric being compared",
+      
+      "baseline_mean": 4.0,
+      "_comment_baseline_mean": "Mean score from baseline run's overall_metric_stats. Null if metric not present in baseline.",
+      
+      "candidate_mean": 4.3,
+      "_comment_candidate_mean": "Mean score from candidate run's overall_metric_stats. Null if metric not present in candidate.",
+      
+      "delta": 0.3,
+      "_comment_delta": "Difference (candidate_mean - baseline_mean). Positive = improvement, negative = regression. Null if either mean is null.",
+      
+      "percent_change": 7.5,
+      "_comment_percent_change": "Percentage change from baseline: (delta / |baseline_mean|) * 100. Null if baseline is zero or delta is null. May be inf/-inf for zero baseline with non-zero delta.",
+      
+      "is_regression": false,
+      "_comment_is_regression": "True if this metric shows regression (delta < 0 and |delta| > threshold). False otherwise.",
+      
+      "threshold_used": 0.1
+    },
+    {
+      "metric_name": "clarity",
+      "baseline_mean": 4.2,
+      "candidate_mean": 3.8,
+      "delta": -0.4,
+      "percent_change": -9.52,
+      "is_regression": true,
+      "_comment_regression_example": "This metric shows regression because delta is negative (-0.4) and exceeds threshold (0.1)",
+      "threshold_used": 0.1
+    },
+    {
+      "metric_name": "decomposition_quality",
+      "baseline_mean": 4.5,
+      "candidate_mean": 4.52,
+      "delta": 0.02,
+      "percent_change": 0.44,
+      "is_regression": false,
+      "_comment_no_regression_small_change": "Small positive delta, well below threshold. Not flagged as regression.",
+      "threshold_used": 0.1
+    },
+    {
+      "metric_name": "constraint_adherence",
+      "baseline_mean": 3.9,
+      "candidate_mean": 3.85,
+      "delta": -0.05,
+      "percent_change": -1.28,
+      "is_regression": false,
+      "_comment_no_regression_below_threshold": "Negative delta but smaller than threshold (|-0.05| < 0.1). Not flagged as regression.",
+      "threshold_used": 0.1
+    },
+    {
+      "metric_name": "new_metric",
+      "baseline_mean": null,
+      "candidate_mean": 4.0,
+      "delta": null,
+      "percent_change": null,
+      "is_regression": false,
+      "_comment_new_metric": "Metric only present in candidate run. Delta and percent_change are null. Cannot detect regression without baseline.",
+      "threshold_used": 0.1
+    },
+    {
+      "metric_name": "removed_metric",
+      "baseline_mean": 3.5,
+      "candidate_mean": null,
+      "delta": null,
+      "percent_change": null,
+      "is_regression": false,
+      "_comment_removed_metric": "Metric only present in baseline run. Delta and percent_change are null. Cannot detect regression without candidate.",
+      "threshold_used": 0.1
+    }
+  ],
+  "_comment_metric_deltas": "Array of metric comparisons. One entry per metric found in either baseline or candidate. Regression detected when delta < 0 and |delta| > metric_threshold.",
+  
+  "flag_deltas": [
+    {
+      "flag_name": "invented_constraints",
+      "_comment_flag_name": "Name of the flag being compared",
+      
+      "baseline_proportion": 0.1,
+      "_comment_baseline_proportion": "Proportion of samples with flag=true in baseline (0.0 to 1.0). Null if flag not present in baseline.",
+      
+      "candidate_proportion": 0.05,
+      "_comment_candidate_proportion": "Proportion of samples with flag=true in candidate (0.0 to 1.0). Null if flag not present in candidate.",
+      
+      "delta": -0.05,
+      "_comment_delta_flag": "Difference (candidate_proportion - baseline_proportion). Negative = improvement (fewer issues), positive = regression (more issues). Null if either proportion is null.",
+      
+      "percent_change": -50.0,
+      "_comment_percent_change_flag": "Percentage change from baseline: (delta / baseline_proportion) * 100 when baseline > 0. Null if baseline is zero or delta is null.",
+      
+      "is_regression": false,
+      "_comment_is_regression_flag": "True if this flag shows regression (delta > 0 and delta > threshold). False otherwise. Note: For flags, positive delta is bad (more problems).",
+      
+      "threshold_used": 0.05
+    },
+    {
+      "flag_name": "omitted_constraints",
+      "baseline_proportion": 0.05,
+      "candidate_proportion": 0.12,
+      "delta": 0.07,
+      "percent_change": 140.0,
+      "is_regression": true,
+      "_comment_flag_regression": "Flag shows regression because proportion increased by more than threshold (0.07 > 0.05). Candidate has more instances of this issue.",
+      "threshold_used": 0.05
+    },
+    {
+      "flag_name": "requires_verification",
+      "baseline_proportion": 0.3,
+      "candidate_proportion": 0.32,
+      "delta": 0.02,
+      "percent_change": 6.67,
+      "is_regression": false,
+      "_comment_flag_no_regression_below_threshold": "Positive delta but smaller than threshold (0.02 < 0.05). Not flagged as regression.",
+      "threshold_used": 0.05
+    },
+    {
+      "flag_name": "all_false_flag",
+      "baseline_proportion": 0.0,
+      "candidate_proportion": 0.0,
+      "delta": 0.0,
+      "percent_change": null,
+      "_comment_percent_change_zero_baseline": "When baseline is 0, percent_change may be null or undefined. Delta is still computed and checked against threshold.",
+      "is_regression": false,
+      "threshold_used": 0.05
+    },
+    {
+      "flag_name": "new_flag",
+      "baseline_proportion": null,
+      "candidate_proportion": 0.08,
+      "delta": null,
+      "percent_change": null,
+      "is_regression": false,
+      "_comment_new_flag": "Flag only present in candidate. Cannot detect regression without baseline.",
+      "threshold_used": 0.05
+    }
+  ],
+  "_comment_flag_deltas": "Array of flag comparisons. One entry per flag found in either baseline or candidate. For flags, positive delta = regression (more problems), negative delta = improvement (fewer problems).",
+  
+  "has_regressions": true,
+  "_comment_has_regressions": "True if any metric or flag shows regression. False if no regressions detected. Used for exit code determination (0 if false, 1 if true).",
+  
+  "regression_count": 2,
+  "_comment_regression_count": "Total number of regressions detected across all metrics and flags. Sum of metrics with is_regression=true plus flags with is_regression=true.",
+  
+  "comparison_timestamp": "2025-12-22T03:00:00.123456+00:00",
+  "_comment_comparison_timestamp": "ISO 8601 timestamp when the comparison was performed (UTC timezone)",
+  
+  "thresholds_config": {
+    "metric_threshold": 0.1,
+    "_comment_metric_threshold": "Absolute threshold used for detecting metric regressions. Metric shows regression if delta < 0 and |delta| > this value.",
+    
+    "flag_threshold": 0.05,
+    "_comment_flag_threshold": "Absolute threshold used for detecting flag regressions. Flag shows regression if delta > 0 and delta > this value."
+  },
+  "_comment_thresholds_config": "Thresholds used for this comparison. These are set via --metric-threshold and --flag-threshold CLI flags (defaults: 0.1 and 0.05).",
+  
+  "_comment_interpreting_results": {
+    "exit_codes": {
+      "0": "No regressions detected - safe to proceed",
+      "1": "Regressions detected OR comparison failed (file not found, invalid JSON, etc.)"
+    },
+    "metric_interpretation": {
+      "is_regression_true": "Candidate score decreased by more than metric_threshold",
+      "is_regression_false": "No regression - score improved, unchanged, or decreased less than threshold",
+      "positive_delta": "Improvement - candidate score is higher",
+      "negative_delta": "Potential regression - candidate score is lower (flagged if exceeds threshold)",
+      "null_delta": "Cannot compare - metric missing in baseline or candidate"
+    },
+    "flag_interpretation": {
+      "is_regression_true": "Flag proportion increased by more than flag_threshold (more problems in candidate)",
+      "is_regression_false": "No regression - proportion decreased, unchanged, or increased less than threshold",
+      "negative_delta": "Improvement - flag occurs less frequently in candidate (fewer issues)",
+      "positive_delta": "Potential regression - flag occurs more frequently in candidate (more issues, flagged if exceeds threshold)",
+      "null_delta": "Cannot compare - flag missing in baseline or candidate"
+    },
+    "threshold_selection": {
+      "strict": "Use lower thresholds (0.05 metric, 0.02 flag) to catch small regressions. More false positives.",
+      "default": "Use default thresholds (0.1 metric, 0.05 flag) for balanced sensitivity.",
+      "relaxed": "Use higher thresholds (0.2 metric, 0.1 flag) to catch only major regressions. May miss smaller issues."
+    },
+    "parsing_examples": {
+      "check_regressions": "jq '.has_regressions' comparison.json",
+      "count_regressions": "jq '.regression_count' comparison.json",
+      "list_regressed_metrics": "jq -r '.metric_deltas[] | select(.is_regression) | .metric_name' comparison.json",
+      "extract_prompt_versions": "jq -r '\"\\(.baseline_prompt_version) → \\(.candidate_prompt_version)\"' comparison.json",
+      "find_largest_regression": "jq '.metric_deltas | sort_by(.delta) | .[0]' comparison.json"
+    }
+  },
+  
+  "_comment_summary": "This comparison artifact shows various scenarios: improved metrics, regressed metrics, unchanged metrics, increased flags (regressions), decreased flags (improvements), and missing metrics/flags. Use this as a reference for parsing and interpreting your own comparison results."
+}

@@ -35,6 +35,9 @@
   └── system_prompt.txt
 ├── src
   └── prompt_evaluator
+    ├── reporting
+      ├── __init__.py
+      └── run_report.py
     ├── __init__.py
     ├── cli.py
     ├── comparison.py
@@ -57,7 +60,8 @@
   ├── test_judge_models.py
   ├── test_prompt_version_metadata.py
   ├── test_rubric_cli.py
-  └── test_rubric_models.py
+  ├── test_rubric_models.py
+  └── test_run_report.py
 ├── .gitignore
 ├── LICENSE
 ├── pyproject.toml

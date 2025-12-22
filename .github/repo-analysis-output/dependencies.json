@@ -128,6 +128,33 @@
       }
     },
     {
+      "id": "src/prompt_evaluator/reporting/__init__.py",
+      "path": "src/prompt_evaluator/reporting/__init__.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [],
+        "third-party": []
+      }
+    },
+    {
+      "id": "src/prompt_evaluator/reporting/run_report.py",
+      "path": "src/prompt_evaluator/reporting/run_report.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "dataclasses.dataclass",
+          "html",
+          "json",
+          "logging",
+          "pathlib.Path",
+          "typing.Any"
+        ],
+        "third-party": [
+          "markdown"
+        ]
+      }
+    },
+    {
       "id": "tests/__init__.py",
       "path": "tests/__init__.py",
       "type": "file",
@@ -342,6 +369,20 @@
           "pytest"
         ]
       }
+    },
+    {
+      "id": "tests/test_run_report.py",
+      "path": "tests/test_run_report.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json",
+          "pathlib.Path"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
     }
   ],
   "edges": [
@@ -370,6 +411,10 @@
       "target": "src/prompt_evaluator/comparison.py"
     },
     {
+      "source": "src/prompt_evaluator/cli.py",
+      "target": "src/prompt_evaluator/reporting/__init__.py"
+    },
+    {
       "source": "src/prompt_evaluator/comparison.py",
       "target": "src/prompt_evaluator/models.py"
     },
@@ -388,6 +433,10 @@
     {
       "source": "src/prompt_evaluator/provider.py",
       "target": "src/prompt_evaluator/models.py"
+    },
+    {
+      "source": "src/prompt_evaluator/reporting/__init__.py",
+      "target": "src/prompt_evaluator/reporting/run_report.py"
     },
     {
       "source": "tests/test_aggregation.py",
@@ -496,6 +545,10 @@
     {
       "source": "tests/test_rubric_models.py",
       "target": "src/prompt_evaluator/models.py"
+    },
+    {
+      "source": "tests/test_run_report.py",
+      "target": "src/prompt_evaluator/reporting/run_report.py"
     }
   ],
   "external_dependencies_summary": {
@@ -511,6 +564,7 @@
       "datetime.timezone",
       "enum.Enum",
       "hashlib",
+      "html",
       "json",
       "logging",
       "os",
@@ -525,6 +579,7 @@
       "uuid"
     ],
     "third-party": [
+      "markdown",
       "openai.OpenAI",
       "openai.OpenAIError",
       "pydantic.BaseModel",
@@ -537,7 +592,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 23,
-    "third-party_count": 11
+    "stdlib_count": 24,
+    "third-party_count": 12
   }
 }

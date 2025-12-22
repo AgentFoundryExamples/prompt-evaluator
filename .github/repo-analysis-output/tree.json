@@ -161,6 +161,20 @@
           "name": "prompt_evaluator",
           "children": [
             {
+              "type": "directory",
+              "name": "reporting",
+              "children": [
+                {
+                  "type": "file",
+                  "name": "__init__.py"
+                },
+                {
+                  "type": "file",
+                  "name": "run_report.py"
+                }
+              ]
+            },
+            {
               "type": "file",
               "name": "__init__.py"
             },
@@ -255,6 +269,10 @@
         {
           "type": "file",
           "name": "test_rubric_models.py"
+        },
+        {
+          "type": "file",
+          "name": "test_run_report.py"
         }
       ]
     },

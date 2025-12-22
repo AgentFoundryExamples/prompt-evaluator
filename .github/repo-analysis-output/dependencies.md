@@ -8,16 +8,16 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 22
-- **Intra-repo dependencies**: 38
-- **External stdlib dependencies**: 23
-- **External third-party dependencies**: 11
+- **Total files**: 25
+- **Intra-repo dependencies**: 41
+- **External stdlib dependencies**: 24
+- **External third-party dependencies**: 12
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 23 unique modules
+Total: 24 unique modules
 
 - `abc.ABC`
 - `abc.abstractmethod`
@@ -30,6 +30,7 @@ Total: 23 unique modules
 - `datetime.timezone`
 - `enum.Enum`
 - `hashlib`
+- `html`
 - `json`
 - `logging`
 - `os`
@@ -38,13 +39,13 @@ Total: 23 unique modules
 - `sys`
 - `time`
 - `tomllib`
-- `typing.Any`
-- ... and 3 more (see JSON for full list)
+- ... and 4 more (see JSON for full list)
 
 ### Third-Party Packages
 
-Total: 11 unique packages
+Total: 12 unique packages
 
+- `markdown`
 - `openai.OpenAI`
 - `openai.OpenAIError`
 - `pydantic.BaseModel`
@@ -66,10 +67,12 @@ Total: 11 unique packages
 - `src/prompt_evaluator/__init__.py` (2 dependents)
 - `src/prompt_evaluator/dataset_evaluation.py` (2 dependents)
 - `src/prompt_evaluator/comparison.py` (2 dependents)
+- `src/prompt_evaluator/reporting/run_report.py` (2 dependents)
+- `src/prompt_evaluator/reporting/__init__.py` (1 dependents)
 
 ## Files with Most Dependencies (Intra-Repo)
 
-- `src/prompt_evaluator/cli.py` (6 dependencies)
+- `src/prompt_evaluator/cli.py` (7 dependencies)
 - `tests/test_basic.py` (5 dependencies)
 - `tests/test_prompt_version_metadata.py` (3 dependencies)
 - `src/prompt_evaluator/dataset_evaluation.py` (2 dependencies)

@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 22
+Total files: 25
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,8 @@ Total files: 22
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 53.22 KB  
-**LOC:** 1044  
+**Size:** 57.35 KB  
+**LOC:** 1135  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/comparison.py
@@ -67,6 +67,24 @@ Total files: 22
 **Summary:** Python core implementation  
 **Size:** 24.54 KB  
 **LOC:** 500  
+**TODOs/FIXMEs:** 0  
+
+## src/prompt_evaluator/reporting/__init__.py
+**Language:** Python  
+**Role:** module-init  
+**Role Justification:** module initialization file '__init__'  
+**Summary:** Python module initialization (role: module-init)  
+**Size:** 0.83 KB  
+**LOC:** 7  
+**TODOs/FIXMEs:** 0  
+
+## src/prompt_evaluator/reporting/run_report.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python core implementation  
+**Size:** 24.20 KB  
+**LOC:** 527  
 **TODOs/FIXMEs:** 0  
 
 ## tests/__init__.py
@@ -202,4 +220,13 @@ Total files: 22
 **Summary:** Python test file (role: test)  
 **Size:** 25.38 KB  
 **LOC:** 678  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_run_report.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 18.99 KB  
+**LOC:** 414  
 **TODOs/FIXMEs:** 0  

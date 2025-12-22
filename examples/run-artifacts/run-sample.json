@@ -29,6 +29,15 @@
   "system_prompt_path": "/path/to/examples/system_prompt.txt",
   "_comment_system_prompt_path": "Path to system prompt file used for generation",
   
+  "prompt_version_id": "abc123def456",
+  "_comment_prompt_version_id": "Version identifier for the prompt. If --prompt-version was provided, this is the user-specified value. Otherwise, it's the SHA-256 hash of the system prompt file content.",
+  
+  "prompt_hash": "1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "_comment_prompt_hash": "SHA-256 hash of the system prompt file content for reproducibility and change detection. Always present.",
+  
+  "run_notes": "Testing new prompt variation for improved clarity",
+  "_comment_run_notes": "Optional user-provided notes about this evaluation run (null if not provided via --run-note)",
+  
   "generator_config": {
     "model_name": "gpt-5.1",
     "temperature": 0.7,

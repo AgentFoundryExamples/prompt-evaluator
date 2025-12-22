@@ -86,6 +86,45 @@ def compute_rubric_metadata(rubric: Rubric | None, rubric_path: Path | None) -> 
     }
 
 
+def compute_prompt_metadata(
+    system_prompt_path: Path, prompt_version: str | None = None
+) -> tuple[str, str]:
+    """
+    Compute prompt version metadata from system prompt file.
+
+    Args:
+        system_prompt_path: Path to system prompt file
+        prompt_version: Optional user-provided prompt version string
+
+    Returns:
+        Tuple of (prompt_version_id, prompt_hash)
+
+    Raises:
+        FileNotFoundError: If prompt file doesn't exist
+        ValueError: If prompt file is empty or unreadable
+    """
+    if not system_prompt_path.exists():
+        raise FileNotFoundError(f"System prompt file not found: {system_prompt_path}")
+
+    try:
+        with open(system_prompt_path, "rb") as f:
+            prompt_content = f.read()
+
+        if not prompt_content:
+            raise ValueError(f"System prompt file is empty: {system_prompt_path}")
+
+        # Compute SHA-256 hash of prompt content
+        prompt_hash = hashlib.sha256(prompt_content).hexdigest()
+
+        # Use provided version or hash as version_id
+        prompt_version_id = prompt_version if prompt_version else prompt_hash
+
+        return prompt_version_id, prompt_hash
+
+    except (OSError, UnicodeDecodeError) as e:
+        raise ValueError(f"Failed to read system prompt file {system_prompt_path}: {str(e)}") from e
+
+
 def compute_aggregate_statistics(
     samples: list[Sample], rubric: Rubric | None = None
 ) -> dict[str, Any]:
@@ -412,6 +451,17 @@ def evaluate_single(
     task_description: str | None = typer.Option(
         None, "--task-description", help="Optional task description for judge context"
     ),
+    prompt_version: str | None = typer.Option(
+        None,
+        "--prompt-version",
+        help=(
+            "Version identifier for the prompt. If not provided, the SHA-256 hash "
+            "of the system prompt file will be used as both prompt_version_id and prompt_hash."
+        ),
+    ),
+    run_note: str | None = typer.Option(
+        None, "--run-note", help="Optional note about this evaluation run"
+    ),
 ) -> None:
     """
     Evaluate a prompt by generating N samples and judging each output.
@@ -603,6 +653,9 @@ def evaluate_single(
         # Compute rubric metadata
         rubric_metadata = compute_rubric_metadata(loaded_rubric, rubric_path)
 
+        # Compute prompt metadata
+        prompt_version_id, prompt_hash = compute_prompt_metadata(system_prompt_path, prompt_version)
+
         # Create SingleEvaluationRun
         evaluation_run = SingleEvaluationRun(
             run_id=run_id,
@@ -611,6 +664,9 @@ def evaluate_single(
             generator_config=generator_config,
             judge_config=judge_config,
             samples=samples,
+            prompt_version_id=prompt_version_id,
+            prompt_hash=prompt_hash,
+            run_notes=run_note,
         )
 
         # Save evaluation results
@@ -792,6 +848,17 @@ def evaluate_dataset(
     config_file: str | None = typer.Option(
         None, "--config", "-c", help="Path to config file (YAML/TOML)"
     ),
+    prompt_version: str | None = typer.Option(
+        None,
+        "--prompt-version",
+        help=(
+            "Version identifier for the prompt. If not provided, the SHA-256 hash "
+            "of the system prompt file will be used as both prompt_version_id and prompt_hash."
+        ),
+    ),
+    run_note: str | None = typer.Option(
+        None, "--run-note", help="Optional note about this evaluation run"
+    ),
 ) -> None:
     """
     Evaluate a dataset of test cases with multiple samples per case.
@@ -946,6 +1013,9 @@ def evaluate_dataset(
         # Compute rubric metadata
         rubric_metadata = compute_rubric_metadata(loaded_rubric, rubric_path)
 
+        # Compute prompt metadata
+        prompt_version_id, prompt_hash = compute_prompt_metadata(system_prompt_path, prompt_version)
+
         # Run dataset evaluation
         typer.echo("\n" + "=" * 60, err=True)
         typer.echo("Starting Dataset Evaluation", err=True)
@@ -973,6 +1043,9 @@ def evaluate_dataset(
             rubric_metadata=rubric_metadata,
             output_dir=output_dir_path,
             progress_callback=typer.echo,
+            prompt_version_id=prompt_version_id,
+            prompt_hash=prompt_hash,
+            run_notes=run_note,
         )
 
         # Print summary

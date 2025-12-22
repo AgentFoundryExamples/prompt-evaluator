@@ -209,6 +209,9 @@ def evaluate_dataset(
     rubric_metadata: dict[str, Any],
     output_dir: Path,
     progress_callback: Callable[..., None] | None = None,
+    prompt_version_id: str | None = None,
+    prompt_hash: str | None = None,
+    run_notes: str | None = None,
 ) -> DatasetEvaluationRun:
     """
     Evaluate a dataset of test cases with multiple samples per case.
@@ -235,6 +238,9 @@ def evaluate_dataset(
         rubric_metadata: Metadata about the rubric
         output_dir: Directory to write results
         progress_callback: Optional callback for progress updates (e.g., typer.echo)
+        prompt_version_id: Version identifier for the prompt
+        prompt_hash: SHA-256 hash of the system prompt file
+        run_notes: Optional notes about this run
 
     Returns:
         DatasetEvaluationRun object with complete results
@@ -259,6 +265,9 @@ def evaluate_dataset(
         rubric_metadata=rubric_metadata,
         timestamp_start=timestamp_start,
         system_prompt_path=str(system_prompt_path),
+        prompt_version_id=prompt_version_id,
+        prompt_hash=prompt_hash,
+        run_notes=run_notes,
     )
 
     # Iterate through test cases

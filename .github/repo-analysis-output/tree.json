@@ -122,6 +122,10 @@
           "children": [
             {
               "type": "file",
+              "name": "comparison-sample.json"
+            },
+            {
+              "type": "file",
               "name": "index.json"
             },
             {

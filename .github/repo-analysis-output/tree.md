@@ -26,6 +26,7 @@
     ├── content_quality.yaml
     └── default.yaml
   ├── run-artifacts
+    ├── comparison-sample.json
     ├── index.json
     └── run-sample.json
   ├── .gitkeep

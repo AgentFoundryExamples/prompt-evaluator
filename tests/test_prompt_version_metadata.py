@@ -150,6 +150,191 @@ class TestEvaluateSingleWithPromptMetadata:
         clean_output = strip_ansi(result.stdout)
         assert "--run-note" in clean_output
 
+    def test_evaluate_single_integration_with_metadata(
+        self, cli_runner, tmp_path, monkeypatch
+    ):
+        """Integration test that verifies metadata appears in output JSON."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        
+        system_file = tmp_path / "system.txt"
+        system_file.write_text("You are a helpful assistant.")
+        
+        input_file = tmp_path / "input.txt"
+        input_file.write_text("What is Python?")
+        
+        output_dir = tmp_path / "runs"
+        
+        # Mock the provider and functions to avoid real API calls
+        from prompt_evaluator.provider import OpenAIProvider
+        
+        with patch("prompt_evaluator.cli.get_provider") as mock_get_provider, \
+             patch("prompt_evaluator.cli.generate_completion") as mock_generate, \
+             patch("prompt_evaluator.cli.judge_completion") as mock_judge, \
+             patch("prompt_evaluator.config.load_rubric") as mock_rubric, \
+             patch("prompt_evaluator.models.load_judge_prompt") as mock_judge_prompt, \
+             patch("prompt_evaluator.config.resolve_rubric_path") as mock_resolve:
+            
+            # Setup provider mock to return an OpenAIProvider instance
+            mock_provider = MagicMock(spec=OpenAIProvider)
+            mock_get_provider.return_value = mock_provider
+            
+            # Setup other mocks
+            mock_generate.return_value = ("Test output", {"latency_ms": 100})
+            mock_judge.return_value = {
+                "status": "completed",
+                "judge_metrics": {"test_metric": {"score": 4.0, "rationale": "Good"}},
+                "judge_flags": {},
+            }
+            # Create proper Rubric mock using actual Rubric class
+            from prompt_evaluator.models import Rubric, RubricMetric
+            mock_rubric_obj = Rubric(
+                metrics=[
+                    RubricMetric(
+                        name="test_metric",
+                        description="Test metric",
+                        min_score=1.0,
+                        max_score=5.0,
+                        guidelines="Test guidelines"
+                    )
+                ],
+                flags=[]
+            )
+            mock_rubric.return_value = mock_rubric_obj
+            mock_resolve.return_value = Path("fake_rubric.yaml")
+            mock_judge_prompt.return_value = "Judge prompt"
+            
+            result = cli_runner.invoke(
+                app,
+                [
+                    "evaluate-single",
+                    "--system-prompt", str(system_file),
+                    "--input", str(input_file),
+                    "--num-samples", "1",
+                    "--prompt-version", "v1.0.0",
+                    "--run-note", "Integration test run",
+                    "--output-dir", str(output_dir),
+                ],
+            )
+            
+            # Verify command succeeded
+            assert result.exit_code == 0, f"Command failed with output: {result.stdout}"
+            
+            # Find the output file
+            run_dirs = list(output_dir.glob("*"))
+            assert len(run_dirs) == 1, f"Expected 1 run directory, found {len(run_dirs)}"
+            
+            output_file = run_dirs[0] / "evaluate-single.json"
+            assert output_file.exists(), f"Output file not found at {output_file}"
+            
+            # Parse and verify JSON content
+            with open(output_file) as f:
+                data = json.load(f)
+            
+            # Verify metadata fields exist and have correct values
+            assert "prompt_version_id" in data, "prompt_version_id missing from output"
+            assert data["prompt_version_id"] == "v1.0.0", \
+                f"Expected prompt_version_id='v1.0.0', got '{data['prompt_version_id']}'"
+            
+            assert "prompt_hash" in data, "prompt_hash missing from output"
+            assert len(data["prompt_hash"]) == 64, \
+                f"Expected 64-char hash, got {len(data['prompt_hash'])} chars"
+            
+            # Verify the hash matches the actual file content
+            expected_hash = hashlib.sha256(b"You are a helpful assistant.").hexdigest()
+            assert data["prompt_hash"] == expected_hash, \
+                f"Hash mismatch: expected {expected_hash}, got {data['prompt_hash']}"
+            
+            assert "run_notes" in data, "run_notes missing from output"
+            assert data["run_notes"] == "Integration test run", \
+                f"Expected run_notes='Integration test run', got '{data['run_notes']}'"
+
+    def test_evaluate_single_integration_without_version(
+        self, cli_runner, tmp_path, monkeypatch
+    ):
+        """Integration test that verifies auto-generated hash when version not provided."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        
+        system_file = tmp_path / "system.txt"
+        system_file.write_text("Test prompt content")
+        
+        input_file = tmp_path / "input.txt"
+        input_file.write_text("Test input")
+        
+        output_dir = tmp_path / "runs"
+        
+        # Mock the provider and functions
+        from prompt_evaluator.provider import OpenAIProvider
+        
+        with patch("prompt_evaluator.cli.get_provider") as mock_get_provider, \
+             patch("prompt_evaluator.cli.generate_completion") as mock_generate, \
+             patch("prompt_evaluator.cli.judge_completion") as mock_judge, \
+             patch("prompt_evaluator.config.load_rubric") as mock_rubric, \
+             patch("prompt_evaluator.models.load_judge_prompt") as mock_judge_prompt, \
+             patch("prompt_evaluator.config.resolve_rubric_path") as mock_resolve:
+            
+            # Setup provider mock
+            mock_provider = MagicMock(spec=OpenAIProvider)
+            mock_get_provider.return_value = mock_provider
+            
+            # Setup other mocks
+            mock_generate.return_value = ("Output", {"latency_ms": 100})
+            mock_judge.return_value = {
+                "status": "completed",
+                "judge_metrics": {"metric": {"score": 5.0, "rationale": "Perfect"}},
+                "judge_flags": {},
+            }
+            # Create proper Rubric mock using actual Rubric class
+            from prompt_evaluator.models import Rubric, RubricMetric
+            mock_rubric_obj = Rubric(
+                metrics=[
+                    RubricMetric(
+                        name="metric",
+                        description="Test metric",
+                        min_score=1.0,
+                        max_score=5.0,
+                        guidelines="Test guidelines"
+                    )
+                ],
+                flags=[]
+            )
+            mock_rubric.return_value = mock_rubric_obj
+            mock_resolve.return_value = Path("fake_rubric.yaml")
+            mock_judge_prompt.return_value = "Judge prompt"
+            
+            result = cli_runner.invoke(
+                app,
+                [
+                    "evaluate-single",
+                    "--system-prompt", str(system_file),
+                    "--input", str(input_file),
+                    "--num-samples", "1",
+                    "--output-dir", str(output_dir),
+                ],
+            )
+            
+            assert result.exit_code == 0, f"Command failed: {result.stdout}"
+            
+            # Find and parse output
+            run_dirs = list(output_dir.glob("*"))
+            assert len(run_dirs) == 1
+            
+            output_file = run_dirs[0] / "evaluate-single.json"
+            with open(output_file) as f:
+                data = json.load(f)
+            
+            # When no version provided, version_id should equal hash
+            assert "prompt_version_id" in data
+            assert "prompt_hash" in data
+            assert data["prompt_version_id"] == data["prompt_hash"], \
+                "Without --prompt-version, version_id should equal hash"
+            
+            # Verify hash is correct
+            expected_hash = hashlib.sha256(b"Test prompt content").hexdigest()
+            assert data["prompt_hash"] == expected_hash
+            
+            # run_notes should be None when not provided
+            assert data["run_notes"] is None
+
 
 class TestEvaluateDatasetWithPromptMetadata:
     """Tests for evaluate-dataset command with prompt metadata."""

@@ -654,7 +654,11 @@ def evaluate_single(
         rubric_metadata = compute_rubric_metadata(loaded_rubric, rubric_path)
 
         # Compute prompt metadata
-        prompt_version_id, prompt_hash = compute_prompt_metadata(system_prompt_path, prompt_version)
+        try:
+            prompt_version_id, prompt_hash = compute_prompt_metadata(system_prompt_path, prompt_version)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
 
         # Create SingleEvaluationRun
         evaluation_run = SingleEvaluationRun(
@@ -1014,7 +1018,11 @@ def evaluate_dataset(
         rubric_metadata = compute_rubric_metadata(loaded_rubric, rubric_path)
 
         # Compute prompt metadata
-        prompt_version_id, prompt_hash = compute_prompt_metadata(system_prompt_path, prompt_version)
+        try:
+            prompt_version_id, prompt_hash = compute_prompt_metadata(system_prompt_path, prompt_version)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
 
         # Run dataset evaluation
         typer.echo("\n" + "=" * 60, err=True)

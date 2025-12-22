@@ -93,6 +93,8 @@ def compute_metric_delta(
         percent_change = None
 
     # Detect regression: negative delta exceeding threshold
+    # Uses strict inequality (>) so delta exactly equal to threshold is NOT a regression
+    # This is intentional per requirements: "Delta exactly equal to threshold remains unchanged"
     is_regression = False
     if delta is not None and delta < 0 and abs(delta) > threshold:
         is_regression = True
@@ -138,6 +140,7 @@ def compute_flag_delta(
         percent_change = None if delta == 0 else float("inf") if delta > 0 else float("-inf")
 
     # Detect regression: positive delta exceeding threshold (more flags = worse)
+    # Uses strict inequality (>) so delta exactly equal to threshold is NOT a regression
     is_regression = False
     if delta > 0 and delta > threshold:
         is_regression = True

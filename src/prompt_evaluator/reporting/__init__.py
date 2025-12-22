@@ -15,9 +15,10 @@
 Reporting module for generating evaluation reports.
 
 This module provides functionality for rendering Markdown and HTML reports
-from evaluation run artifacts.
+from evaluation run artifacts and comparison results.
 """
 
+from prompt_evaluator.reporting.compare_report import render_comparison_report
 from prompt_evaluator.reporting.run_report import render_run_report
 
-__all__ = ["render_run_report"]
+__all__ = ["render_run_report", "render_comparison_report"]

@@ -105,9 +105,7 @@ class TestGenerateCLI:
         assert "not found" in result.stdout
 
     @patch("prompt_evaluator.cli.generate_completion")
-    def test_generate_with_files(
-        self, mock_generate, cli_runner, temp_prompts, monkeypatch
-    ):
+    def test_generate_with_files(self, mock_generate, cli_runner, temp_prompts, monkeypatch):
         """Test generate command with valid file inputs."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
@@ -135,9 +133,7 @@ class TestGenerateCLI:
         assert mock_generate.called
 
     @patch("prompt_evaluator.cli.generate_completion")
-    def test_generate_with_overrides(
-        self, mock_generate, cli_runner, temp_prompts, monkeypatch
-    ):
+    def test_generate_with_overrides(self, mock_generate, cli_runner, temp_prompts, monkeypatch):
         """Test generate command with parameter overrides."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 

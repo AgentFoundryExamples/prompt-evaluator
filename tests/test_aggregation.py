@@ -177,9 +177,7 @@ class TestComputeAggregateStatistics:
         assert stats["flag_stats"]["omitted_constraints"]["true_count"] == 1
         assert stats["flag_stats"]["omitted_constraints"]["false_count"] == 2
         assert stats["flag_stats"]["omitted_constraints"]["total_count"] == 3
-        assert stats["flag_stats"]["omitted_constraints"]["true_proportion"] == pytest.approx(
-            1 / 3
-        )
+        assert stats["flag_stats"]["omitted_constraints"]["true_proportion"] == pytest.approx(1 / 3)
 
     def test_aggregation_excludes_invalid_judge_responses(self):
         """Test that samples with judge_invalid_response status are excluded."""

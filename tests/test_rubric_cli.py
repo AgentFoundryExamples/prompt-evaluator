@@ -144,10 +144,7 @@ class TestResolveRubricPath:
             resolve_rubric_path(str(tmp_path))
         assert "directory" in str(exc_info.value).lower()
 
-    @pytest.mark.skipif(
-        os.name == 'nt',
-        reason="File permission tests not reliable on Windows"
-    )
+    @pytest.mark.skipif(os.name == "nt", reason="File permission tests not reliable on Windows")
     def test_resolve_unreadable_file_raises_error(self, temp_rubric):
         """Test that unreadable file raises ValueError."""
         # Make file unreadable (Unix-like systems only)
@@ -254,7 +251,7 @@ class TestEvaluateSingleWithRubric:
         result = cli_runner.invoke(app, ["evaluate-single", "--help"])
         assert result.exit_code == 0
         # Strip ANSI codes for cleaner comparison
-        clean_output = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
+        clean_output = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
         assert "--rubric" in clean_output
         assert "preset alias" in clean_output or "preset" in clean_output.lower()
 

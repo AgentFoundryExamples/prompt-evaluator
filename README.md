@@ -1189,6 +1189,269 @@ If some samples fail during evaluation:
 - Progress is shown as text messages, not a visual progress bar
 - Consider using `--max-cases` for quick testing
 
+
+### Compare Runs Command
+
+The `compare-runs` command compares two evaluation runs to detect performance regressions. It computes deltas for metrics and flags, and flags regressions based on configurable thresholds.
+
+```bash
+# Basic comparison
+prompt-evaluator compare-runs \
+  --baseline runs/baseline-run-id/dataset_evaluation.json \
+  --candidate runs/candidate-run-id/dataset_evaluation.json
+
+# With custom thresholds
+prompt-evaluator compare-runs \
+  --baseline runs/baseline-run-id/dataset_evaluation.json \
+  --candidate runs/candidate-run-id/dataset_evaluation.json \
+  --metric-threshold 0.2 \
+  --flag-threshold 0.1
+
+# Save comparison to file
+prompt-evaluator compare-runs \
+  --baseline runs/baseline-run-id/dataset_evaluation.json \
+  --candidate runs/candidate-run-id/dataset_evaluation.json \
+  --output comparison-results.json
+```
+
+#### Command Parameters
+
+**Required Parameters:**
+
+- `--baseline`, `-b`: Path to baseline run artifact JSON file (e.g., `dataset_evaluation.json` or `evaluate-single.json`)
+- `--candidate`, `-c`: Path to candidate run artifact JSON file
+
+**Optional Parameters:**
+
+- `--metric-threshold`: Absolute threshold for metric regression (default: 0.1)
+  - A regression is flagged if `candidate_mean < baseline_mean - threshold`
+- `--flag-threshold`: Absolute threshold for flag regression (default: 0.05)
+  - A regression is flagged if `candidate_proportion > baseline_proportion + threshold`
+- `--output`, `-o`: Optional output file for comparison JSON
+
+#### How it Works
+
+The compare-runs command:
+
+1. Loads both baseline and candidate run artifacts
+2. Extracts `overall_metric_stats` and `overall_flag_stats` from each run
+3. Computes deltas for each metric and flag present in either run
+4. Checks each delta against the respective threshold to detect regressions
+5. Outputs a comparison summary to stderr and full JSON to stdout
+6. Exits with code 1 if any regressions are detected, 0 otherwise
+
+#### Regression Detection
+
+**Metric Regressions:**
+- A metric shows regression when the candidate's mean score decreases by more than the threshold
+- Formula: `delta = candidate_mean - baseline_mean`
+- Regression if: `delta < 0` and `|delta| > metric_threshold`
+
+**Flag Regressions:**
+- A flag shows regression when the candidate's true proportion increases by more than the threshold
+- Formula: `delta = candidate_proportion - baseline_proportion`
+- Regression if: `delta > 0` and `delta > flag_threshold`
+
+#### Output Format
+
+**Human-Readable Summary (stderr):**
+
+```
+============================================================
+Run Comparison Summary
+============================================================
+Baseline Run ID: baseline-abc123
+Candidate Run ID: candidate-def456
+Baseline Prompt: v1.0
+Candidate Prompt: v2.0
+
+Thresholds:
+  Metric Threshold: 0.1
+  Flag Threshold: 0.05
+
+-----------------------Metric Deltas------------------------
+
+  semantic_fidelity: ✓
+    Baseline:  4.000
+    Candidate: 4.300
+    Delta: +0.300
+    Change: +7.50%
+
+  clarity: 🔴 REGRESSION
+    Baseline:  4.200
+    Candidate: 3.800
+    Delta: -0.400
+    Change: -9.52%
+
+------------------------Flag Deltas-------------------------
+
+  invented_constraints: ✓
+    Baseline:  10.00%
+    Candidate: 5.00%
+    Delta: -5.00%
+    Change: -50.00%
+
+--------------------------Summary---------------------------
+  🔴 1 regression(s) detected
+============================================================
+```
+
+**JSON Output (stdout):**
+
+```json
+{
+  "baseline_run_id": "baseline-abc123",
+  "candidate_run_id": "candidate-def456",
+  "baseline_prompt_version": "v1.0",
+  "candidate_prompt_version": "v2.0",
+  "metric_deltas": [
+    {
+      "metric_name": "semantic_fidelity",
+      "baseline_mean": 4.0,
+      "candidate_mean": 4.3,
+      "delta": 0.3,
+      "percent_change": 7.5,
+      "is_regression": false,
+      "threshold_used": 0.1
+    },
+    {
+      "metric_name": "clarity",
+      "baseline_mean": 4.2,
+      "candidate_mean": 3.8,
+      "delta": -0.4,
+      "percent_change": -9.52,
+      "is_regression": true,
+      "threshold_used": 0.1
+    }
+  ],
+  "flag_deltas": [
+    {
+      "flag_name": "invented_constraints",
+      "baseline_proportion": 0.1,
+      "candidate_proportion": 0.05,
+      "delta": -0.05,
+      "percent_change": -50.0,
+      "is_regression": false,
+      "threshold_used": 0.05
+    }
+  ],
+  "has_regressions": true,
+  "regression_count": 1,
+  "comparison_timestamp": "2025-12-22T02:00:00.000000+00:00",
+  "thresholds_config": {
+    "metric_threshold": 0.1,
+    "flag_threshold": 0.05
+  }
+}
+```
+
+#### Use Cases
+
+**1. CI/CD Integration:**
+
+```bash
+# Compare new prompt against baseline in CI pipeline
+prompt-evaluator compare-runs \
+  --baseline baseline/dataset_evaluation.json \
+  --candidate runs/latest/dataset_evaluation.json \
+  --metric-threshold 0.05 \
+  --flag-threshold 0.03
+
+# Exit code 1 if regressions detected, fails the CI build
+if [ $? -ne 0 ]; then
+  echo "Regressions detected! Blocking deployment."
+  exit 1
+fi
+```
+
+**2. A/B Testing:**
+
+Compare two different prompt versions to determine which performs better:
+
+```bash
+prompt-evaluator compare-runs \
+  --baseline runs/prompt-v1/dataset_evaluation.json \
+  --candidate runs/prompt-v2/dataset_evaluation.json \
+  --output prompt-v1-vs-v2-comparison.json
+```
+
+**3. Threshold Tuning:**
+
+Experiment with different thresholds to find the right sensitivity:
+
+```bash
+# Strict thresholds (catch small regressions)
+prompt-evaluator compare-runs \
+  --baseline baseline.json \
+  --candidate candidate.json \
+  --metric-threshold 0.05 \
+  --flag-threshold 0.01
+
+# Relaxed thresholds (only catch major regressions)
+prompt-evaluator compare-runs \
+  --baseline baseline.json \
+  --candidate candidate.json \
+  --metric-threshold 0.3 \
+  --flag-threshold 0.1
+```
+
+**4. Tracking Improvements:**
+
+Compare runs to validate that changes actually improved performance:
+
+```bash
+# If no regressions and positive deltas, the change was successful
+prompt-evaluator compare-runs \
+  --baseline runs/before-optimization/dataset_evaluation.json \
+  --candidate runs/after-optimization/dataset_evaluation.json
+```
+
+#### Understanding Deltas
+
+**Positive Delta (Improvement):**
+- Metrics: Higher scores are better → positive delta is good
+- Flags: Lower proportions are better (fewer problems) → negative delta is good
+
+**Negative Delta (Potential Regression):**
+- Metrics: Lower scores → negative delta indicates regression
+- Flags: Higher proportions (more problems) → positive delta indicates regression
+
+**Edge Cases:**
+
+- Missing metrics/flags in one run are included in comparison with `None` values
+- Zero baseline values result in `inf` percent change (handled gracefully)
+- Asymmetric metric/flag sets between runs are supported
+
+#### Exit Codes
+
+- `0` - Comparison successful, no regressions detected
+- `1` - Regressions detected OR comparison failed (file not found, invalid JSON, etc.)
+
+Use exit codes in scripts for automated decision-making:
+
+```bash
+if prompt-evaluator compare-runs -b baseline.json -c candidate.json; then
+  echo "✓ Safe to deploy"
+else
+  echo "✗ Regressions detected or comparison failed"
+fi
+```
+
+#### Current Limitations
+
+**Single Comparison:**
+- Compares only two runs at a time
+- For comparing multiple candidates, run the command multiple times
+
+**Overall Statistics Only:**
+- Compares only `overall_metric_stats` and `overall_flag_stats`
+- Does not perform per-case comparisons (may be added in future)
+
+**Static Thresholds:**
+- Same threshold applies to all metrics/flags
+- Future versions may support per-metric/per-flag thresholds
+
+
 ## Roadmap
 
 - [x] Project scaffolding and structure
@@ -1197,7 +1460,7 @@ If some samples fail during evaluation:
 - [x] LLM provider integrations (OpenAI, etc.)
 - [x] Judge models and evaluation data structures for semantic fidelity scoring
 - [x] Evaluation command for running multiple samples with aggregate statistics
-- [ ] Result comparison and analysis tools
+- [x] Result comparison and analysis tools
 
 ## Judge Models
 

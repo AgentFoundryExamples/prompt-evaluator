@@ -235,6 +235,7 @@ def build_rubric_judge_prompt(rubric: Any) -> str:
     Returns:
         System prompt string instructing judge to evaluate based on rubric
     """
+
     # Helper function to sanitize text for prompt inclusion
     def sanitize_text(text: str) -> str:
         """Remove control characters and limit length for safe prompt inclusion."""
@@ -247,8 +248,7 @@ def build_rubric_judge_prompt(rubric: Any) -> str:
         return sanitized
 
     prompt_parts = [
-        "You are an expert evaluator assessing AI-generated responses "
-        "using a structured rubric.",
+        "You are an expert evaluator assessing AI-generated responses using a structured rubric.",
         "",
         "Your task is to evaluate the generated output based on multiple "
         "metrics and flags defined below.",
@@ -317,9 +317,7 @@ def build_rubric_judge_prompt(rubric: Any) -> str:
     return "\n".join(prompt_parts)
 
 
-def parse_rubric_judge_response(
-    response_text: str, rubric: Any
-) -> dict[str, Any]:
+def parse_rubric_judge_response(response_text: str, rubric: Any) -> dict[str, Any]:
     """
     Parse and validate judge response against rubric schema.
 

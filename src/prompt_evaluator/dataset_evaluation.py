@@ -76,9 +76,7 @@ def compute_per_case_statistics(
             mean = sum(metric_scores) / len(metric_scores)
             # Compute standard deviation using sample variance (n-1)
             if len(metric_scores) > 1:
-                variance = sum((x - mean) ** 2 for x in metric_scores) / (
-                    len(metric_scores) - 1
-                )
+                variance = sum((x - mean) ** 2 for x in metric_scores) / (len(metric_scores) - 1)
                 std = variance**0.5
             else:
                 std = 0.0

@@ -282,9 +282,7 @@ class Sample:
             "judge_invalid_response",
         )
         if self.status not in valid_statuses:
-            raise ValueError(
-                f"status must be one of {valid_statuses}, got '{self.status}'"
-            )
+            raise ValueError(f"status must be one of {valid_statuses}, got '{self.status}'")
         if self.judge_score is not None and (self.judge_score < 1.0 or self.judge_score > 5.0):
             raise ValueError(f"judge_score must be between 1.0 and 5.0, got {self.judge_score}")
 
@@ -312,8 +310,7 @@ class Sample:
             for flag_name, flag_value in self.judge_flags.items():
                 if not isinstance(flag_value, bool):
                     raise ValueError(
-                        f"Flag '{flag_name}' must be boolean, "
-                        f"got {type(flag_value).__name__}"
+                        f"Flag '{flag_name}' must be boolean, got {type(flag_value).__name__}"
                     )
 
     def to_dict(self) -> dict[str, Any]:
@@ -518,9 +515,7 @@ class Rubric:
         all_names = metric_names + flag_names
         if len(all_names) != len(set(all_names)):
             overlaps = set(metric_names) & set(flag_names)
-            raise ValueError(
-                f"Rubric contains names used in both metrics and flags: {overlaps}"
-            )
+            raise ValueError(f"Rubric contains names used in both metrics and flags: {overlaps}")
 
 
 # TestCase defined field names (used for metadata passthrough)
@@ -768,3 +763,104 @@ class DatasetEvaluationRun:
             "run_notes": self.run_notes,
         }
         return result
+
+
+@dataclass
+class MetricDelta:
+    """
+    Delta between baseline and candidate for a single metric.
+
+    Attributes:
+        metric_name: Name of the metric being compared
+        baseline_mean: Mean score from baseline run
+        candidate_mean: Mean score from candidate run
+        delta: Difference (candidate - baseline); positive = improvement
+        percent_change: Percentage change ((candidate - baseline) / baseline * 100)
+        is_regression: Whether this delta represents a regression based on threshold
+        threshold_used: The threshold value used for regression detection (absolute)
+    """
+
+    metric_name: str
+    baseline_mean: float | None
+    candidate_mean: float | None
+    delta: float | None
+    percent_change: float | None
+    is_regression: bool
+    threshold_used: float
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to JSON-compatible dictionary."""
+        return asdict(self)
+
+
+@dataclass
+class FlagDelta:
+    """
+    Delta between baseline and candidate for a single flag.
+
+    Attributes:
+        flag_name: Name of the flag being compared
+        baseline_proportion: True proportion from baseline run (0.0-1.0)
+        candidate_proportion: True proportion from candidate run (0.0-1.0)
+        delta: Difference in proportions (candidate - baseline)
+        percent_change: Percentage change in proportions
+        is_regression: Whether this delta represents a regression based on threshold
+        threshold_used: The threshold value used for regression detection (absolute)
+    """
+
+    flag_name: str
+    baseline_proportion: float
+    candidate_proportion: float
+    delta: float
+    percent_change: float | None
+    is_regression: bool
+    threshold_used: float
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to JSON-compatible dictionary."""
+        return asdict(self)
+
+
+@dataclass
+class ComparisonResult:
+    """
+    Result of comparing two evaluation runs.
+
+    Attributes:
+        baseline_run_id: Run ID of baseline evaluation
+        candidate_run_id: Run ID of candidate evaluation
+        baseline_prompt_version: Prompt version ID from baseline
+        candidate_prompt_version: Prompt version ID from candidate
+        metric_deltas: List of metric comparisons
+        flag_deltas: List of flag comparisons
+        has_regressions: Whether any regressions were detected
+        regression_count: Total number of regressions
+        comparison_timestamp: When the comparison was performed
+        thresholds_config: Configuration of thresholds used
+    """
+
+    baseline_run_id: str
+    candidate_run_id: str
+    baseline_prompt_version: str | None
+    candidate_prompt_version: str | None
+    metric_deltas: list[MetricDelta]
+    flag_deltas: list[FlagDelta]
+    has_regressions: bool
+    regression_count: int
+    comparison_timestamp: datetime
+    thresholds_config: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to JSON-compatible dictionary."""
+        return {
+            "baseline_run_id": self.baseline_run_id,
+            "candidate_run_id": self.candidate_run_id,
+            "baseline_prompt_version": self.baseline_prompt_version,
+            "candidate_prompt_version": self.candidate_prompt_version,
+            "metric_deltas": [delta.to_dict() for delta in self.metric_deltas],
+            "flag_deltas": [delta.to_dict() for delta in self.flag_deltas],
+            "has_regressions": self.has_regressions,
+            "regression_count": self.regression_count,
+            "comparison_timestamp": self.comparison_timestamp.isoformat(),
+            "thresholds_config": self.thresholds_config,
+        }

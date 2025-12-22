@@ -271,8 +271,7 @@ class TestAggregationStatistics:
 
         # Use same aggregation logic as CLI evaluate_single command
         successful_scores = [
-            s.judge_score for s in samples
-            if s.status == "completed" and s.judge_score is not None
+            s.judge_score for s in samples if s.status == "completed" and s.judge_score is not None
         ]
 
         assert len(successful_scores) == 0

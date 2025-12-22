@@ -929,58 +929,62 @@ The tool does not enforce model compatibility. You can compare runs with differe
 # Baseline: gpt-4 generator, gpt-4 judge
 # Candidate: gpt-5.1 generator, gpt-5.1 judge
 
-# Comparison will succeed but deltas include:
-# - Prompt improvements
+# Tool will NOT prevent this comparison, but deltas include:
+# - Prompt improvements/regressions
 # - Model capability differences
-# → Cannot isolate prompt effect
+# → Cannot isolate prompt effect from model effect
 ```
 
-**When cross-model comparison is acceptable:**
-- Evaluating overall system performance (prompt + model together)
-- Documenting that you're testing a model upgrade, not just prompt changes
+**When cross-model comparison might be acceptable:**
+- Evaluating overall system performance (prompt + model together as a unit)
+- Intentionally testing a model upgrade alongside prompt changes
 - Exploratory analysis (not production decisions)
+- Clearly documenting that results reflect BOTH prompt and model changes
 
-**Best practice:**
+**Best practice for isolating prompt effects:**
 ```bash
 # Keep models consistent for prompt comparison
 # If testing model upgrade, run separate experiment:
 
-# Experiment 1: Same prompt, different models
+# Experiment 1: Same prompt, different models (isolate model effect)
 prompt-evaluator evaluate-dataset -d dataset.yaml -s prompt-v1.txt --generator-model gpt-4
 prompt-evaluator evaluate-dataset -d dataset.yaml -s prompt-v1.txt --generator-model gpt-5.1
 
-# Experiment 2: Same model, different prompts
+# Experiment 2: Same model, different prompts (isolate prompt effect)
 prompt-evaluator evaluate-dataset -d dataset.yaml -s prompt-v1.txt --generator-model gpt-5.1
 prompt-evaluator evaluate-dataset -d dataset.yaml -s prompt-v2.txt --generator-model gpt-5.1
 ```
 
+**User responsibility:**
+- Tool does not validate model consistency
+- Check `generator_config.model_name` and `judge_config.model_name` in artifacts manually
+- Document any model differences in run notes
+
 ### Dataset Compatibility Validation
 
-The comparison tool automatically checks dataset compatibility:
+**Important:** The comparison tool does **not** automatically validate dataset compatibility. It will compare any two run artifacts you provide, even if they used different datasets.
+
+It's the user's responsibility to verify compatibility:
 
 ```bash
-prompt-evaluator compare-runs \
-  --baseline runs/baseline/dataset_evaluation.json \
-  --candidate runs/candidate/dataset_evaluation.json
-
-# If datasets differ, tool will still compare but results may be meaningless
-# Check dataset_hash in output to verify compatibility
-```
-
-**Manual verification:**
-```bash
-# Extract dataset hashes
+# Manual verification - extract and compare dataset hashes
 BASELINE_HASH=$(jq -r '.dataset_hash' runs/baseline/dataset_evaluation.json)
 CANDIDATE_HASH=$(jq -r '.dataset_hash' runs/candidate/dataset_evaluation.json)
 
 if [ "$BASELINE_HASH" == "$CANDIDATE_HASH" ]; then
   echo "✅ Datasets match - comparison is valid"
 else
-  echo "❌ Datasets differ - comparison may be invalid"
+  echo "❌ Datasets differ - comparison is INVALID"
   echo "Baseline:  $BASELINE_HASH"
   echo "Candidate: $CANDIDATE_HASH"
+  echo "The tool will not prevent this comparison, but results are meaningless!"
 fi
 ```
+
+**Why manual verification is necessary:**
+- The tool compares any two artifacts without enforcing compatibility
+- Mismatched datasets produce meaningless comparisons
+- You must check `dataset_hash` values yourself before interpreting results
 
 ### Metric Availability Across Runs
 

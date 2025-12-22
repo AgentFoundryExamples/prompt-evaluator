@@ -1651,10 +1651,11 @@ fi
 - Same threshold applies to all metrics/flags
 - Future versions may support per-metric/per-flag thresholds
 
-**No Cross-Model Comparison Option:**
-- The tool does not currently provide an `--allow-different-models` flag
-- Comparing runs that used different generator or judge models is supported but results should be interpreted carefully
-- Best practice: Use the same models for baseline and candidate when possible
+**No Model Compatibility Enforcement:**
+- The tool does not validate or enforce model consistency between baseline and candidate runs
+- You can compare runs with different generator or judge models, but the tool will not warn you
+- Cross-model comparisons are **technically possible but methodologically problematic** because you cannot isolate prompt changes from model differences
+- **Strong recommendation:** Always use identical models (same version) for baseline and candidate to ensure valid comparisons
 
 **No Statistical Significance Testing:**
 - The tool does not perform statistical hypothesis testing (t-tests, p-values, etc.)
@@ -1877,20 +1878,29 @@ prompt-evaluator compare-runs \
 
 #### Calculating Threshold for Your Metrics
 
-If your metrics use a different scale (e.g., 0-10 or 0-100):
+**Important:** Thresholds represent **absolute changes** on the metric scale, not relative percentages.
+
+The default threshold of 0.1 on a 1-5 scale means:
+- Absolute change: 0.1 points (e.g., 4.0 → 3.9)
+- Relative change: ~2% of scale range (0.1 / 5.0)
+
+If your metrics use a different scale, you should scale thresholds to maintain the same **relative sensitivity**:
 
 ```python
-# For a 0-10 scale:
-metric_threshold = 0.1 * (10 / 5)  # Scale by ratio = 0.2
+# For a 0-10 scale (maintaining ~2% sensitivity):
+metric_threshold = 0.1 * (10 / 5)  # = 0.2 (2% of 10-point scale)
 
-# For a 0-100 scale:
-metric_threshold = 0.1 * (100 / 5)  # Scale by ratio = 2.0
+# For a 0-100 scale (maintaining ~2% sensitivity):
+metric_threshold = 0.1 * (100 / 5)  # = 2.0 (2% of 100-point scale)
 ```
 
-**General formula:**
+**General formula (preserves relative sensitivity):**
 ```
 threshold = default_threshold * (your_scale_max / 5)
 ```
+
+**Alternative approach (absolute point changes):**
+If you prefer to think in absolute terms (e.g., "flag anything worse by 2 points regardless of scale"), use the same absolute threshold across all scales. However, this means a 2-point drop is more significant on a 1-5 scale (40% drop) than on a 0-100 scale (2% drop).
 
 #### Recommended Threshold Strategies
 
@@ -2036,22 +2046,22 @@ For valid comparisons, baseline and candidate must meet compatibility requiremen
 
 #### Dataset Compatibility
 
-**✅ Same dataset (enforced by tool):**
+**✅ Same dataset (not enforced, user responsibility):**
 ```bash
-# Tool checks that dataset_hash matches
-# If hashes differ, comparison may still proceed but be cautious
+# The tool does NOT validate that datasets match
+# You must manually ensure baseline and candidate use the same dataset
 ```
 
-The compare-runs command will compare any two run artifacts, but results are only meaningful if:
-- Same test cases (validated by matching `dataset_hash`)
+The compare-runs command will compare any two run artifacts without validation. Results are only meaningful if:
+- Same test cases (verify by checking matching `dataset_hash` in both artifacts)
 - Same number of samples per case
-- Same rubric (validated by matching `rubric_hash` if present)
+- Same rubric (verify by checking matching `rubric_hash` if present)
 
 **❌ Different datasets:**
 ```bash
 # Baseline used dataset-v1.yaml (50 test cases)
 # Candidate used dataset-v2.yaml (100 test cases)
-# → Comparison is not valid!
+# → Comparison is not valid! Tool will not prevent this.
 ```
 
 Even if some test cases overlap, comparing different datasets produces meaningless results:
@@ -2059,34 +2069,39 @@ Even if some test cases overlap, comparing different datasets produces meaningle
 - You can't isolate prompt changes from dataset changes
 - Per-case deltas are not computed
 
-**Solution:** Always use the exact same dataset file for baseline and candidate.
+**Solution:** Always manually verify the exact same dataset file was used for baseline and candidate. Check `dataset_hash` fields in both artifacts to confirm.
 
 #### Model Compatibility
 
-**✅ Same models (recommended):**
+**✅ Same models (strongly recommended):**
 ```bash
 # Baseline: gpt-5.1 generator, gpt-5.1 judge
 # Candidate: gpt-5.1 generator, gpt-5.1 judge
 # → Valid comparison
 ```
 
-**⚠️ Different models (interpret carefully):**
+**⚠️ Different models (not blocked but problematic):**
 ```bash
 # Baseline: gpt-4 generator, gpt-4 judge
 # Candidate: gpt-5.1 generator, gpt-5.1 judge
-# → Comparison possible but confounded
+# → Tool will not prevent this comparison, but results are confounded
 ```
 
 When models differ, you cannot isolate:
 - Prompt improvements vs. model improvements
 - Regression due to prompt vs. different model behavior
 
-**Note:** The tool does not provide an `--allow-different-models` flag. You can compare runs with different models, but results should be interpreted with caution. Best practice is to keep models consistent.
+The tool does **not** validate or enforce model consistency. It's the user's responsibility to ensure models match.
 
 **Best practice:**
-- Use identical generator and judge models
-- If models must differ, document it clearly in run notes
+- Always use identical generator and judge models for valid prompt comparisons
+- If models must differ, document it clearly in run notes and interpret results with extreme caution
 - Consider running separate experiments: same prompt with different models
+
+**When cross-model comparison might be acceptable:**
+- You're intentionally testing a combined prompt + model upgrade (not just the prompt)
+- You're doing exploratory analysis (not production decisions)
+- You clearly document that results reflect both prompt AND model changes
 
 #### Rubric Compatibility
 
@@ -2270,17 +2285,21 @@ diff <(jq '.test_case_results[].per_metric_stats' baseline.json) \
      <(jq '.test_case_results[].per_metric_stats' candidate.json)
 ```
 
-#### No Cross-Model Comparison Flag
+#### No Model Compatibility Validation
 
-The tool does not provide an `--allow-different-models` flag:
-- You can compare runs with different models, but results may be confounded
-- No warnings are issued if models differ
-- User must track model compatibility manually
+The tool does not validate or warn about model mismatches:
+- You can compare runs with different models without any error or warning
+- The tool won't tell you if models differ between baseline and candidate
+- User must manually check `generator_config.model_name` and `judge_config.model_name` in both artifacts
+- No `--allow-different-models` or `--require-same-models` flags exist
+
+**Implication:**
+Cross-model comparisons are technically possible but scientifically problematic - you cannot determine whether deltas are due to prompt changes or model differences.
 
 **Workaround:**
 - Always document models in run notes
-- Check `generator_config.model_name` and `judge_config.model_name` in artifacts
-- Use same models for baseline and candidate when possible
+- Manually verify model names match before trusting comparison results
+- Use same models for baseline and candidate to ensure valid prompt comparisons
 
 
 ## Roadmap

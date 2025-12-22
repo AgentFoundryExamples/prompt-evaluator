@@ -1322,20 +1322,34 @@ def compare_runs(
 
 @app.command()
 def render_report(
-    run: str = typer.Option(..., "--run", help="Path to run directory containing artifact"),
+    run: str | None = typer.Option(
+        None, "--run", help="Path to run directory containing artifact (for evaluation runs)"
+    ),
+    compare: str | None = typer.Option(
+        None, "--compare", help="Path to comparison artifact JSON file (for comparison reports)"
+    ),
     std_threshold: float = typer.Option(
         1.0,
         "--std-threshold",
-        help="Standard deviation threshold for marking metrics as unstable",
+        help="Standard deviation threshold for marking metrics as unstable (evaluation runs only)",
     ),
     weak_score_threshold: float = typer.Option(
-        3.0, "--weak-threshold", help="Mean score threshold for marking metrics as weak"
+        3.0,
+        "--weak-threshold",
+        help="Mean score threshold for marking metrics as weak (evaluation runs only)",
     ),
     qualitative_count: int = typer.Option(
-        3, "--qualitative-count", help="Number of worst-case examples to include in report"
+        3,
+        "--qualitative-count",
+        help="Number of worst-case examples to include (evaluation runs only)",
     ),
     max_text_length: int = typer.Option(
-        500, "--max-text-length", help="Maximum text length for truncation in report"
+        500, "--max-text-length", help="Maximum text length for truncation (evaluation runs only)"
+    ),
+    top_cases: int = typer.Option(
+        5,
+        "--top-cases",
+        help="Number of top regressed/improved cases to show per metric (comparison reports only)",
     ),
     html: bool = typer.Option(False, "--html", help="Generate HTML report alongside Markdown"),
     output_name: str = typer.Option(
@@ -1346,76 +1360,141 @@ def render_report(
     ),
 ) -> None:
     """
-    Generate a Markdown (and optional HTML) report from a dataset evaluation run.
+    Generate a Markdown (and optional HTML) report from an evaluation run or comparison.
 
-    This command reads an existing run artifact (dataset_evaluation.json) from
-    the specified run directory and generates a formatted report including:
+    For evaluation runs, use --run to specify the run directory containing dataset_evaluation.json.
+    The report includes:
     - Run metadata and configuration
     - Suite-level metric and flag statistics
     - Per-test-case summary with instability/weak-point annotations
     - Qualitative examples from worst-performing cases
 
-    The report is written to report.md (or specified output name) in the run
-    directory without modifying the original JSON artifact.
+    For comparison reports, use --compare to specify the comparison artifact JSON file.
+    The report includes:
+    - Comparison metadata (baseline vs candidate)
+    - Suite-level metrics and flags comparison tables
+    - Regressions and improvements sections
+    - Top regressed/improved test cases per metric
+
+    The report is written to the specified output location without modifying the original artifacts.
     """
     try:
-        from prompt_evaluator.reporting import render_run_report
-
-        run_path = Path(run)
-
-        # Validate run directory
-        if not run_path.exists():
-            typer.echo(f"Error: Run directory not found: {run}", err=True)
+        # Validate that exactly one of --run or --compare is provided
+        if run and compare:
+            typer.echo(
+                "Error: Cannot specify both --run and --compare. Use one or the other.",
+                err=True,
+            )
             raise typer.Exit(1)
 
-        if not run_path.is_dir():
-            typer.echo(f"Error: Path is not a directory: {run}", err=True)
+        if not run and not compare:
+            typer.echo("Error: Must specify either --run or --compare.", err=True)
             raise typer.Exit(1)
 
-        # Validate thresholds
-        if std_threshold < 0:
-            typer.echo("Error: --std-threshold must be non-negative", err=True)
-            raise typer.Exit(1)
+        # Handle comparison report
+        if compare:
+            from prompt_evaluator.reporting import render_comparison_report
 
-        if weak_score_threshold < 0:
-            typer.echo("Error: --weak-threshold must be non-negative", err=True)
-            raise typer.Exit(1)
+            compare_path = Path(compare)
 
-        if qualitative_count < 0:
-            typer.echo("Error: --qualitative-count must be non-negative", err=True)
-            raise typer.Exit(1)
+            # Validate comparison artifact file
+            if not compare_path.exists():
+                typer.echo(f"Error: Comparison artifact not found: {compare}", err=True)
+                raise typer.Exit(1)
 
-        if max_text_length < 1:
-            typer.echo("Error: --max-text-length must be positive", err=True)
-            raise typer.Exit(1)
+            if not compare_path.is_file():
+                typer.echo(f"Error: Path is not a file: {compare}", err=True)
+                raise typer.Exit(1)
 
-        typer.echo(f"Generating report for run: {run_path}", err=True)
-        typer.echo(f"  Std threshold: {std_threshold}", err=True)
-        typer.echo(f"  Weak threshold: {weak_score_threshold}", err=True)
-        typer.echo(f"  Qualitative samples: {qualitative_count}", err=True)
+            # Validate top_cases
+            if top_cases < 0:
+                typer.echo("Error: --top-cases must be non-negative", err=True)
+                raise typer.Exit(1)
 
-        # Generate report
-        report_path = render_run_report(
-            run_dir=run_path,
-            std_threshold=std_threshold,
-            weak_score_threshold=weak_score_threshold,
-            qualitative_sample_count=qualitative_count,
-            max_text_length=max_text_length,
-            generate_html=html,
-            output_name=output_name,
-            html_output_name=html_output_name,
-        )
+            typer.echo(f"Generating comparison report for: {compare_path}", err=True)
+            typer.echo(f"  Top cases per metric: {top_cases}", err=True)
 
-        typer.echo(f"\n✓ Report generated successfully: {report_path}", err=True)
+            # Generate comparison report
+            report_path = render_comparison_report(
+                comparison_artifact_path=compare_path,
+                top_cases_per_metric=top_cases,
+                generate_html=html,
+                output_name=output_name,
+                html_output_name=html_output_name,
+            )
 
-        if html:
-            html_path = run_path / html_output_name
-            if html_path.exists():
-                typer.echo(f"✓ HTML report: {html_path}", err=True)
-            else:
-                typer.echo(
-                    "⚠ HTML report not generated (markdown library may not be installed)", err=True
-                )
+            typer.echo(f"\n✓ Comparison report generated successfully: {report_path}", err=True)
+
+            if html:
+                html_path = compare_path.parent / html_output_name
+                if html_path.exists():
+                    typer.echo(f"✓ HTML report: {html_path}", err=True)
+                else:
+                    typer.echo(
+                        "⚠ HTML report not generated (markdown library may not be installed)",
+                        err=True,
+                    )
+
+        # Handle evaluation run report
+        elif run:
+            from prompt_evaluator.reporting import render_run_report
+
+            run_path = Path(run)
+
+            # Validate run directory
+            if not run_path.exists():
+                typer.echo(f"Error: Run directory not found: {run}", err=True)
+                raise typer.Exit(1)
+
+            if not run_path.is_dir():
+                typer.echo(f"Error: Path is not a directory: {run}", err=True)
+                raise typer.Exit(1)
+
+            # Validate thresholds
+            if std_threshold < 0:
+                typer.echo("Error: --std-threshold must be non-negative", err=True)
+                raise typer.Exit(1)
+
+            if weak_score_threshold < 0:
+                typer.echo("Error: --weak-threshold must be non-negative", err=True)
+                raise typer.Exit(1)
+
+            if qualitative_count < 0:
+                typer.echo("Error: --qualitative-count must be non-negative", err=True)
+                raise typer.Exit(1)
+
+            if max_text_length < 1:
+                typer.echo("Error: --max-text-length must be positive", err=True)
+                raise typer.Exit(1)
+
+            typer.echo(f"Generating report for run: {run_path}", err=True)
+            typer.echo(f"  Std threshold: {std_threshold}", err=True)
+            typer.echo(f"  Weak threshold: {weak_score_threshold}", err=True)
+            typer.echo(f"  Qualitative samples: {qualitative_count}", err=True)
+
+            # Generate report
+            report_path = render_run_report(
+                run_dir=run_path,
+                std_threshold=std_threshold,
+                weak_score_threshold=weak_score_threshold,
+                qualitative_sample_count=qualitative_count,
+                max_text_length=max_text_length,
+                generate_html=html,
+                output_name=output_name,
+                html_output_name=html_output_name,
+            )
+
+            typer.echo(f"\n✓ Report generated successfully: {report_path}", err=True)
+
+            if html:
+                html_path = run_path / html_output_name
+                if html_path.exists():
+                    typer.echo(f"✓ HTML report: {html_path}", err=True)
+                else:
+                    typer.echo(
+                        "⚠ HTML report not generated (markdown library may not be installed)",
+                        err=True,
+                    )
 
     except FileNotFoundError as e:
         typer.echo(f"File error: {e}", err=True)

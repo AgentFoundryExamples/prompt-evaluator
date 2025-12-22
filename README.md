@@ -2770,13 +2770,16 @@ The Prompt Evaluator includes comprehensive support for generating human-readabl
 
 ### Generate Report Command
 
-Generate a formatted report from a dataset evaluation run:
+Generate a formatted report from a dataset evaluation run or comparison:
 
 ```bash
-# Basic report generation
+# Single-run report generation
 prompt-evaluator render-report --run runs/<run_id>
 
-# With custom thresholds and options
+# Comparison report generation
+prompt-evaluator render-report --compare runs/comparison.json
+
+# With custom options
 prompt-evaluator render-report \
   --run runs/<run_id> \
   --std-threshold 1.0 \
@@ -2784,17 +2787,30 @@ prompt-evaluator render-report \
   --qualitative-count 3 \
   --html \
   --output custom-report.md
+
+# Comparison report with custom options
+prompt-evaluator render-report \
+  --compare runs/comparison.json \
+  --top-cases 5 \
+  --html \
+  --output comparison-report.md
 ```
 
-**Options:**
+**Common Options:**
+- `--html`: Generate HTML report alongside Markdown
+- `--output`: Output filename for Markdown report (default: report.md)
+- `--html-output`: Output filename for HTML report (default: report.html)
+
+**Single-Run Report Options:**
 - `--run`: Path to run directory containing `dataset_evaluation.json` (required)
 - `--std-threshold`: Standard deviation threshold for marking metrics as unstable (default: 1.0)
 - `--weak-threshold`: Mean score threshold for marking metrics as weak (default: 3.0)
 - `--qualitative-count`: Number of worst-case examples to include (default: 3)
 - `--max-text-length`: Maximum text length for truncation (default: 500)
-- `--html`: Generate HTML report alongside Markdown
-- `--output`: Output filename for Markdown report (default: report.md)
-- `--html-output`: Output filename for HTML report (default: report.html)
+
+**Comparison Report Options:**
+- `--compare`: Path to comparison artifact JSON file (required)
+- `--top-cases`: Number of top regressed/improved cases to show per metric (default: 5)
 
 ### Report Structure
 
@@ -2805,12 +2821,21 @@ prompt-evaluator render-report \
 - **Per-Test-Case Summary**: Status, sample counts, with unstable/weak annotations
 - **Qualitative Examples**: Worst-performing cases with inputs, outputs, and judge rationales
 
+**Comparison Reports include:**
+- **Comparison Metadata**: Baseline/candidate run IDs, prompt versions, regression summary
+- **Suite-Level Metrics Comparison**: Baseline, candidate, delta, % change, and status for each metric
+- **Suite-Level Flags Comparison**: Baseline, candidate, delta, % change, and status for each flag
+- **Regressions Detected**: List of metrics and flags that regressed, sorted by severity
+- **Improvements Detected**: List of metrics and flags that improved, sorted by magnitude
+
 Reports automatically:
-- Flag metrics with high variance (std > threshold) as **UNSTABLE**
-- Flag metrics with low scores (mean < threshold) as **WEAK**
-- Truncate long text for readability
-- Link back to raw JSON artifacts
+- Flag metrics with high variance (std > threshold) as **UNSTABLE** (single-run)
+- Flag metrics with low scores (mean < threshold) as **WEAK** (single-run)
+- Detect regressions and improvements based on configurable thresholds (comparison)
+- Show deltas with appropriate signs and formatting
 - Handle missing data gracefully with N/A values
+- Link back to raw JSON artifacts
+- Truncate long text for readability
 
 ### Report Types
 
@@ -2822,23 +2847,24 @@ Reports automatically:
 
 **Compare-Runs Reports:**
 - Compare baseline vs candidate runs to detect regressions and improvements
-- Show metric and flag deltas with regression detection
-- Provide detailed breakdowns of improvements and regressions
-- Validate dataset and model compatibility
+- Show metric and flag deltas with regression detection based on thresholds
+- Provide detailed breakdowns of improvements and regressions with severity levels
+- Display suite-level comparison tables with baseline, candidate, delta, and % change columns
+- Highlight regressions (🔴) and improvements (✓) with clear visual indicators
+- Support metrics/flags present in only one run (displayed as N/A)
 
 ### Key Features
 
 - **Pure Consumer**: Reports are generated from existing JSON artifacts without modifying schemas
 - **Fully Configurable**: All thresholds, limits, and formatting options are adjustable via CLI or config
-- **Edge Case Handling**: Gracefully handles missing metrics, small datasets, and failed test cases
+- **Edge Case Handling**: Gracefully handles missing metrics, small datasets, failed test cases, and asymmetric comparisons
 - **HTML Conversion**: Optional HTML output with clean styling for sharing (requires `markdown` package)
 - **Artifact Links**: Reports include links back to raw JSON files for detailed inspection
+- **Deterministic Sorting**: Ties in regression/improvement lists sorted alphabetically for consistency
 
 ### Reporting Specification
 
 For the complete specification including section structures, table formats, configuration parameters, and edge case handling, see [docs/reporting.md](docs/reporting.md).
-
-**Note**: The `render-report` command implements single-run report generation. Compare-runs reporting (`report-compare`) is documented in the specification and will be implemented in future versions.
 
 ## Development
 

@@ -77,6 +77,10 @@
         {
           "type": "file",
           "name": "datasets.md"
+        },
+        {
+          "type": "file",
+          "name": "reporting.md"
         }
       ]
     },

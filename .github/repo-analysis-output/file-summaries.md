@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 25
+Total files: 27
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,8 @@ Total files: 25
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 57.35 KB  
-**LOC:** 1135  
+**Size:** 60.43 KB  
+**LOC:** 1196  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/comparison.py
@@ -74,8 +74,17 @@ Total files: 25
 **Role:** module-init  
 **Role Justification:** module initialization file '__init__'  
 **Summary:** Python module initialization (role: module-init)  
-**Size:** 0.83 KB  
-**LOC:** 7  
+**Size:** 0.95 KB  
+**LOC:** 8  
+**TODOs/FIXMEs:** 0  
+
+## src/prompt_evaluator/reporting/compare_report.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python core implementation  
+**Size:** 19.02 KB  
+**LOC:** 413  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/reporting/run_report.py
@@ -112,6 +121,15 @@ Total files: 25
 **Summary:** Python test file (role: test)  
 **Size:** 14.58 KB  
 **LOC:** 350  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_compare_report.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 20.28 KB  
+**LOC:** 436  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_compare_runs_cli.py

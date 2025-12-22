@@ -170,6 +170,10 @@
                 },
                 {
                   "type": "file",
+                  "name": "compare_report.py"
+                },
+                {
+                  "type": "file",
                   "name": "run_report.py"
                 }
               ]
@@ -221,6 +225,10 @@
         {
           "type": "file",
           "name": "test_basic.py"
+        },
+        {
+          "type": "file",
+          "name": "test_compare_report.py"
         },
         {
           "type": "file",

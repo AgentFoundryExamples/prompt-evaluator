@@ -8,8 +8,8 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 25
-- **Intra-repo dependencies**: 41
+- **Total files**: 27
+- **Intra-repo dependencies**: 44
 - **External stdlib dependencies**: 24
 - **External third-party dependencies**: 12
 
@@ -64,10 +64,11 @@ Total: 12 unique packages
 - `src/prompt_evaluator/cli.py` (8 dependents)
 - `src/prompt_evaluator/config.py` (6 dependents)
 - `src/prompt_evaluator/provider.py` (5 dependents)
+- `src/prompt_evaluator/reporting/run_report.py` (3 dependents)
 - `src/prompt_evaluator/__init__.py` (2 dependents)
 - `src/prompt_evaluator/dataset_evaluation.py` (2 dependents)
 - `src/prompt_evaluator/comparison.py` (2 dependents)
-- `src/prompt_evaluator/reporting/run_report.py` (2 dependents)
+- `src/prompt_evaluator/reporting/compare_report.py` (2 dependents)
 - `src/prompt_evaluator/reporting/__init__.py` (1 dependents)
 
 ## Files with Most Dependencies (Intra-Repo)
@@ -76,9 +77,9 @@ Total: 12 unique packages
 - `tests/test_basic.py` (5 dependencies)
 - `tests/test_prompt_version_metadata.py` (3 dependencies)
 - `src/prompt_evaluator/dataset_evaluation.py` (2 dependencies)
+- `src/prompt_evaluator/reporting/__init__.py` (2 dependencies)
 - `tests/test_aggregation.py` (2 dependencies)
 - `tests/test_config_models.py` (2 dependencies)
 - `tests/test_dataset_evaluation.py` (2 dependencies)
 - `tests/test_dataset_loader.py` (2 dependencies)
 - `tests/test_judge_models.py` (2 dependencies)
-- `tests/test_rubric_cli.py` (2 dependencies)

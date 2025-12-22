@@ -37,6 +37,7 @@
   └── prompt_evaluator
     ├── reporting
       ├── __init__.py
+      ├── compare_report.py
       └── run_report.py
     ├── __init__.py
     ├── cli.py
@@ -49,6 +50,7 @@
   ├── __init__.py
   ├── test_aggregation.py
   ├── test_basic.py
+  ├── test_compare_report.py
   ├── test_compare_runs_cli.py
   ├── test_comparison.py
   ├── test_config_models.py

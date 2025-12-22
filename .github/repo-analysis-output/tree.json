@@ -126,11 +126,19 @@
           "children": [
             {
               "type": "file",
+              "name": "comparison-report-sample.md"
+            },
+            {
+              "type": "file",
               "name": "comparison-sample.json"
             },
             {
               "type": "file",
               "name": "index.json"
+            },
+            {
+              "type": "file",
+              "name": "report-sample.md"
             },
             {
               "type": "file",

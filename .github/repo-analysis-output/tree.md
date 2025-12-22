@@ -27,8 +27,10 @@
     ├── content_quality.yaml
     └── default.yaml
   ├── run-artifacts
+    ├── comparison-report-sample.md
     ├── comparison-sample.json
     ├── index.json
+    ├── report-sample.md
     └── run-sample.json
   ├── .gitkeep
   ├── input.txt

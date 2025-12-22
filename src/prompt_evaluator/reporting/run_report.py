@@ -54,16 +54,17 @@ def load_run_artifact(run_path: Path) -> dict[str, Any]:
     """
     # Try standard dataset evaluation artifact name
     artifact_path = run_path / "dataset_evaluation.json"
-    
+
     if not artifact_path.exists():
         raise FileNotFoundError(
             f"Run artifact not found at {artifact_path}. "
             f"Expected dataset_evaluation.json in run directory."
         )
-    
+
     try:
-        with open(artifact_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        with open(artifact_path, encoding="utf-8") as f:
+            data: dict[str, Any] = json.load(f)
+            return data
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in artifact file: {e}") from e
 
@@ -82,31 +83,31 @@ def identify_unstable_metrics(
         Dictionary mapping test_case_id to list of unstable metric names
     """
     unstable_by_case: dict[str, list[str]] = {}
-    
+
     for tc in test_case_results:
         test_case_id = tc.get("test_case_id", "unknown")
         per_metric_stats = tc.get("per_metric_stats", {})
         unstable_metrics = []
-        
+
         for metric_name, stats in per_metric_stats.items():
             # Skip comment fields (keys starting with _)
             if metric_name.startswith("_"):
                 continue
-            
+
             # Skip if stats is not a dictionary
             if not isinstance(stats, dict):
                 continue
-            
+
             count = stats.get("count", 0)
             std = stats.get("std")
-            
+
             # Only flag as unstable if we have multiple samples (n > 1)
             if count > 1 and std is not None and std > std_threshold:
                 unstable_metrics.append(metric_name)
-        
+
         if unstable_metrics:
             unstable_by_case[test_case_id] = unstable_metrics
-    
+
     return unstable_by_case
 
 
@@ -124,29 +125,29 @@ def identify_weak_metrics(
         Dictionary mapping test_case_id to list of weak metric names
     """
     weak_by_case: dict[str, list[str]] = {}
-    
+
     for tc in test_case_results:
         test_case_id = tc.get("test_case_id", "unknown")
         per_metric_stats = tc.get("per_metric_stats", {})
         weak_metrics = []
-        
+
         for metric_name, stats in per_metric_stats.items():
             # Skip comment fields (keys starting with _)
             if metric_name.startswith("_"):
                 continue
-            
+
             # Skip if stats is not a dictionary
             if not isinstance(stats, dict):
                 continue
-            
+
             mean = stats.get("mean")
-            
+
             if mean is not None and mean < weak_threshold:
                 weak_metrics.append(metric_name)
-        
+
         if weak_metrics:
             weak_by_case[test_case_id] = weak_metrics
-    
+
     return weak_by_case
 
 
@@ -167,22 +168,22 @@ def select_qualitative_samples(
         List of test case dictionaries with samples, sorted by mean score (worst first)
     """
     test_case_results = run_data.get("test_case_results", [])
-    
+
     # Score each test case by its mean on the fallback metric
     scored_cases = []
     for tc in test_case_results:
         per_metric_stats = tc.get("per_metric_stats", {})
-        
+
         # Try to get the fallback metric's mean score
         metric_stats = per_metric_stats.get(fallback_metric, {})
         mean_score = metric_stats.get("mean")
-        
+
         if mean_score is not None:
             scored_cases.append((mean_score, tc))
-    
+
     # Sort by score ascending (worst first)
     scored_cases.sort(key=lambda x: x[0])
-    
+
     # Return top N cases
     return [tc for _, tc in scored_cases[:count]]
 
@@ -232,10 +233,10 @@ def escape_markdown(text: str) -> str:
         "!": "\\!",
         "|": "\\|",
     }
-    
+
     for char, replacement in replacements.items():
         text = text.replace(char, replacement)
-    
+
     return text
 
 
@@ -267,13 +268,13 @@ def render_metadata_section(run_data: dict[str, Any]) -> str:
         f"- **Generator Model**: {run_data.get('generator_config', {}).get('model_name', 'N/A')}",
         f"- **Judge Model**: {run_data.get('judge_config', {}).get('model_name', 'N/A')}",
     ]
-    
+
     if run_data.get('run_notes'):
         lines.append(f"- **Notes**: {run_data['run_notes']}")
-    
+
     # Add link to artifact
-    lines.append(f"\n[View Raw Artifact JSON](./dataset_evaluation.json)\n")
-    
+    lines.append("\n[View Raw Artifact JSON](./dataset_evaluation.json)\n")
+
     return "\n".join(lines)
 
 
@@ -292,9 +293,9 @@ def render_suite_metrics_table(run_data: dict[str, Any]) -> str:
         "| Metric | Mean | Std | Min | Max | Cases |",
         "|--------|------|-----|-----|-----|-------|",
     ]
-    
+
     overall_metric_stats = run_data.get("overall_metric_stats", {})
-    
+
     if not overall_metric_stats:
         lines.append("| *No metrics available* | - | - | - | - | - |")
     else:
@@ -302,26 +303,26 @@ def render_suite_metrics_table(run_data: dict[str, Any]) -> str:
             # Skip comment fields (keys starting with _)
             if metric_name.startswith("_"):
                 continue
-            
+
             # Skip if stats is not a dictionary
             if not isinstance(stats, dict):
                 continue
-            
+
             mean_of_means = stats.get("mean_of_means")
             std_of_means = stats.get("std_of_means")
             min_of_means = stats.get("min_of_means")
             max_of_means = stats.get("max_of_means")
             num_cases = stats.get("num_cases", 0)
-            
+
             mean_str = f"{mean_of_means:.2f}" if mean_of_means is not None else "N/A"
             std_str = f"{std_of_means:.2f}" if std_of_means is not None else "N/A"
             min_str = f"{min_of_means:.2f}" if min_of_means is not None else "N/A"
             max_str = f"{max_of_means:.2f}" if max_of_means is not None else "N/A"
-            
+
             lines.append(
                 f"| {metric_name} | {mean_str} | {std_str} | {min_str} | {max_str} | {num_cases} |"
             )
-    
+
     return "\n".join(lines) + "\n"
 
 
@@ -340,9 +341,9 @@ def render_suite_flags_table(run_data: dict[str, Any]) -> str:
         "| Flag | True Count | False Count | Total | Proportion |",
         "|------|------------|-------------|-------|------------|",
     ]
-    
+
     overall_flag_stats = run_data.get("overall_flag_stats", {})
-    
+
     if not overall_flag_stats:
         lines.append("| *No flags available* | - | - | - | - |")
     else:
@@ -350,25 +351,28 @@ def render_suite_flags_table(run_data: dict[str, Any]) -> str:
             # Skip comment fields (keys starting with _)
             if flag_name.startswith("_"):
                 continue
-            
+
             # Skip if stats is not a dictionary
             if not isinstance(stats, dict):
                 continue
-            
+
             true_count = stats.get("true_count", 0)
             false_count = stats.get("false_count", 0)
             total_count = stats.get("total_count", 0)
             true_proportion = stats.get("true_proportion", 0.0)
-            
+
             lines.append(
-                f"| {flag_name} | {true_count} | {false_count} | {total_count} | {true_proportion:.1%} |"
+                f"| {flag_name} | {true_count} | {false_count} | "
+                f"{total_count} | {true_proportion:.1%} |"
             )
-    
+
     return "\n".join(lines) + "\n"
 
 
 def render_test_case_table(
-    run_data: dict[str, Any], unstable_by_case: dict[str, list[str]], weak_by_case: dict[str, list[str]]
+    run_data: dict[str, Any],
+    unstable_by_case: dict[str, list[str]],
+    weak_by_case: dict[str, list[str]],
 ) -> str:
     """
     Render the per-test-case summary table with annotations.
@@ -386,9 +390,9 @@ def render_test_case_table(
         "| Case ID | Status | Samples | Annotations |",
         "|---------|--------|---------|-------------|",
     ]
-    
+
     test_case_results = run_data.get("test_case_results", [])
-    
+
     if not test_case_results:
         lines.append("| *No test cases* | - | - | - |")
     else:
@@ -396,7 +400,7 @@ def render_test_case_table(
             test_case_id = tc.get("test_case_id", "unknown")
             status = tc.get("status", "unknown")
             num_samples = tc.get("num_samples", 0)
-            
+
             # Build annotations
             annotations = []
             if test_case_id in unstable_by_case:
@@ -405,13 +409,13 @@ def render_test_case_table(
             if test_case_id in weak_by_case:
                 metrics = ", ".join(weak_by_case[test_case_id])
                 annotations.append(f"⚠️ **WEAK** ({metrics})")
-            
+
             annotations_str = "; ".join(annotations) if annotations else "-"
-            
+
             lines.append(
                 f"| `{test_case_id}` | {status} | {num_samples} | {annotations_str} |"
             )
-    
+
     return "\n".join(lines) + "\n"
 
 
@@ -432,19 +436,19 @@ def render_qualitative_section(
         "## Qualitative Examples\n",
         "*Showing worst-performing test cases based on mean metric scores.*\n",
     ]
-    
+
     if not qualitative_samples:
         lines.append("*No qualitative samples available.*\n")
         return "\n".join(lines)
-    
+
     for idx, tc in enumerate(qualitative_samples, 1):
         test_case_id = tc.get("test_case_id", "unknown")
         test_case_input = tc.get("test_case_input", "")
         samples = tc.get("samples", [])
         per_metric_stats = tc.get("per_metric_stats", {})
-        
+
         lines.append(f"### Example {idx}: `{test_case_id}`\n")
-        
+
         # Show metric scores for this case
         if per_metric_stats:
             lines.append("**Metrics for this case:**\n")
@@ -452,30 +456,30 @@ def render_qualitative_section(
                 # Skip comment fields (keys starting with _)
                 if metric_name.startswith("_"):
                     continue
-                
+
                 # Skip if stats is not a dictionary
                 if not isinstance(stats, dict):
                     continue
-                
+
                 mean = stats.get("mean")
                 std = stats.get("std")
                 mean_str = f"{mean:.2f}" if mean is not None else "N/A"
                 std_str = f"{std:.2f}" if std is not None else "N/A"
                 lines.append(f"- {metric_name}: mean={mean_str}, std={std_str}")
             lines.append("")
-        
+
         # Show input
         lines.append("**Input:**\n")
         truncated_input = truncate_text(test_case_input, max_text_length)
         lines.append(f"```\n{truncated_input}\n```\n")
-        
+
         # Show up to N sample outputs
         if samples:
             lines.append("**Sample Outputs:**\n")
             for sample_idx, sample in enumerate(samples[:3], 1):  # Show max 3 samples
                 generator_output = sample.get("generator_output", "")
                 truncated_output = truncate_text(generator_output, max_text_length)
-                
+
                 # Show judge metrics for this sample
                 judge_metrics = sample.get("judge_metrics", {})
                 metrics_summary = []
@@ -483,20 +487,20 @@ def render_qualitative_section(
                     # Skip comment fields
                     if metric_name.startswith("_"):
                         continue
-                    
+
                     # Skip if metric_data is not a dictionary
                     if not isinstance(metric_data, dict):
                         continue
-                    
+
                     score = metric_data.get("score")
                     if score is not None:
                         metrics_summary.append(f"{metric_name}={score:.1f}")
-                
+
                 metrics_str = ", ".join(metrics_summary) if metrics_summary else "no scores"
-                
+
                 lines.append(f"*Sample {sample_idx} ({metrics_str}):*\n")
                 lines.append(f"```\n{truncated_output}\n```\n")
-                
+
                 # Show rationales
                 if judge_metrics:
                     lines.append("*Judge rationales:*")
@@ -504,11 +508,11 @@ def render_qualitative_section(
                         # Skip comment fields
                         if metric_name.startswith("_"):
                             continue
-                        
+
                         # Skip if metric_data is not a dictionary
                         if not isinstance(metric_data, dict):
                             continue
-                        
+
                         rationale = metric_data.get("rationale", "")
                         if rationale:
                             truncated_rationale = truncate_text(rationale, 200)
@@ -516,9 +520,9 @@ def render_qualitative_section(
                     lines.append("")
         else:
             lines.append("*No samples available for this case.*\n")
-        
+
         lines.append("---\n")
-    
+
     return "\n".join(lines)
 
 
@@ -537,12 +541,12 @@ def render_markdown_report(run_data: dict[str, Any], config: ReportConfig) -> st
     test_case_results = run_data.get("test_case_results", [])
     unstable_by_case = identify_unstable_metrics(test_case_results, config.std_threshold)
     weak_by_case = identify_weak_metrics(test_case_results, config.weak_score_threshold)
-    
+
     # Select qualitative samples
     qualitative_samples = select_qualitative_samples(
         run_data, config.qualitative_sample_count
     )
-    
+
     # Render sections
     sections = [
         render_metadata_section(run_data),
@@ -551,7 +555,7 @@ def render_markdown_report(run_data: dict[str, Any], config: ReportConfig) -> st
         render_test_case_table(run_data, unstable_by_case, weak_by_case),
         render_qualitative_section(qualitative_samples, config.max_text_length),
     ]
-    
+
     return "\n".join(sections)
 
 
@@ -568,13 +572,13 @@ def convert_markdown_to_html(markdown_text: str) -> str | None:
         HTML string, or None if converter unavailable
     """
     try:
-        import markdown
-        
+        import markdown  # type: ignore[import-untyped]
+
         html = markdown.markdown(
             markdown_text,
             extensions=["tables", "fenced_code", "nl2br"]
         )
-        
+
         # Wrap in basic HTML template
         html_doc = f"""<!DOCTYPE html>
 <html lang="en">
@@ -584,7 +588,8 @@ def convert_markdown_to_html(markdown_text: str) -> str | None:
     <title>Evaluation Run Report</title>
     <style>
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+                Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
             max-width: 1200px;
             margin: 0 auto;
@@ -635,7 +640,7 @@ def convert_markdown_to_html(markdown_text: str) -> str | None:
 {html}
 </body>
 </html>"""
-        
+
         return html_doc
     except ImportError:
         logger.warning(
@@ -677,14 +682,14 @@ def render_run_report(
     # Validate run directory
     if not run_dir.exists():
         raise FileNotFoundError(f"Run directory not found: {run_dir}")
-    
+
     if not run_dir.is_dir():
         raise ValueError(f"Path is not a directory: {run_dir}")
-    
+
     # Load run artifact
     logger.info(f"Loading run artifact from {run_dir}")
     run_data = load_run_artifact(run_dir)
-    
+
     # Create config
     config = ReportConfig(
         std_threshold=std_threshold,
@@ -693,16 +698,16 @@ def render_run_report(
         max_text_length=max_text_length,
         generate_html=generate_html,
     )
-    
+
     # Render Markdown report
     logger.info("Rendering Markdown report")
     markdown_report = render_markdown_report(run_data, config)
-    
+
     # Write Markdown file
     markdown_path = run_dir / output_name
     markdown_path.write_text(markdown_report, encoding="utf-8")
     logger.info(f"Markdown report written to {markdown_path}")
-    
+
     # Optionally generate HTML
     if generate_html:
         html_content = convert_markdown_to_html(markdown_report)
@@ -712,5 +717,5 @@ def render_run_report(
             logger.info(f"HTML report written to {html_path}")
         else:
             logger.warning("HTML generation skipped (converter unavailable)")
-    
+
     return markdown_path

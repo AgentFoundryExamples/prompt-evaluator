@@ -417,7 +417,7 @@ class TestThresholdEdgeCases:
     """Tests for threshold boundary conditions and edge cases."""
 
     def test_metric_delta_exactly_on_threshold_positive(self):
-        """Test metric delta exactly equal to threshold (negative direction) - should not regress."""
+        """Test metric delta equal to threshold - should not regress."""
         baseline_stats = {"mean_of_means": 5.0}
         candidate_stats = {"mean_of_means": 4.9}  # Delta = -0.1, exactly on threshold
 
@@ -795,7 +795,9 @@ class TestComplexScenarios:
         baseline_path.write_text(json.dumps(baseline_data))
         candidate_path.write_text(json.dumps(candidate_data))
 
-        result = compare_runs(baseline_path, candidate_path, metric_threshold=0.1, flag_threshold=0.05)
+        result = compare_runs(
+            baseline_path, candidate_path, metric_threshold=0.1, flag_threshold=0.05
+        )
 
         assert result.has_regressions
         # clarity regressed by 0.3 (above threshold)
@@ -808,7 +810,9 @@ class TestComplexScenarios:
         assert clarity_delta.is_regression
         assert clarity_delta.delta == pytest.approx(-0.3)
 
-        completeness_delta = next(d for d in result.metric_deltas if d.metric_name == "completeness")
+        completeness_delta = next(
+            d for d in result.metric_deltas if d.metric_name == "completeness"
+        )
         assert not completeness_delta.is_regression  # Below threshold
         assert completeness_delta.delta == pytest.approx(-0.05)
 

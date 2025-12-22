@@ -1190,6 +1190,206 @@ If some samples fail during evaluation:
 - Consider using `--max-cases` for quick testing
 
 
+## Prompt Versioning and Run Tracking
+
+The Prompt Evaluator provides built-in support for tracking prompt versions and associating metadata with evaluation runs. This enables systematic comparison of prompt iterations and tracking of prompt evolution over time.
+
+### Prompt Version Metadata
+
+Every evaluation run can be tagged with:
+- **Prompt Version ID**: A human-readable version identifier (e.g., `v1.0`, `baseline`, `experiment-2025-01-15`)
+- **Prompt Hash**: An automatic SHA-256 hash of the system prompt file content
+- **Run Notes**: Free-form notes about the evaluation run
+
+These metadata fields appear in all run artifacts and enable tracking which prompt version produced which results.
+
+#### Using --prompt-version
+
+The `--prompt-version` flag allows you to explicitly tag runs with a version identifier:
+
+```bash
+# Tag a baseline evaluation
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt prompts/system-v1.txt \
+  --num-samples 5 \
+  --prompt-version "v1.0-baseline" \
+  --run-note "Initial baseline evaluation"
+
+# Tag a candidate evaluation with different prompt
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt prompts/system-v2.txt \
+  --num-samples 5 \
+  --prompt-version "v2.0-clarity-improvements" \
+  --run-note "Added explicit clarity guidelines to system prompt"
+```
+
+**Both `evaluate-single` and `evaluate-dataset` commands support `--prompt-version` and `--run-note` flags.**
+
+#### Default Hashing Behavior
+
+If you don't provide `--prompt-version`, the tool automatically computes a SHA-256 hash of your system prompt file and uses it as both the `prompt_version_id` and `prompt_hash`:
+
+```bash
+# Without explicit version - hash is used automatically
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt prompts/system.txt \
+  --num-samples 5
+```
+
+In the resulting artifact:
+```json
+{
+  "prompt_version_id": "a1b2c3d4...",  // Hash used as version ID
+  "prompt_hash": "a1b2c3d4...",        // Same hash for reproducibility
+  "run_notes": null
+}
+```
+
+With explicit version:
+```json
+{
+  "prompt_version_id": "v1.0-baseline",  // Your custom version
+  "prompt_hash": "a1b2c3d4...",          // Hash still computed for tracking
+  "run_notes": "Initial baseline evaluation"
+}
+```
+
+#### Prompt Metadata in Artifacts
+
+All evaluation artifacts include these fields in the JSON output:
+
+- `prompt_version_id`: The version identifier (user-provided or hash)
+- `prompt_hash`: SHA-256 hash of the system prompt file content (always computed)
+- `run_notes`: Optional notes about the run (null if not provided)
+
+**Why both fields?**
+- `prompt_version_id`: Human-readable identifier for easy reference
+- `prompt_hash`: Content-based hash ensures you can detect if the prompt file changed between runs with the same version ID
+- Together they provide both convenience and safety
+
+### Tagging Runs for Comparison
+
+When preparing to compare two runs, tag them clearly:
+
+```bash
+# Step 1: Create baseline with current production prompt
+prompt-evaluator evaluate-dataset \
+  --dataset datasets/prod_test_cases.yaml \
+  --system-prompt prompts/production.txt \
+  --num-samples 10 \
+  --prompt-version "v1.2-production" \
+  --run-note "Production baseline before optimization" \
+  --output-dir runs/baselines
+
+# Step 2: Make changes to your prompt and create candidate run
+# Edit prompts/production.txt with improvements...
+
+prompt-evaluator evaluate-dataset \
+  --dataset datasets/prod_test_cases.yaml \
+  --system-prompt prompts/production.txt \
+  --num-samples 10 \
+  --prompt-version "v1.3-candidate-clarity" \
+  --run-note "Added structured output format and clarity guidelines" \
+  --output-dir runs/candidates
+
+# Step 3: Compare the runs (see Compare Runs Command section)
+prompt-evaluator compare-runs \
+  --baseline runs/baselines/<run-id>/dataset_evaluation.json \
+  --candidate runs/candidates/<run-id>/dataset_evaluation.json
+```
+
+### Best Practices for Version Tracking
+
+**1. Use Semantic Versioning:**
+```bash
+--prompt-version "v1.0"      # Initial version
+--prompt-version "v1.1"      # Minor improvements
+--prompt-version "v2.0"      # Major redesign
+```
+
+**2. Include Descriptive Labels:**
+```bash
+--prompt-version "v1.2-baseline"           # Baseline for comparison
+--prompt-version "v1.3-add-examples"       # What changed
+--prompt-version "v2.0-structured-output"  # Key feature
+```
+
+**3. Use Run Notes for Context:**
+```bash
+--run-note "Baseline evaluation before Q4 optimization project"
+--run-note "Testing reduced temperature (0.3 vs 0.7) for consistency"
+--run-note "Candidate with explicit constraint checklist added to prompt"
+```
+
+**4. Keep Version IDs Consistent with Git Tags:**
+```bash
+# Tag your prompt file in git
+git tag -a prompt-v1.2-prod -m "Production prompt version 1.2"
+git push --tags
+
+# Use same version in evaluation
+--prompt-version "v1.2-prod"
+```
+
+**5. Track Hashes for Reproducibility:**
+
+Check if prompt files actually differ:
+```bash
+# Extract hashes from two run artifacts
+cat runs/run1/dataset_evaluation.json | jq -r '.prompt_hash'
+cat runs/run2/dataset_evaluation.json | jq -r '.prompt_hash'
+
+# Different hashes = different prompt content = not directly comparable
+# Same hash = identical prompts = fair comparison
+```
+
+### Troubleshooting Version Tracking
+
+**Problem: Same prompt_version_id but different prompt_hash**
+
+This means someone changed the prompt file without updating the version:
+
+```json
+// Run 1: v1.0-baseline
+{
+  "prompt_version_id": "v1.0-baseline",
+  "prompt_hash": "abc123..."
+}
+
+// Run 2: v1.0-baseline (but prompt was edited!)
+{
+  "prompt_version_id": "v1.0-baseline",
+  "prompt_hash": "def456..."  // Different hash!
+}
+```
+
+**Solution:** Always update `--prompt-version` when you change the prompt file.
+
+**Problem: Can't remember which prompt file a run used**
+
+Use `prompt_hash` to verify:
+```bash
+# Compute hash of suspected prompt file
+sha256sum prompts/system-v1.txt
+
+# Compare with hash in artifact
+cat runs/<run-id>/dataset_evaluation.json | jq -r '.prompt_hash'
+
+# If they match, you found the right file
+```
+
+**Problem: Need to find all runs using a specific prompt version**
+
+Create a manual index file (see `examples/run-artifacts/index.json` for a template):
+```bash
+# Search through run artifacts
+find runs -name 'dataset_evaluation.json' -exec jq -r \
+  'select(.prompt_version_id == "v1.2-prod") | .run_id' {} \;
+```
+
 ### Compare Runs Command
 
 The `compare-runs` command compares two evaluation runs to detect performance regressions. It computes deltas for metrics and flags, and flags regressions based on configurable thresholds.
@@ -1450,6 +1650,656 @@ fi
 **Static Thresholds:**
 - Same threshold applies to all metrics/flags
 - Future versions may support per-metric/per-flag thresholds
+
+**No Model Compatibility Enforcement:**
+- The tool does not validate or enforce model consistency between baseline and candidate runs
+- You can compare runs with different generator or judge models, but the tool will not warn you
+- Cross-model comparisons are **technically possible but methodologically problematic** because you cannot isolate prompt changes from model differences
+- **Strong recommendation:** Always use identical models (same version) for baseline and candidate to ensure valid comparisons
+
+**No Statistical Significance Testing:**
+- The tool does not perform statistical hypothesis testing (t-tests, p-values, etc.)
+- Regressions are detected purely by threshold-based delta comparison
+- Users must determine appropriate sample sizes for statistical confidence
+
+**No Built-in Visualization:**
+- Comparison results are text and JSON only
+- For visualizations, export JSON and use external tools (e.g., plotting libraries, dashboards)
+
+## Run Comparison Workflows
+
+This section provides end-to-end guidance on comparing prompt versions, choosing thresholds, and interpreting comparison results.
+
+### Baseline vs Candidate Workflow
+
+The recommended workflow for systematic prompt improvement:
+
+#### Step 1: Establish a Baseline
+
+Run an evaluation with your current prompt and tag it as the baseline:
+
+```bash
+# Establish baseline with production prompt
+prompt-evaluator evaluate-dataset \
+  --dataset datasets/test_suite.yaml \
+  --system-prompt prompts/production-v1.txt \
+  --num-samples 10 \
+  --prompt-version "v1.0-baseline" \
+  --run-note "Production baseline - current stable version" \
+  --seed 42 \
+  --temperature 0.7 \
+  --output-dir runs/baselines
+
+# Note the run ID from output for later comparison
+# e.g., runs/baselines/abc123-def456-...
+```
+
+**Baseline recommendations:**
+- Use at least 5-10 samples per test case for reliable statistics
+- Use a seed if you want reproducible baselines
+- Document generator settings (model, temperature, seed) in run notes
+- Store baseline artifacts in a dedicated directory structure
+
+#### Step 2: Make Prompt Changes
+
+Edit your system prompt with improvements:
+
+```bash
+# Make changes to prompts/production-v1.txt
+# Examples:
+# - Add clarity guidelines
+# - Include few-shot examples
+# - Adjust constraint specifications
+# - Restructure instructions
+
+# Save as new version (or edit in place and track via version control)
+cp prompts/production-v1.txt prompts/production-v2.txt
+# ... make edits to v2 ...
+```
+
+#### Step 3: Run Candidate Evaluation
+
+Evaluate with the new prompt using **identical dataset and settings**:
+
+```bash
+# Run candidate evaluation with new prompt
+prompt-evaluator evaluate-dataset \
+  --dataset datasets/test_suite.yaml \
+  --system-prompt prompts/production-v2.txt \
+  --num-samples 10 \
+  --prompt-version "v2.0-candidate-clarity" \
+  --run-note "Added structured output format and explicit clarity guidelines" \
+  --seed 42 \
+  --temperature 0.7 \
+  --output-dir runs/candidates
+
+# Note the run ID for comparison
+```
+
+**Critical: Keep evaluation settings consistent:**
+- ✅ Same dataset file (tool validates matching `dataset_hash`)
+- ✅ Same number of samples per test case
+- ✅ Same generator model and temperature
+- ✅ Same judge model and rubric
+- ✅ Same seed for reproducible comparison (optional but recommended)
+
+#### Step 4: Compare Runs
+
+Use `compare-runs` to detect regressions:
+
+```bash
+# Compare baseline vs candidate
+prompt-evaluator compare-runs \
+  --baseline runs/baselines/<baseline-run-id>/dataset_evaluation.json \
+  --candidate runs/candidates/<candidate-run-id>/dataset_evaluation.json \
+  --metric-threshold 0.1 \
+  --flag-threshold 0.05 \
+  --output comparison-v1-vs-v2.json
+```
+
+The comparison will output:
+- Human-readable summary to stderr (shown in terminal)
+- Full JSON results to stdout
+- Optional saved file if `--output` provided
+
+#### Step 5: Interpret Results
+
+Read the comparison summary carefully:
+
+**If no regressions detected (exit code 0):**
+```
+✓ 0 regression(s) detected
+```
+→ Candidate is safe to deploy (or proceed with further testing)
+
+**If regressions detected (exit code 1):**
+```
+🔴 1 regression(s) detected
+
+  clarity: 🔴 REGRESSION
+    Baseline:  4.200
+    Candidate: 3.800
+    Delta: -0.400
+```
+→ Review changes and decide:
+1. Fix the prompt to address regression
+2. Accept the regression if tradeoff is worthwhile
+3. Adjust threshold if regression is acceptable variance
+
+#### Step 6: Decision Making
+
+Based on comparison results, choose next action:
+
+**Scenario A: No Regressions, Positive Improvements**
+```bash
+# All metrics improved or unchanged
+# → Deploy the candidate prompt
+cp prompts/production-v2.txt prompts/production.txt
+git commit -m "Deploy v2.0 - clarity improvements with no regressions"
+```
+
+**Scenario B: Minor Regressions in Non-Critical Metrics**
+```bash
+# Small regression in one metric, big improvement in another
+# → Decide if tradeoff is acceptable
+# → Document decision in run notes or git commit
+```
+
+**Scenario C: Major Regressions**
+```bash
+# Go back to baseline or iterate on candidate
+# → Review what changed in the prompt
+# → Make targeted fixes
+# → Re-run Step 3-4 with new candidate version
+```
+
+### Choosing Regression Thresholds
+
+Thresholds define what counts as a regression. Choose based on your risk tolerance and metric scales.
+
+#### Default Thresholds
+
+The tool provides sensible defaults:
+- **Metric threshold: 0.1** (10% of a 1-5 scale = ~2% relative change)
+- **Flag threshold: 0.05** (5 percentage points, e.g., 10% → 15%)
+
+These work well for most use cases with 1-5 scale metrics and binary flags.
+
+#### Strict Thresholds (Catch Small Regressions)
+
+Use when:
+- Deploying to production with high quality requirements
+- Small regressions could have business impact
+- You have high confidence in measurement accuracy (10+ samples per case)
+
+```bash
+prompt-evaluator compare-runs \
+  --baseline baseline.json \
+  --candidate candidate.json \
+  --metric-threshold 0.05 \  # Half the default
+  --flag-threshold 0.02      # <2 percentage point changes flagged
+```
+
+**Tradeoff:** More false positives (flagging acceptable variance as regressions).
+
+#### Relaxed Thresholds (Only Catch Major Regressions)
+
+Use when:
+- Experimenting with prompts in early iterations
+- Minor regressions are acceptable for other gains
+- Sample sizes are small (5 or fewer samples) and variance is high
+
+```bash
+prompt-evaluator compare-runs \
+  --baseline baseline.json \
+  --candidate candidate.json \
+  --metric-threshold 0.2 \   # Double the default
+  --flag-threshold 0.1       # Only flag 10+ percentage point changes
+```
+
+**Tradeoff:** May miss smaller regressions that accumulate over time.
+
+#### Threshold Selection Guidelines
+
+**For metrics on 1-5 scale:**
+| Threshold | Meaning | When to Use |
+|-----------|---------|-------------|
+| 0.05 | Very strict - 1% of scale | Production deploys, high sample counts (20+) |
+| 0.1 | Moderate - 2% of scale | **Default** - good balance for most cases |
+| 0.2 | Relaxed - 4% of scale | Early experiments, low sample counts (<5) |
+| 0.3 | Very relaxed - 6% of scale | Initial prototyping, accepting higher variance |
+
+**For flags (proportion changes):**
+| Threshold | Meaning | When to Use |
+|-----------|---------|-------------|
+| 0.01-0.02 | Very strict - 1-2% point change | Critical flags (security, correctness) |
+| 0.05 | Moderate - 5% point change | **Default** - good balance |
+| 0.1 | Relaxed - 10% point change | Non-critical flags or exploratory work |
+
+#### Calculating Threshold for Your Metrics
+
+**Important:** Thresholds represent **absolute changes** on the metric scale, not relative percentages.
+
+The default threshold of 0.1 on a 1-5 scale means:
+- Absolute change: 0.1 points (e.g., 4.0 → 3.9)
+- Relative change: ~2% of scale range (0.1 / 5.0)
+
+If your metrics use a different scale, you should scale thresholds to maintain the same **relative sensitivity**:
+
+```python
+# For a 0-10 scale (maintaining ~2% sensitivity):
+metric_threshold = 0.1 * (10 / 5)  # = 0.2 (2% of 10-point scale)
+
+# For a 0-100 scale (maintaining ~2% sensitivity):
+metric_threshold = 0.1 * (100 / 5)  # = 2.0 (2% of 100-point scale)
+```
+
+**General formula (preserves relative sensitivity):**
+```
+threshold = default_threshold * (your_scale_max / 5)
+```
+
+**Alternative approach (absolute point changes):**
+If you prefer to think in absolute terms (e.g., "flag anything worse by 2 points regardless of scale"), use the same absolute threshold across all scales. However, this means a 2-point drop is more significant on a 1-5 scale (40% drop) than on a 0-100 scale (2% drop).
+
+#### Recommended Threshold Strategies
+
+**Strategy 1: Conservative (Minimize Risk)**
+- Start with strict thresholds (0.05 for metrics)
+- Gradually relax if you get too many false positives
+- Good for production systems and mature prompts
+
+**Strategy 2: Iterative (Balance Speed and Safety)**
+- Use default thresholds (0.1 for metrics, 0.05 for flags)
+- Review flagged regressions case-by-case
+- Good for active development and prompt optimization
+
+**Strategy 3: Exploratory (Maximize Learning)**
+- Use relaxed thresholds (0.2 for metrics, 0.1 for flags)
+- Focus on major improvements rather than avoiding minor regressions
+- Good for research, prototyping, and early iterations
+
+### Interpreting Comparison Results
+
+The comparison output shows three possible states for each metric/flag:
+
+#### Improved (✓)
+
+**Metric:**
+```
+  semantic_fidelity: ✓
+    Baseline:  4.000
+    Candidate: 4.300
+    Delta: +0.300
+    Change: +7.50%
+```
+
+**Interpretation:**
+- Candidate score is higher than baseline
+- No regression - this is an improvement
+- Safe to proceed (this metric improved)
+
+**Flag:**
+```
+  invented_constraints: ✓
+    Baseline:  10.00%
+    Candidate: 5.00%
+    Delta: -5.00%
+    Change: -50.00%
+```
+
+**Interpretation:**
+- Flag occurs less frequently in candidate
+- Fewer problems - this is an improvement
+- Negative delta for flags is good (lower proportion of issues)
+
+#### Unchanged (✓)
+
+```
+  clarity: ✓
+    Baseline:  4.500
+    Candidate: 4.520
+    Delta: +0.020
+    Change: +0.44%
+```
+
+**Interpretation:**
+- Delta is below threshold (0.02 < 0.1)
+- Effectively unchanged - within acceptable variance
+- Not flagged as regression
+
+#### Regressed (🔴 REGRESSION)
+
+**Metric:**
+```
+  clarity: 🔴 REGRESSION
+    Baseline:  4.200
+    Candidate: 3.800
+    Delta: -0.400
+    Change: -9.52%
+```
+
+**Interpretation:**
+- Candidate score decreased by more than threshold
+- Regression detected - requires attention
+- Exit code 1 will be returned
+
+**Flag:**
+```
+  omitted_constraints: 🔴 REGRESSION
+    Baseline:  5.00%
+    Candidate: 12.00%
+    Delta: +7.00%
+    Change: +140.00%
+```
+
+**Interpretation:**
+- Flag occurs more frequently in candidate
+- More problems detected - this is a regression
+- Positive delta for flags is bad (higher proportion of issues)
+
+#### Edge Cases in Interpretation
+
+**Missing Metrics:**
+```json
+{
+  "metric_name": "new_metric",
+  "baseline_mean": null,
+  "candidate_mean": 4.2,
+  "delta": null,
+  "is_regression": false
+}
+```
+- Metric exists only in candidate (or baseline)
+- No regression flagged (can't compare without both values)
+- Review manually to assess new metric
+
+**Zero Baseline:**
+```json
+{
+  "metric_name": "clarity",
+  "baseline_mean": 0.0,
+  "candidate_mean": 4.2,
+  "delta": 4.2,
+  "percent_change": null
+}
+```
+- Percent change is null or infinite (division by zero)
+- Delta is still computed
+- Regression detection uses absolute delta only
+
+**Very Small Changes:**
+```json
+{
+  "delta": -0.001,
+  "is_regression": false,
+  "threshold_used": 0.1
+}
+```
+- Delta is negative but smaller than threshold
+- Not flagged as regression
+- Likely measurement noise or sampling variance
+
+### Dataset and Model Compatibility
+
+For valid comparisons, baseline and candidate must meet compatibility requirements:
+
+#### Dataset Compatibility
+
+**✅ Same dataset (not enforced, user responsibility):**
+```bash
+# The tool does NOT validate that datasets match
+# You must manually ensure baseline and candidate use the same dataset
+```
+
+The compare-runs command will compare any two run artifacts without validation. Results are only meaningful if:
+- Same test cases (verify by checking matching `dataset_hash` in both artifacts)
+- Same number of samples per case
+- Same rubric (verify by checking matching `rubric_hash` if present)
+
+**❌ Different datasets:**
+```bash
+# Baseline used dataset-v1.yaml (50 test cases)
+# Candidate used dataset-v2.yaml (100 test cases)
+# → Comparison is not valid! Tool will not prevent this.
+```
+
+Even if some test cases overlap, comparing different datasets produces meaningless results:
+- Overall statistics aggregate different test cases
+- You can't isolate prompt changes from dataset changes
+- Per-case deltas are not computed
+
+**Solution:** Always manually verify the exact same dataset file was used for baseline and candidate. Check `dataset_hash` fields in both artifacts to confirm.
+
+#### Model Compatibility
+
+**✅ Same models (strongly recommended):**
+```bash
+# Baseline: gpt-5.1 generator, gpt-5.1 judge
+# Candidate: gpt-5.1 generator, gpt-5.1 judge
+# → Valid comparison
+```
+
+**⚠️ Different models (not blocked but problematic):**
+```bash
+# Baseline: gpt-4 generator, gpt-4 judge
+# Candidate: gpt-5.1 generator, gpt-5.1 judge
+# → Tool will not prevent this comparison, but results are confounded
+```
+
+When models differ, you cannot isolate:
+- Prompt improvements vs. model improvements
+- Regression due to prompt vs. different model behavior
+
+The tool does **not** validate or enforce model consistency. It's the user's responsibility to ensure models match.
+
+**Best practice:**
+- Always use identical generator and judge models for valid prompt comparisons
+- If models must differ, document it clearly in run notes and interpret results with extreme caution
+- Consider running separate experiments: same prompt with different models
+
+**When cross-model comparison might be acceptable:**
+- You're intentionally testing a combined prompt + model upgrade (not just the prompt)
+- You're doing exploratory analysis (not production decisions)
+- You clearly document that results reflect both prompt AND model changes
+
+#### Rubric Compatibility
+
+**✅ Same rubric (validated by hash):**
+```bash
+# Both runs use examples/rubrics/default.yaml
+# rubric_hash matches → metrics are directly comparable
+```
+
+**❌ Different rubrics:**
+```bash
+# Baseline: default.yaml (semantic_fidelity, clarity)
+# Candidate: content_quality.yaml (factual_accuracy, completeness)
+# → Metrics have different names and definitions!
+```
+
+If rubrics differ:
+- Metric names may not match
+- Comparison includes only overlapping metrics
+- Results may be misleading if definitions changed
+
+**Solution:** Use the same rubric file for baseline and candidate. If you must change the rubric, run a new baseline with the new rubric before comparing.
+
+### Parsing Comparison Artifacts
+
+Comparison results are output as JSON for programmatic consumption:
+
+#### Structure of Comparison JSON
+
+```json
+{
+  "baseline_run_id": "abc123...",
+  "candidate_run_id": "def456...",
+  "baseline_prompt_version": "v1.0",
+  "candidate_prompt_version": "v2.0",
+  "metric_deltas": [ ... ],
+  "flag_deltas": [ ... ],
+  "has_regressions": true,
+  "regression_count": 2,
+  "comparison_timestamp": "2025-12-22T10:00:00+00:00",
+  "thresholds_config": {
+    "metric_threshold": 0.1,
+    "flag_threshold": 0.05
+  }
+}
+```
+
+For a detailed comparison artifact schema with annotated examples and interpretation guidance, see `examples/run-artifacts/comparison-sample.json`.
+
+#### Extracting Key Information
+
+**Check if any regressions detected:**
+```bash
+cat comparison.json | jq '.has_regressions'
+# Output: true or false
+
+cat comparison.json | jq '.regression_count'
+# Output: number of regressions
+```
+
+**List all regressed metrics:**
+```bash
+cat comparison.json | jq -r '.metric_deltas[] | select(.is_regression) | .metric_name'
+# Output: List of metric names with regressions
+```
+
+**Find largest regression:**
+```bash
+cat comparison.json | jq -r '.metric_deltas | sort_by(.delta) | .[0] | "\(.metric_name): \(.delta)"'
+# Output: metric_name: -0.42
+```
+
+**Extract baseline vs candidate prompt versions:**
+```bash
+cat comparison.json | jq -r '"\(.baseline_prompt_version) → \(.candidate_prompt_version)"'
+# Output: v1.0 → v2.0
+```
+
+**Get all delta details as CSV:**
+```bash
+cat comparison.json | jq -r '.metric_deltas[] | [.metric_name, .baseline_mean, .candidate_mean, .delta, .is_regression] | @csv'
+# Output: CSV format for spreadsheet analysis
+```
+
+#### Building Automation
+
+**Example: CI/CD Script**
+
+```bash
+#!/bin/bash
+# compare-and-deploy.sh
+
+BASELINE=$1
+CANDIDATE=$2
+OUTPUT="comparison-result.json"
+
+# Run comparison
+prompt-evaluator compare-runs \
+  --baseline "$BASELINE" \
+  --candidate "$CANDIDATE" \
+  --metric-threshold 0.1 \
+  --flag-threshold 0.05 \
+  --output "$OUTPUT"
+
+EXIT_CODE=$?
+
+# Parse results
+REGRESSIONS=$(jq -r '.regression_count' "$OUTPUT")
+PROMPT_VERSION=$(jq -r '.candidate_prompt_version' "$OUTPUT")
+
+if [ $EXIT_CODE -eq 0 ]; then
+  echo "✅ No regressions detected for $PROMPT_VERSION"
+  echo "Safe to deploy candidate prompt"
+  exit 0
+else
+  echo "❌ $REGRESSIONS regression(s) detected for $PROMPT_VERSION"
+  echo "Review comparison results before deploying:"
+  jq '.metric_deltas[] | select(.is_regression)' "$OUTPUT"
+  exit 1
+fi
+```
+
+**Example: Slack Notification**
+
+```python
+import json
+import requests
+
+with open("comparison-result.json") as f:
+    result = json.load(f)
+
+message = f"""
+Prompt Comparison: {result['baseline_prompt_version']} → {result['candidate_prompt_version']}
+Regressions: {result['regression_count']}
+Status: {"🔴 BLOCKED" if result['has_regressions'] else "✅ APPROVED"}
+"""
+
+# Send to Slack webhook
+requests.post(SLACK_WEBHOOK_URL, json={"text": message})
+```
+
+### Limitations and Caveats
+
+Be aware of these limitations when interpreting comparison results:
+
+#### No Statistical Significance Testing
+
+The tool does **not** perform statistical hypothesis testing:
+- No t-tests, p-values, or confidence intervals
+- Regressions are detected by simple threshold comparison
+- Small sample sizes may produce unreliable comparisons
+
+**Recommendation:**
+- Use at least 10 samples per test case for reliable comparisons
+- For critical decisions, use 20-50 samples for statistical confidence
+- Consider running multiple evaluations and comparing distributions
+
+#### No Visualization Features
+
+Comparison results are text and JSON only:
+- No built-in charts or graphs
+- No distribution visualizations
+- No trend analysis across multiple runs
+
+**Workaround:**
+- Export JSON and use external tools (matplotlib, plotly, Tableau, etc.)
+- Create custom dashboards for your team
+- Track results over time in spreadsheets or databases
+
+#### No Per-Case Comparison
+
+The compare-runs command only compares overall statistics:
+- Does not show which specific test cases regressed
+- Cannot identify if regression is isolated to certain inputs
+- Per-case analysis requires manual inspection of artifacts
+
+**Workaround:**
+```bash
+# Compare per-case stats manually
+diff <(jq '.test_case_results[].per_metric_stats' baseline.json) \
+     <(jq '.test_case_results[].per_metric_stats' candidate.json)
+```
+
+#### No Model Compatibility Validation
+
+The tool does not validate or warn about model mismatches:
+- You can compare runs with different models without any error or warning
+- The tool won't tell you if models differ between baseline and candidate
+- User must manually check `generator_config.model_name` and `judge_config.model_name` in both artifacts
+- No `--allow-different-models` or `--require-same-models` flags exist
+
+**Implication:**
+Cross-model comparisons are technically possible but scientifically problematic - you cannot determine whether deltas are due to prompt changes or model differences.
+
+**Workaround:**
+- Always document models in run notes
+- Manually verify model names match before trusting comparison results
+- Use same models for baseline and candidate to ensure valid prompt comparisons
 
 
 ## Roadmap

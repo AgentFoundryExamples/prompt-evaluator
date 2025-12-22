@@ -1338,8 +1338,12 @@ def render_report(
         500, "--max-text-length", help="Maximum text length for truncation in report"
     ),
     html: bool = typer.Option(False, "--html", help="Generate HTML report alongside Markdown"),
-    output_name: str = typer.Option("report.md", "--output", "-o", help="Output filename for Markdown report"),
-    html_output_name: str = typer.Option("report.html", "--html-output", help="Output filename for HTML report"),
+    output_name: str = typer.Option(
+        "report.md", "--output", "-o", help="Output filename for Markdown report"
+    ),
+    html_output_name: str = typer.Option(
+        "report.html", "--html-output", help="Output filename for HTML report"
+    ),
 ) -> None:
     """
     Generate a Markdown (and optional HTML) report from a dataset evaluation run.

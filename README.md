@@ -125,41 +125,114 @@ If no configuration file is found, the tool will use defaults and CLI arguments 
 
 #### Configuration Schema
 
+The `prompt_evaluator.yaml` file defines defaults, shortcuts, and settings for the evaluation tool. Below is a complete example with all supported fields:
+
 **prompt_evaluator.yaml:**
 ```yaml
 # Default settings for generators, judges, and runs
 defaults:
   # Generator LLM defaults (used for generating completions)
   generator:
-    provider: openai
-    model: gpt-5.1
-    temperature: 0.7
-    max_completion_tokens: 1024
+    provider: openai              # Provider name: openai, claude, anthropic, or mock
+    model: gpt-5.1                # Model identifier (provider-specific)
+    temperature: 0.7              # Sampling temperature (0.0-2.0, higher = more random)
+    max_completion_tokens: 1024   # Maximum tokens to generate (provider-specific limits apply)
+    seed: null                    # Optional: seed for reproducible outputs (if supported by provider)
 
   # Judge LLM defaults (used for evaluating outputs)
   judge:
-    provider: openai
-    model: gpt-5.1
-    temperature: 0.0
+    provider: openai              # Can use different provider than generator
+    model: gpt-5.1                # Recommended: use same or more capable model as generator
+    temperature: 0.0              # Use 0.0 for deterministic judge scoring
+    max_completion_tokens: 512    # Judge responses are typically shorter than generator outputs
+    seed: null                    # Optional: seed for reproducible judge evaluations
 
-  # Default rubric (can be a preset name or file path)
-  rubric: default
+  # Default rubric for evaluations
+  # Can be a preset name (default, content-quality, code-review) or file path
+  rubric: default                 # Preset: default, content-quality, code-review
+  # rubric: path/to/custom_rubric.yaml  # Or path to custom rubric file
 
   # Default directory for run outputs
-  run_directory: runs
+  run_directory: runs             # All evaluation artifacts saved here (gitignored by default)
 
 # Prompt template mappings (key -> file path)
 # Use these keys in CLI commands instead of full file paths
 prompt_templates:
+  # Production prompts
+  production_v1: prompts/production/v1.txt
+  production_v2: prompts/production/v2.txt
+  
+  # Experimental prompts
+  experiment_clarity: prompts/experiments/clarity_improvements.txt
+  experiment_constraints: prompts/experiments/constraint_aware.txt
+  
+  # Example prompts (for quick start)
   checkout_compiler: examples/system_prompt.txt
   default_system: examples/system_prompt.txt
 
 # Dataset mappings (key -> file path)
 # Use these keys in CLI commands instead of full file paths
 dataset_paths:
+  # Test suites
+  production_suite: datasets/production_test_suite.yaml
+  smoke_tests: datasets/smoke_tests.yaml
+  
+  # Examples
   sample: examples/datasets/sample.yaml
   sample_jsonl: examples/datasets/sample.jsonl
+
+# Rubric mappings (key -> file path) - Optional
+# Define custom rubrics for different evaluation scenarios
+rubric_paths:
+  production: rubrics/production.yaml
+  experimental: rubrics/experimental.yaml
+  code_quality: rubrics/code_quality.json
 ```
+
+**Field Descriptions:**
+
+- **defaults.generator**: Settings for the LLM that generates responses
+  - `provider`: Which LLM service to use (openai, claude, anthropic, mock)
+  - `model`: Model identifier (e.g., gpt-5.1, claude-sonnet-4.5)
+  - `temperature`: Controls randomness (0.0 = deterministic, 2.0 = very random)
+  - `max_completion_tokens`: Maximum length of generated responses
+  - `seed`: Optional seed for reproducibility (provider-dependent)
+
+- **defaults.judge**: Settings for the LLM that evaluates responses
+  - Typically uses `temperature: 0.0` for consistent scoring
+  - Can use same or different provider/model than generator
+  - Recommended: use same or more capable model for accurate evaluation
+
+- **defaults.rubric**: Default evaluation criteria
+  - Preset names: `default`, `content-quality`, `code-review`
+  - Or path to custom YAML/JSON rubric file
+  - Rubrics define metrics (scored dimensions) and flags (binary checks)
+
+- **defaults.run_directory**: Where to save evaluation results
+  - Default: `runs/` (automatically created, should be gitignored)
+  - Each run gets a unique subdirectory with UUID-based name
+
+- **prompt_templates**: Shortcuts for system prompts
+  - Keys can be used in `--system-prompt` CLI argument
+  - Paths are relative to config file location
+  - Useful for managing multiple prompt versions
+
+- **dataset_paths**: Shortcuts for dataset files
+  - Keys can be used in `--dataset` CLI argument
+  - Supports both YAML and JSONL formats
+  - Enables quick switching between test suites
+
+- **rubric_paths**: Shortcuts for custom rubric files (optional)
+  - Keys can be used in `--rubric` CLI argument
+  - Useful for different evaluation scenarios
+
+**Configuration Tips:**
+
+1. **Use provider-specific models**: OpenAI uses `gpt-5.1`, Anthropic uses `claude-sonnet-4.5`
+2. **Keep judge temperature at 0.0**: Ensures consistent, deterministic scoring
+3. **Use mock provider for testing**: Set `provider: mock` to avoid API costs during development
+4. **Organize prompts by version**: Use descriptive keys like `v1.0-baseline`, `v2.0-candidate`
+5. **Reference .env.example**: Never commit API keys to config files
 
 #### Using Template Keys
 
@@ -191,21 +264,157 @@ prompt-evaluator evaluate-dataset \
 
 #### Configuration Precedence Rules
 
-Settings are resolved using the following precedence (highest to lowest):
+Understanding how settings are resolved helps you control the tool's behavior effectively. The tool uses a layered configuration system where each layer can override the previous one.
 
-1. **CLI flags** - Explicit arguments like `--model`, `--temperature`
-2. **API config** - Values from environment variables (e.g., `OPENAI_MODEL`)
-3. **App config defaults** - Defaults from `prompt_evaluator.yaml`
-4. **Hardcoded defaults** - Built-in fallback values
+**Precedence order (highest to lowest):**
 
-**Example:**
+1. **CLI flags** - Explicit command-line arguments (highest priority)
+   - Example: `--model gpt-4`, `--temperature 0.5`, `--provider claude`
+   - Use when: You need to override settings for a single run
+
+2. **Environment variables** - Provider-specific API configuration
+   - Example: `OPENAI_API_KEY`, `OPENAI_MODEL`, `ANTHROPIC_API_KEY`
+   - Use when: You need per-environment settings (dev vs prod)
+
+3. **App config defaults** - Settings from `prompt_evaluator.yaml`
+   - Example: `defaults.generator.model`, `defaults.judge.provider`
+   - Use when: You want project-wide defaults
+
+4. **Hardcoded defaults** - Built-in fallback values (lowest priority)
+   - Example: `provider=openai`, `temperature=0.7`, `model=gpt-5.1`
+   - Use when: No other configuration is provided
+
+**Precedence Examples:**
+
 ```bash
-# Config file sets generator.model = "gpt-5.1"
-# CLI flag overrides it
+# Example 1: CLI flag overrides config file
+# Config file: defaults.generator.model = "gpt-5.1"
+# CLI: --model gpt-4
+# Result: Uses gpt-4 (CLI wins)
+
 prompt-evaluator generate \
   --system-prompt default_system \
   --input examples/input.txt \
-  --model gpt-4  # This takes precedence over config
+  --model gpt-4
+
+# Example 2: Environment variable overrides config file
+# Config file: defaults.generator.provider = "openai"
+# Environment: PROVIDER=claude
+# CLI: (no provider flag)
+# Result: Uses claude (environment wins over config)
+
+export PROVIDER=claude
+prompt-evaluator generate \
+  --system-prompt default_system \
+  --input examples/input.txt
+
+# Example 3: Config file provides defaults
+# Config file: defaults.generator.temperature = 0.7
+# CLI: (no temperature flag)
+# Result: Uses 0.7 from config
+
+prompt-evaluator generate \
+  --system-prompt default_system \
+  --input examples/input.txt
+
+# Example 4: Multiple overrides
+# Hardcoded: provider=openai, model=gpt-5.1, temperature=0.7
+# Config: provider=claude, temperature=0.5
+# Environment: OPENAI_API_KEY=sk-...
+# CLI: --temperature 0.3
+# Result: provider=claude (config), model=gpt-5.1 (hardcoded), temperature=0.3 (CLI)
+
+prompt-evaluator generate \
+  --system-prompt default_system \
+  --input examples/input.txt \
+  --temperature 0.3
+```
+
+**Provider Selection Priority:**
+
+Provider selection follows the same precedence rules but with additional nuances:
+
+```bash
+# Priority 1: CLI flag
+--provider claude  # Overrides everything
+
+# Priority 2: Config file
+defaults:
+  generator:
+    provider: claude  # Used if no CLI flag
+
+# Priority 3: Environment variable (provider-specific)
+OPENAI_API_KEY=sk-...      # Implies openai provider
+ANTHROPIC_API_KEY=sk-ant-... # Implies anthropic provider
+
+# Priority 4: Hardcoded default
+# Uses openai if no other configuration exists
+```
+
+**Common Configuration Patterns:**
+
+1. **Development with mock provider** (no API costs):
+```yaml
+# prompt_evaluator.yaml
+defaults:
+  generator:
+    provider: mock  # No API calls during development
+```
+
+2. **Production with real providers** (override mock):
+```bash
+# Override mock provider for production run
+prompt-evaluator evaluate-dataset \
+  --dataset production_suite \
+  --system-prompt production_v1 \
+  --provider openai \
+  --model gpt-5.1
+```
+
+3. **Per-environment settings** (use environment variables):
+```bash
+# Development environment
+export OPENAI_API_KEY="sk-dev-key"
+export OPENAI_MODEL="gpt-3.5-turbo"  # Cheaper model for dev
+
+# Production environment
+export OPENAI_API_KEY="sk-prod-key"
+export OPENAI_MODEL="gpt-5.1"  # Production model
+```
+
+4. **Project-wide defaults with CLI overrides**:
+```yaml
+# prompt_evaluator.yaml - project defaults
+defaults:
+  generator:
+    provider: openai
+    model: gpt-5.1
+    temperature: 0.7
+```
+
+```bash
+# Override temperature for specific experiment
+prompt-evaluator evaluate-dataset \
+  --dataset sample \
+  --system-prompt experiment_clarity \
+  --temperature 0.3  # Lower temperature for this run
+```
+
+**Configuration Validation:**
+
+The tool validates configuration at startup and provides clear error messages:
+
+```bash
+# Invalid provider in config
+Error: Invalid configuration: Invalid provider 'invalid_provider'. 
+Valid providers: openai, anthropic, claude, mock
+
+# Missing API key for selected provider
+Error: OpenAI API key is required. Set OPENAI_API_KEY environment variable 
+or pass api_key parameter.
+
+# Temperature out of range
+Error: temperature must be between 0.0 and 2.0
 ```
 
 #### Path Resolution
@@ -249,50 +458,259 @@ Error: Prompt template file not found: /path/to/missing.txt (key: 'my_key')
 
 The prompt evaluator uses a pluggable provider abstraction that allows for multiple LLM backends. This architecture enables:
 
-- **Flexible provider selection** - Easily switch between different LLM providers
+- **Flexible provider selection** - Easily switch between different LLM providers (OpenAI, Anthropic, Mock)
 - **Offline testing** - Use mock providers for testing without API calls
 - **Consistent interface** - All providers implement the same `LLMProvider` interface
+- **Provider-agnostic code** - Write evaluation logic once, run with any provider
+
+The provider abstraction is defined by the `LLMProvider` abstract base class, which all providers must implement. This ensures a consistent API regardless of the underlying LLM service.
 
 #### Available Providers
 
-1. **OpenAI Provider** (default)
-   - Uses OpenAI's Chat Completions API
-   - Supports GPT-5+ models
-   - Requires `OPENAI_API_KEY` environment variable
+The tool currently supports three providers out of the box:
 
-2. **Local Mock Provider** (for testing)
-   - Generates deterministic mock responses
+1. **OpenAI Provider** (`openai`) - Default provider
+   - Uses OpenAI's Responses API (recommended for GPT-5+ models)
+   - Supports models: `gpt-5.1`, `gpt-4`, and other OpenAI models
+   - Required environment variable: `OPENAI_API_KEY`
+   - Optional environment variable: `OPENAI_BASE_URL` (for proxies or custom endpoints)
+   - Note: Follows OpenAI's latest API patterns, not legacy Completions API
+
+2. **Anthropic Claude Provider** (`claude` or `anthropic`)
+   - Uses Anthropic's Messages API (API version `2023-06-01` or newer)
+   - Supports models: `claude-sonnet-4.5`, `claude-opus-4`, and newer Claude models
+   - Required environment variable: `ANTHROPIC_API_KEY`
+   - Optional environment variable: `ANTHROPIC_BASE_URL` (for proxies or custom endpoints)
+   - Follows Anthropic's recommended Messages API, not legacy Text Completions API
+
+3. **Local Mock Provider** (`mock` or `local-mock`) - For testing
+   - Generates deterministic mock responses without making real API calls
    - No API key required
-   - Useful for offline development and testing
+   - Useful for offline development, testing, and CI/CD pipelines
+   - Returns predictable outputs based on input text
+
+#### Required Environment Variables
+
+Each provider requires specific environment variables for authentication:
+
+**OpenAI:**
+```bash
+# Required
+export OPENAI_API_KEY="sk-your-openai-api-key-here"
+
+# Optional
+export OPENAI_BASE_URL="https://api.openai.com/v1"  # Custom endpoint
+export OPENAI_MODEL="gpt-5.1"                        # Default model
+```
+
+**Anthropic Claude:**
+```bash
+# Required
+export ANTHROPIC_API_KEY="sk-ant-your-anthropic-api-key-here"
+
+# Optional
+export ANTHROPIC_BASE_URL="https://api.anthropic.com"  # Custom endpoint
+export CLAUDE_MODEL="claude-sonnet-4.5"                 # Default model
+```
+
+**Mock Provider:**
+```bash
+# No environment variables required
+# Works offline without any configuration
+```
+
+See `.env.example` for a complete template of all supported environment variables.
 
 #### Provider Selection
 
-Providers are selected automatically based on configuration. The default provider is OpenAI. To use a different provider programmatically:
+Providers can be selected via configuration file or programmatically:
+
+**Via Configuration File:**
+
+```yaml
+# prompt_evaluator.yaml
+defaults:
+  generator:
+    provider: openai      # or 'claude', 'anthropic', 'mock'
+    model: gpt-5.1
+    temperature: 0.7
+  
+  judge:
+    provider: openai      # Can use different provider for judging
+    model: gpt-5.1
+    temperature: 0.0
+```
+
+**Programmatically:**
 
 ```python
 from prompt_evaluator.provider import get_provider, ProviderConfig
 
 # Get OpenAI provider (default)
-provider = get_provider("openai", api_key="sk-...")
+openai_provider = get_provider("openai", api_key="sk-...")
 
-# Get mock provider for testing
+# Get Claude provider
+claude_provider = get_provider("claude", api_key="sk-ant-...")
+
+# Get mock provider for testing (no API key needed)
 mock_provider = get_provider("mock")
 
-# Use the provider
+# Use any provider with the same interface
 config = ProviderConfig(model="gpt-5.1", temperature=0.7)
-result = provider.generate(
-    system_prompt="You are helpful",
+result = openai_provider.generate(
+    system_prompt="You are a helpful assistant.",
     user_prompt="What is Python?",
     config=config
 )
-print(result.text)  # Generated response
-print(result.usage)  # Token usage statistics
+print(result.text)        # Generated response
+print(result.usage)       # Token usage statistics
+print(result.latency_ms)  # Response latency in milliseconds
 ```
+
+#### How to Add a New Provider
+
+To add support for a new LLM provider (e.g., Google Gemini, Hugging Face, etc.), follow these steps:
+
+1. **Implement the `LLMProvider` interface** in `src/prompt_evaluator/provider.py`:
+
+```python
+class MyCustomProvider(LLMProvider):
+    """Provider implementation for MyCustom LLM service."""
+    
+    def __init__(self, api_key: str | None = None, base_url: str | None = None):
+        """Initialize provider with API credentials."""
+        self.api_key = api_key or os.environ.get("MYCUSTOM_API_KEY")
+        self.base_url = base_url or os.environ.get("MYCUSTOM_BASE_URL", "https://api.mycustom.com")
+        # Initialize your API client here
+    
+    def validate_config(self) -> None:
+        """Validate that required configuration is present."""
+        if not self.api_key:
+            raise ValueError(
+                "MyCustom API key is required. Set MYCUSTOM_API_KEY environment variable "
+                "or pass api_key parameter."
+            )
+    
+    def generate(
+        self,
+        system_prompt: str | None,
+        user_prompt: str | list[str],
+        config: ProviderConfig,
+    ) -> ProviderResult:
+        """Generate a completion using your LLM service."""
+        start_time = time.time()
+        
+        try:
+            # Make API call to your service
+            # ... your API call logic here ...
+            
+            # Extract response text and metadata from API response
+            response_text = "..."  # Extract from API response
+            prompt_tokens = 0      # Extract from API response
+            completion_tokens = 0  # Extract from API response
+            
+            latency_ms = (time.time() - start_time) * 1000
+            
+            return ProviderResult(
+                text=response_text,
+                usage={
+                    "total_tokens": prompt_tokens + completion_tokens,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+                latency_ms=latency_ms,
+                model=config.model,
+                finish_reason="stop",  # Or extract from API response
+            )
+        
+        except Exception as e:
+            # Return error in ProviderResult, don't raise exception
+            latency_ms = (time.time() - start_time) * 1000
+            return ProviderResult(
+                text="",
+                usage={"total_tokens": None, "prompt_tokens": None, "completion_tokens": None},
+                latency_ms=latency_ms,
+                model=config.model,
+                error=f"API error: {str(e)}",
+            )
+```
+
+2. **Register the provider** in the `get_provider()` factory function:
+
+```python
+def get_provider(
+    provider_name: str,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    validate: bool = True,
+) -> LLMProvider:
+    """Factory function to get a provider instance by name."""
+    provider_name_lower = provider_name.lower()
+    
+    # Add your provider to the registry
+    if provider_name_lower == "mycustom":
+        provider = MyCustomProvider(api_key=api_key, base_url=base_url)
+    elif provider_name_lower == "openai":
+        provider = OpenAIProvider(api_key=api_key, base_url=base_url)
+    # ... other providers ...
+    else:
+        supported = ["openai", "claude", "anthropic", "mock", "mycustom"]  # Add yours here
+        raise ValueError(
+            f"Unsupported provider: {provider_name}. "
+            f"Supported providers: {supported}"
+        )
+    
+    if validate:
+        provider.validate_config()
+    
+    return provider
+```
+
+3. **Add environment variable documentation** to `.env.example`:
+
+```bash
+# MyCustom API Configuration
+MYCUSTOM_API_KEY=your-mycustom-api-key-here
+MYCUSTOM_BASE_URL=https://api.mycustom.com  # Optional
+```
+
+4. **Test your provider**:
+
+```python
+# Test basic functionality
+provider = get_provider("mycustom", api_key="test-key")
+config = ProviderConfig(model="mycustom-model", temperature=0.7)
+result = provider.generate(
+    system_prompt="You are helpful",
+    user_prompt="Hello",
+    config=config
+)
+assert result.text != ""
+assert result.error is None
+```
+
+See `LLMs.md` for guidelines on implementing LLM integrations following best practices for specific providers (OpenAI GPT-5, Anthropic Claude Sonnet/Opus 4, Google Gemini 3, etc.).
 
 #### Testing with Mock Provider
 
 The mock provider is useful for testing and development without making real API calls:
 
+**Command-Line Usage:**
+```bash
+# Set mock provider in config
+# prompt_evaluator.yaml:
+defaults:
+  generator:
+    provider: mock
+    model: gpt-5.1  # Model name is ignored by mock but required
+
+# Run evaluation with mock provider (no API calls, no cost)
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+```
+
+**Programmatic Usage:**
 ```python
 import pytest
 from unittest.mock import patch
@@ -306,8 +724,32 @@ def test_my_feature(mock_get_provider):
     mock_get_provider.return_value = mock_provider
     
     # Your test code here - no real API calls will be made
+    # Mock provider returns deterministic responses
     ...
+
+# Direct usage in tests
+def test_evaluation_logic():
+    """Test evaluation logic without API calls."""
+    provider = get_provider("mock", validate=False)
+    
+    config = ProviderConfig(model="test-model", temperature=0.7)
+    result = provider.generate(
+        system_prompt="You are a test assistant.",
+        user_prompt="Hello, world!",
+        config=config
+    )
+    
+    # Mock provider returns predictable output
+    assert "Mock response to: Hello, world!" in result.text
+    assert result.error is None
 ```
+
+**Benefits of Mock Provider:**
+- **Zero cost** - No API charges during development or CI/CD
+- **Deterministic** - Same input always produces same output
+- **Fast** - No network latency, instant responses
+- **Offline-friendly** - Works without internet connection
+- **CI/CD safe** - No secrets required in test environments
 
 ### Generate Command
 

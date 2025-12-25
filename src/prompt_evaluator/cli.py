@@ -365,8 +365,11 @@ def generate(
     input_path: str = typer.Option(
         ..., "--input", "-i", help="Path to input file (use '-' for stdin)"
     ),
-    provider: str = typer.Option(
-        "openai", "--provider", "-p", help="Provider to use (openai, claude, anthropic, mock)"
+    provider: str | None = typer.Option(
+        None,
+        "--provider",
+        "-p",
+        help="Provider to use (openai, claude, anthropic, mock). Uses config default.",
     ),
     model: str | None = typer.Option(None, "--model", "-m", help="Model name override"),
     temperature: float | None = typer.Option(
@@ -376,7 +379,9 @@ def generate(
         None, "--max-tokens", help="Maximum tokens to generate"
     ),
     seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
-    output_dir: str = typer.Option("runs", "--output-dir", "-o", help="Output directory for runs"),
+    output_dir: str | None = typer.Option(
+        None, "--output-dir", "-o", help="Output directory for runs. Uses config default."
+    ),
     config_file: str | None = typer.Option(
         None, "--config", "-c", help="Path to config file (YAML/TOML)"
     ),
@@ -388,6 +393,7 @@ def generate(
     the output along with metadata to the runs directory.
 
     System prompt can be either a file path or a template key defined in prompt_evaluator.yaml.
+    Configuration defaults are used when CLI flags are omitted.
     """
     try:
         # Load prompt evaluator config (for template resolution)
@@ -421,50 +427,49 @@ def generate(
                 raise typer.Exit(1)
             user_prompt_content = input_file_path.read_text(encoding="utf-8")
 
+        # Determine provider with proper precedence: CLI flag > app config > hardcoded default
+        if provider is None and app_config is not None:
+            provider = app_config.defaults.generator.provider
+            typer.echo(f"Using provider from config: {provider}", err=True)
+        elif provider is None:
+            provider = "openai"
+            typer.echo(f"Using default provider: {provider}", err=True)
+
+        # Determine output directory with proper precedence
+        if output_dir is None and app_config is not None:
+            output_dir = app_config.defaults.run_directory
+            typer.echo(f"Using output directory from config: {output_dir}", err=True)
+        elif output_dir is None:
+            output_dir = "runs"
+
         # Build GeneratorConfig with proper precedence
         # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+        app_gen_config = app_config.defaults.generator if app_config else None
 
-        # Start with hardcoded defaults
-        base_model = "gpt-5.1"
-        base_temp = 0.7
-        base_max_tokens = 1024
-
-        # Layer app config defaults if available (lower precedence)
-        if app_config is not None:
-            base_model = app_config.defaults.generator.model
-            base_temp = app_config.defaults.generator.temperature
-            base_max_tokens = app_config.defaults.generator.max_completion_tokens
-
-        # Layer API config (from env vars), which has higher precedence than app config
-        # api_config.model_name comes from OPENAI_MODEL env var or defaults
-        if api_config.model_name:
-            base_model = api_config.model_name
-
-        base_config = GeneratorConfig(
-            model_name=base_model,
-            temperature=base_temp,
-            max_completion_tokens=base_max_tokens
+        final_model_name = (
+            model
+            or api_config.model_name
+            or (app_gen_config.model if app_gen_config else None)
+            or "gpt-5.1"
+        )
+        final_temperature = (
+            temperature
+            if temperature is not None
+            else (app_gen_config.temperature if app_gen_config else None)
+            if (app_gen_config.temperature if app_gen_config else None) is not None
+            else 0.7
+        )
+        final_max_tokens = (
+            max_completion_tokens
+            or (app_gen_config.max_completion_tokens if app_gen_config else None)
+            or 1024
         )
 
-        # Create overrides dict, filtering out None values
-        cli_overrides: dict[str, Any] = {}
-        if model is not None:
-            cli_overrides["model_name"] = model
-        if temperature is not None:
-            cli_overrides["temperature"] = temperature
-        if max_completion_tokens is not None:
-            cli_overrides["max_completion_tokens"] = max_completion_tokens
-        if seed is not None:
-            cli_overrides["seed"] = seed
-
-        # Apply CLI overrides to base config (highest precedence)
         generator_config = GeneratorConfig(
-            model_name=cli_overrides.get("model_name", base_config.model_name),
-            temperature=cli_overrides.get("temperature", base_config.temperature),
-            max_completion_tokens=cli_overrides.get(
-                "max_completion_tokens", base_config.max_completion_tokens
-            ),
-            seed=cli_overrides.get("seed", base_config.seed),
+            model_name=final_model_name,
+            temperature=final_temperature,
+            max_completion_tokens=final_max_tokens,
+            seed=seed,
         )
 
         # Create provider
@@ -562,21 +567,26 @@ def generate(
 @app.command()
 def evaluate_single(
     system_prompt: str = typer.Option(
-        ..., "--system-prompt", "-s", help="Path to generator system prompt file"
+        ..., "--system-prompt", "-s", help="Path to generator system prompt file or template key"
     ),
     input_path: str = typer.Option(..., "--input", "-i", help="Path to input file"),
     num_samples: int = typer.Option(
         ..., "--num-samples", "-n", help="Number of samples to generate"
     ),
-    provider: str = typer.Option(
-        "openai", "--provider", "-p", help="Provider to use (openai, claude, anthropic, mock)"
+    provider: str | None = typer.Option(
+        None,
+        "--provider",
+        "-p",
+        help="Provider to use (openai, claude, anthropic, mock). Uses config default.",
     ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
     ),
     judge_model: str | None = typer.Option(None, "--judge-model", help="Judge model name override"),
     judge_system_prompt: str | None = typer.Option(
-        None, "--judge-system-prompt", help="Path to custom judge system prompt file"
+        None,
+        "--judge-system-prompt",
+        help="Path to custom judge system prompt file or template key",
     ),
     rubric: str | None = typer.Option(
         None,
@@ -584,7 +594,7 @@ def evaluate_single(
         help=(
             "Rubric to use for evaluation. Can be a preset alias "
             "(default, content-quality, code-review) or a path to a rubric file "
-            "(.yaml/.json). Defaults to 'default' if not specified."
+            "(.yaml/.json). Uses config default if not specified."
         ),
     ),
     seed: int | None = typer.Option(
@@ -596,8 +606,8 @@ def evaluate_single(
     max_completion_tokens: int | None = typer.Option(
         None, "--max-tokens", help="Maximum tokens for generator"
     ),
-    output_dir: str = typer.Option(
-        "runs", "--output-dir", "-o", help="Output directory for evaluation runs"
+    output_dir: str | None = typer.Option(
+        None, "--output-dir", "-o", help="Output directory for runs. Uses config default."
     ),
     config_file: str | None = typer.Option(
         None, "--config", "-c", help="Path to config file (YAML/TOML)"
@@ -622,6 +632,9 @@ def evaluate_single(
 
     This command generates multiple completions for the same input, evaluates
     each output using a judge model, and produces aggregate statistics.
+
+    System prompt and judge prompt can be either file paths or template keys defined
+    in prompt_evaluator.yaml. Configuration defaults are used when CLI flags are omitted.
     """
     try:
         # Validate num_samples
@@ -629,14 +642,21 @@ def evaluate_single(
             typer.echo("Error: --num-samples must be positive", err=True)
             raise typer.Exit(1)
 
+        # Load prompt evaluator config (for template resolution and defaults)
+        app_config = load_prompt_evaluator_config(
+            config_path=Path(config_file) if config_file else None,
+            warn_if_missing=False
+        )
+
         # Load API configuration
         config_path = Path(config_file) if config_file else None
         api_config = APIConfig(config_file_path=config_path)
 
-        # Read system prompt
-        system_prompt_path = Path(system_prompt)
-        if not system_prompt_path.exists():
-            typer.echo(f"Error: System prompt file not found: {system_prompt}", err=True)
+        # Resolve system prompt path (supports template keys)
+        try:
+            system_prompt_path = resolve_prompt_path(system_prompt, app_config)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
 
         system_prompt_content = system_prompt_path.read_text(encoding="utf-8")
@@ -649,7 +669,27 @@ def evaluate_single(
 
         user_prompt_content = input_file_path.read_text(encoding="utf-8")
 
-        # Load rubric (preset, custom, or default)
+        # Determine provider with proper precedence: CLI flag > app config > hardcoded default
+        if provider is None:
+            if app_config is not None and app_config.defaults.generator.provider:
+                provider = app_config.defaults.generator.provider
+                typer.echo(f"Using provider from config: {provider}", err=True)
+            else:
+                provider = "openai"
+                typer.echo(f"Using default provider: {provider}", err=True)
+
+        # Determine output directory with proper precedence
+        if output_dir is None and app_config is not None:
+            output_dir = app_config.defaults.run_directory
+            typer.echo(f"Using output directory from config: {output_dir}", err=True)
+        elif output_dir is None:
+            output_dir = "runs"
+
+        # Load rubric with proper precedence: CLI flag > app config > hardcoded default
+        if rubric is None and app_config is not None and app_config.defaults.rubric is not None:
+            rubric = app_config.defaults.rubric
+            typer.echo(f"Using default rubric from config: {rubric}", err=True)
+
         try:
             from prompt_evaluator.config import load_rubric, resolve_rubric_path
 
@@ -660,10 +700,10 @@ def evaluate_single(
             typer.echo(f"Error loading rubric: {e}", err=True)
             raise typer.Exit(1)
 
-        # Load judge prompt (custom or default)
+        # Load judge prompt (custom or default, supports template keys)
         try:
             if judge_system_prompt:
-                judge_prompt_path = Path(judge_system_prompt)
+                judge_prompt_path = resolve_prompt_path(judge_system_prompt, app_config)
                 judge_prompt_content = load_judge_prompt(judge_prompt_path)
             else:
                 judge_prompt_content = load_judge_prompt()
@@ -671,30 +711,48 @@ def evaluate_single(
             typer.echo(f"Error loading judge prompt: {e}", err=True)
             raise typer.Exit(1)
 
-        # Build GeneratorConfig
-        base_gen_config = GeneratorConfig(model_name=api_config.model_name)
-        cli_overrides: dict[str, Any] = {}
-        if generator_model is not None:
-            cli_overrides["model_name"] = generator_model
-        if temperature is not None:
-            cli_overrides["temperature"] = temperature
-        if max_completion_tokens is not None:
-            cli_overrides["max_completion_tokens"] = max_completion_tokens
-        if seed is not None:
-            cli_overrides["seed"] = seed
+        # Build GeneratorConfig with proper precedence
+        # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+        app_gen_config = app_config.defaults.generator if app_config else None
 
-        generator_config = GeneratorConfig(
-            model_name=cli_overrides.get("model_name", base_gen_config.model_name),
-            temperature=cli_overrides.get("temperature", base_gen_config.temperature),
-            max_completion_tokens=cli_overrides.get(
-                "max_completion_tokens", base_gen_config.max_completion_tokens
-            ),
-            seed=cli_overrides.get("seed", base_gen_config.seed),
+        final_model_name = (
+            generator_model
+            or api_config.model_name
+            or (app_gen_config.model if app_gen_config else None)
+            or "gpt-5.1"
+        )
+        final_temperature = (
+            temperature
+            if temperature is not None
+            else (app_gen_config.temperature if app_gen_config else None)
+            if (app_gen_config.temperature if app_gen_config else None) is not None
+            else 0.7
+        )
+        final_max_tokens = (
+            max_completion_tokens
+            or (app_gen_config.max_completion_tokens if app_gen_config else None)
+            or 1024
         )
 
-        # Build JudgeConfig
+        generator_config = GeneratorConfig(
+            model_name=final_model_name,
+            temperature=final_temperature,
+            max_completion_tokens=final_max_tokens,
+            seed=seed,
+        )
+
+        # Build JudgeConfig with proper precedence
+        # Precedence: CLI flags > app config > hardcoded defaults
+        app_judge_config = app_config.defaults.judge if app_config else None
+
+        final_judge_model = (
+            judge_model
+            or (app_judge_config.model if app_judge_config else None)
+            or "gpt-5.1"
+        )
+
         judge_config = JudgeConfig(
-            model_name=judge_model if judge_model else api_config.model_name,
+            model_name=final_judge_model,
             temperature=0.0,  # Use deterministic judge
         )
 
@@ -974,10 +1032,16 @@ def evaluate_dataset(
         ..., "--system-prompt", "-s", help="Path to generator system prompt file or template key"
     ),
     num_samples: int | None = typer.Option(
-        None, "--num-samples", "-n", help="Number of samples to generate per test case (default: 5)"
+        None,
+        "--num-samples",
+        "-n",
+        help="Number of samples to generate per test case (default: 5)",
     ),
-    provider: str = typer.Option(
-        "openai", "--provider", "-p", help="Provider to use (openai, claude, anthropic, mock)"
+    provider: str | None = typer.Option(
+        None,
+        "--provider",
+        "-p",
+        help="Provider to use (openai, claude, anthropic, mock). Uses config default.",
     ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
@@ -986,7 +1050,7 @@ def evaluate_dataset(
     judge_system_prompt: str | None = typer.Option(
         None,
         "--judge-system-prompt",
-        help="Path to custom judge system prompt file or template key"
+        help="Path to custom judge system prompt file or template key",
     ),
     rubric: str | None = typer.Option(
         None,
@@ -994,7 +1058,7 @@ def evaluate_dataset(
         help=(
             "Rubric to use for evaluation. Can be a preset alias "
             "(default, content-quality, code-review) or a path to a rubric file "
-            "(.yaml/.json). Defaults to 'default' if not specified."
+            "(.yaml/.json). Uses config default if not specified."
         ),
     ),
     seed: int | None = typer.Option(
@@ -1015,8 +1079,8 @@ def evaluate_dataset(
     quick: bool = typer.Option(
         False, "--quick", help="Quick mode: sets --num-samples=2 unless explicitly overridden"
     ),
-    output_dir: str = typer.Option(
-        "runs", "--output-dir", "-o", help="Output directory for evaluation runs"
+    output_dir: str | None = typer.Option(
+        None, "--output-dir", "-o", help="Output directory for runs. Uses config default."
     ),
     config_file: str | None = typer.Option(
         None, "--config", "-c", help="Path to config file (YAML/TOML)"
@@ -1126,6 +1190,22 @@ def evaluate_dataset(
 
         system_prompt_content = system_prompt_path.read_text(encoding="utf-8")
 
+        # Determine provider with proper precedence: CLI flag > app config > hardcoded default
+        if provider is None:
+            if app_config is not None and app_config.defaults.generator.provider:
+                provider = app_config.defaults.generator.provider
+                typer.echo(f"Using provider from config: {provider}", err=True)
+            else:
+                provider = "openai"
+                typer.echo(f"Using default provider: {provider}", err=True)
+
+        # Determine output directory with proper precedence
+        if output_dir is None and app_config is not None:
+            output_dir = app_config.defaults.run_directory
+            typer.echo(f"Using output directory from config: {output_dir}", err=True)
+        elif output_dir is None:
+            output_dir = "runs"
+
         # Load rubric (preset, custom, or default)
         # If rubric not specified and app_config has a default, use it
         if rubric is None and app_config is not None and app_config.defaults.rubric is not None:
@@ -1155,64 +1235,46 @@ def evaluate_dataset(
 
         # Build GeneratorConfig with proper precedence
         # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+        app_gen_config = app_config.defaults.generator if app_config else None
 
-        # Start with hardcoded defaults
-        base_gen_model = "gpt-5.1"
-        base_gen_temp = 0.7
-        base_gen_max_tokens = 1024
-
-        # Layer app config defaults if available (lower precedence)
-        if app_config is not None:
-            base_gen_model = app_config.defaults.generator.model
-            base_gen_temp = app_config.defaults.generator.temperature
-            base_gen_max_tokens = app_config.defaults.generator.max_completion_tokens
-
-        # Layer API config (from env vars), which has higher precedence than app config
-        if api_config.model_name:
-            base_gen_model = api_config.model_name
-
-        base_gen_config = GeneratorConfig(
-            model_name=base_gen_model,
-            temperature=base_gen_temp,
-            max_completion_tokens=base_gen_max_tokens
+        final_model_name = (
+            generator_model
+            or api_config.model_name
+            or (app_gen_config.model if app_gen_config else None)
+            or "gpt-5.1"
+        )
+        final_temperature = (
+            temperature
+            if temperature is not None
+            else (app_gen_config.temperature if app_gen_config else None)
+            if (app_gen_config.temperature if app_gen_config else None) is not None
+            else 0.7
+        )
+        final_max_tokens = (
+            max_completion_tokens
+            or (app_gen_config.max_completion_tokens if app_gen_config else None)
+            or 1024
         )
 
-        cli_overrides: dict[str, Any] = {}
-        if generator_model is not None:
-            cli_overrides["model_name"] = generator_model
-        if temperature is not None:
-            cli_overrides["temperature"] = temperature
-        if max_completion_tokens is not None:
-            cli_overrides["max_completion_tokens"] = max_completion_tokens
-        if seed is not None:
-            cli_overrides["seed"] = seed
-
         generator_config = GeneratorConfig(
-            model_name=cli_overrides.get("model_name", base_gen_config.model_name),
-            temperature=cli_overrides.get("temperature", base_gen_config.temperature),
-            max_completion_tokens=cli_overrides.get(
-                "max_completion_tokens", base_gen_config.max_completion_tokens
-            ),
-            seed=cli_overrides.get("seed", base_gen_config.seed),
+            model_name=final_model_name,
+            temperature=final_temperature,
+            max_completion_tokens=final_max_tokens,
+            seed=seed,
         )
 
         # Build JudgeConfig with proper precedence
-        # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+        # Precedence: CLI flags > app config > hardcoded defaults
+        app_judge_config = app_config.defaults.judge if app_config else None
 
-        # Start with hardcoded default
-        base_judge_model = "gpt-5.1"
+        final_judge_model = (
+            judge_model
+            or (app_judge_config.model if app_judge_config else None)
+            or "gpt-5.1"
+        )
 
-        # Layer app config if available (lower precedence)
-        if app_config is not None:
-            base_judge_model = app_config.defaults.judge.model
-
-        # Layer API config (from env vars), which has higher precedence than app config
-        if api_config.model_name:
-            base_judge_model = api_config.model_name
-
-        # CLI flag has highest precedence
         judge_config = JudgeConfig(
-            model_name=judge_model if judge_model is not None else base_judge_model,
+            model_name=final_judge_model,
             temperature=0.0,  # Use deterministic judge
         )
 

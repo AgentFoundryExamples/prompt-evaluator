@@ -139,6 +139,8 @@ cython_debug/
 
 # Project specific
 runs/
+config_runs/
+config_custom_output/
 examples/*
 !examples/.gitkeep
 !examples/system_prompt.txt

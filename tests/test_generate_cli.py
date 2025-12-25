@@ -386,3 +386,166 @@ class TestGenerateCLI:
         assert "Mocked response" in result.stdout
         # Verify mock was called instead of real API
         assert mock_generate.call_count == 1
+
+    def test_generate_uses_config_defaults_for_provider(
+        self, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that generate uses config default for provider when flag is omitted."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create a config file with custom provider default (using mock provider)
+        config_file = temp_prompts["system"].parent / "test_config.yaml"
+        config_file.write_text(
+            """
+defaults:
+  generator:
+    provider: mock
+    model: test-model-from-config
+    temperature: 0.5
+    max_completion_tokens: 2048
+  run_directory: custom_runs
+"""
+        )
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--config",
+                str(config_file),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+
+        # Should succeed and use config provider
+        assert result.exit_code == 0
+        # Check that config provider was used (mock)
+        assert "Using provider from config: mock" in result.stdout
+        # Mock provider should return a mock response
+        assert "Mock response" in result.stdout
+
+    def test_generate_cli_override_takes_precedence_over_config(
+        self, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that CLI flag for provider overrides config default."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create a config file with default provider (anthropic)
+        config_file = temp_prompts["system"].parent / "test_config.yaml"
+        config_file.write_text(
+            """
+defaults:
+  generator:
+    provider: anthropic
+    model: test-model
+"""
+        )
+
+        # Explicitly provide --provider to override config (use mock)
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--provider",
+                "mock",
+                "--config",
+                str(config_file),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+
+        # Should succeed with explicit provider
+        assert result.exit_code == 0
+        # Should NOT show "Using provider from config" since CLI flag was provided
+        assert "Using provider from config:" not in result.stdout
+        # Mock provider should be used (CLI override)
+        assert "Mock response" in result.stdout
+
+    def test_generate_uses_config_defaults_for_output_dir(
+        self, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that generate uses config default for output_dir when flag is omitted."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create a config file with custom run_directory
+        config_file = temp_prompts["system"].parent / "test_config.yaml"
+        config_file.write_text(
+            """
+defaults:
+  generator:
+    provider: mock
+    model: test-model
+  run_directory: config_custom_output
+"""
+        )
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--config",
+                str(config_file),
+            ],
+        )
+
+        # Should succeed and use config output directory
+        assert result.exit_code == 0
+        assert "Using output directory from config: config_custom_output" in result.stdout
+
+    def test_generate_resolves_prompt_template_key(
+        self, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that generate resolves prompt template keys from config."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create a system prompt file
+        system_prompt_file = temp_prompts["system"].parent / "my_system_prompt.txt"
+        system_prompt_file.write_text("You are a coding assistant.")
+
+        # Create a config file with prompt template mapping
+        config_file = temp_prompts["system"].parent / "test_config.yaml"
+        config_file.write_text(
+            f"""
+defaults:
+  generator:
+    provider: mock
+    model: test-model
+prompt_templates:
+  my_template: {system_prompt_file.name}
+"""
+        )
+
+        # Use template key instead of file path
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                "my_template",
+                "--input",
+                str(temp_prompts["input"]),
+                "--config",
+                str(config_file),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+            ],
+        )
+
+        # Should succeed and resolve template key
+        assert result.exit_code == 0
+        # Check that mock provider was used and template was resolved
+        assert "Mock response" in result.stdout

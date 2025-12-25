@@ -258,6 +258,7 @@ class Sample:
         judge_flags: Dict of flag results keyed by flag name, each containing boolean value.
                     Used for rubric-based evaluation.
         judge_overall_comment: Overall comment from judge for rubric-based evaluation
+        ab_variant: Optional A/B test variant identifier (e.g., "with_prompt", "no_prompt")
     """
 
     sample_id: str
@@ -271,6 +272,7 @@ class Sample:
     judge_metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
     judge_flags: dict[str, bool] = field(default_factory=dict)
     judge_overall_comment: str | None = None
+    ab_variant: str | None = None
 
     def __post_init__(self) -> None:
         """Validate sample fields."""

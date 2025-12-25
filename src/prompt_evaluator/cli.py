@@ -385,6 +385,11 @@ def generate(
     config_file: str | None = typer.Option(
         None, "--config", "-c", help="Path to config file (YAML/TOML)"
     ),
+    ab_test_system_prompt: bool = typer.Option(
+        False,
+        "--ab-test-system-prompt",
+        help="Run A/B test: generate with and without system prompt. Doubles API calls.",
+    ),
 ) -> None:
     """
     Generate a completion from an LLM using system and user prompts.
@@ -487,19 +492,19 @@ def generate(
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
 
-        # Generate completion
-        typer.echo("Generating completion...", err=True)
-        response_text, metadata = generate_completion(
-            provider=provider_instance,
-            system_prompt=system_prompt_content,
-            user_prompt=user_prompt_content,
-            model=generator_config.model_name,
-            temperature=generator_config.temperature,
-            max_completion_tokens=generator_config.max_completion_tokens,
-            seed=generator_config.seed,
-        )
+        # Warn about doubled API calls if A/B testing is enabled
+        if ab_test_system_prompt:
+            typer.echo(
+                "⚠️  WARNING: A/B testing mode enabled. This will DOUBLE your API calls and costs.",
+                err=True,
+            )
+            typer.echo(
+                "    Generating TWO completions: one with system prompt, one without.",
+                err=True,
+            )
+            typer.echo("", err=True)
 
-        # Create run record
+        # Prepare output directory
         run_id = str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc)
         output_dir_path = Path(output_dir)
@@ -514,26 +519,96 @@ def generate(
         run_dir = output_dir_path / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
 
-        # Write output
-        output_file = run_dir / "output.txt"
-        output_file.write_text(response_text, encoding="utf-8")
+        # Determine variants to run
+        variants = []
+        if ab_test_system_prompt:
+            variants = [
+                ("with_prompt", system_prompt_content),
+                ("no_prompt", ""),
+            ]
+        else:
+            variants = [(None, system_prompt_content)]
 
-        # Write metadata
-        prompt_run = PromptRun(
-            id=run_id,
-            timestamp=timestamp,
-            system_prompt_path=system_prompt_path,
-            input_path=input_file_path,
-            model_config=generator_config,
-            raw_output_path=output_file,
-        )
-        metadata_file = run_dir / "metadata.json"
-        metadata_dict = prompt_run.to_dict()
-        metadata_dict.update(metadata)
-        metadata_file.write_text(json.dumps(metadata_dict, indent=2), encoding="utf-8")
+        # Generate completions for each variant
+        results = []
+        for variant_name, variant_system_prompt in variants:
+            variant_label = f" ({variant_name})" if variant_name else ""
+            typer.echo(f"Generating completion{variant_label}...", err=True)
 
-        # Print output to stdout
-        typer.echo(response_text)
+            try:
+                response_text, metadata = generate_completion(
+                    provider=provider_instance,
+                    system_prompt=variant_system_prompt,
+                    user_prompt=user_prompt_content,
+                    model=generator_config.model_name,
+                    temperature=generator_config.temperature,
+                    max_completion_tokens=generator_config.max_completion_tokens,
+                    seed=generator_config.seed,
+                )
+
+                results.append({
+                    "variant": variant_name,
+                    "response_text": response_text,
+                    "metadata": metadata,
+                    "status": "completed",
+                })
+
+            except Exception as e:
+                typer.echo(
+                    f"  ✗ Error generating{variant_label}: {e}",
+                    err=True,
+                )
+                results.append({
+                    "variant": variant_name,
+                    "response_text": "",
+                    "metadata": {},
+                    "status": "generation_error",
+                    "error": str(e),
+                })
+
+        # Write outputs for each variant
+        for idx, result in enumerate(results):
+            variant = result["variant"]
+            response_text = result["response_text"]
+            metadata = result["metadata"]
+
+            # Determine file suffix
+            if variant:
+                suffix = f"_{variant}"
+            else:
+                suffix = ""
+
+            # Write output
+            output_file = run_dir / f"output{suffix}.txt"
+            output_file.write_text(response_text, encoding="utf-8")
+
+            # Write metadata
+            prompt_run = PromptRun(
+                id=run_id,
+                timestamp=timestamp,
+                system_prompt_path=system_prompt_path,
+                input_path=input_file_path,
+                model_config=generator_config,
+                raw_output_path=output_file,
+            )
+            metadata_file = run_dir / f"metadata{suffix}.json"
+            metadata_dict = prompt_run.to_dict()
+            metadata_dict.update(metadata)
+            if variant:
+                metadata_dict["ab_variant"] = variant
+            if result["status"] != "completed":
+                metadata_dict["status"] = result["status"]
+                if "error" in result:
+                    metadata_dict["error"] = result["error"]
+            metadata_file.write_text(json.dumps(metadata_dict, indent=2), encoding="utf-8")
+
+        # Print outputs to stdout (all variants)
+        for result in results:
+            if result["variant"]:
+                typer.echo(f"\n{'='*60}")
+                typer.echo(f"Variant: {result['variant']}")
+                typer.echo('='*60)
+            typer.echo(result["response_text"])
 
         # Print summary to stderr
         typer.echo("\n" + "=" * 60, err=True)
@@ -543,11 +618,33 @@ def generate(
         typer.echo(f"Max tokens: {generator_config.max_completion_tokens}", err=True)
         if generator_config.seed is not None:
             typer.echo(f"Seed: {generator_config.seed}", err=True)
-        typer.echo(f"Output file: {output_file}", err=True)
-        typer.echo(f"Metadata file: {metadata_file}", err=True)
-        if metadata.get("tokens_used"):
-            typer.echo(f"Tokens used: {metadata['tokens_used']}", err=True)
-        typer.echo(f"Latency: {metadata['latency_ms']:.2f}ms", err=True)
+
+        if ab_test_system_prompt:
+            typer.echo(f"\nA/B Test Results:", err=True)
+            for result in results:
+                variant = result["variant"]
+                status_icon = "✓" if result["status"] == "completed" else "✗"
+                typer.echo(f"  {status_icon} {variant}:", err=True)
+                if result["status"] == "completed":
+                    output_file = run_dir / f"output_{variant}.txt"
+                    metadata_file = run_dir / f"metadata_{variant}.json"
+                    typer.echo(f"     Output: {output_file}", err=True)
+                    typer.echo(f"     Metadata: {metadata_file}", err=True)
+                    if result["metadata"].get("tokens_used"):
+                        typer.echo(f"     Tokens: {result['metadata']['tokens_used']}", err=True)
+                    typer.echo(f"     Latency: {result['metadata']['latency_ms']:.2f}ms", err=True)
+                else:
+                    typer.echo(f"     Error: {result.get('error', 'Unknown')}", err=True)
+        else:
+            output_file = run_dir / "output.txt"
+            metadata_file = run_dir / "metadata.json"
+            typer.echo(f"Output file: {output_file}", err=True)
+            typer.echo(f"Metadata file: {metadata_file}", err=True)
+            if results[0]["status"] == "completed":
+                if results[0]["metadata"].get("tokens_used"):
+                    typer.echo(f"Tokens used: {results[0]['metadata']['tokens_used']}", err=True)
+                typer.echo(f"Latency: {results[0]['metadata']['latency_ms']:.2f}ms", err=True)
+
         typer.echo("=" * 60, err=True)
 
     except ValueError as e:
@@ -625,6 +722,11 @@ def evaluate_single(
     ),
     run_note: str | None = typer.Option(
         None, "--run-note", help="Optional note about this evaluation run"
+    ),
+    ab_test_system_prompt: bool = typer.Option(
+        False,
+        "--ab-test-system-prompt",
+        help="Run A/B test: evaluate with and without system prompt. Doubles API calls.",
     ),
 ) -> None:
     """
@@ -786,91 +888,145 @@ def evaluate_single(
         run_dir = output_dir_path / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
 
+        # Warn about doubled API calls if A/B testing is enabled
+        if ab_test_system_prompt:
+            typer.echo(
+                "⚠️  WARNING: A/B testing mode enabled. This will DOUBLE your API calls and costs.",
+                err=True,
+            )
+            typer.echo(
+                f"    Generating {num_samples * 2} total samples: {num_samples} with system prompt, {num_samples} without.",
+                err=True,
+            )
+            typer.echo("", err=True)
+
         typer.echo(f"Starting evaluation run {run_id}...", err=True)
-        typer.echo(f"Generating {num_samples} samples...", err=True)
+
+        if ab_test_system_prompt:
+            typer.echo(f"Generating {num_samples} samples per variant (2 variants)...", err=True)
+        else:
+            typer.echo(f"Generating {num_samples} samples...", err=True)
+
+        # Determine variants to run
+        variants = []
+        if ab_test_system_prompt:
+            variants = [
+                ("with_prompt", system_prompt_content),
+                ("no_prompt", ""),
+            ]
+            total_samples = num_samples * 2
+        else:
+            variants = [(None, system_prompt_content)]
+            total_samples = num_samples
 
         # Generate and judge samples
         samples: list[Sample] = []
-        for i in range(num_samples):
-            sample_id = f"{run_id}-sample-{i + 1}"
-            typer.echo(f"  Sample {i + 1}/{num_samples}...", err=True)
+        sample_idx = 0
 
-            try:
-                # Generate completion
-                response_text, metadata = generate_completion(
-                    provider=provider_instance,
-                    system_prompt=system_prompt_content,
-                    user_prompt=user_prompt_content,
-                    model=generator_config.model_name,
-                    temperature=generator_config.temperature,
-                    max_completion_tokens=generator_config.max_completion_tokens,
-                    seed=generator_config.seed,
-                )
+        for variant_name, variant_system_prompt in variants:
+            if variant_name:
+                typer.echo(f"\nVariant: {variant_name}", err=True)
 
-                # Judge the output
-                judge_result = judge_completion(
-                    provider=provider_instance,
-                    input_text=user_prompt_content,
-                    generator_output=response_text,
-                    judge_config=judge_config,
-                    judge_system_prompt=judge_prompt_content,
-                    task_description=task_description,
-                    rubric=loaded_rubric,
-                )
-
-                # Create sample with judge results
-                sample = Sample(
-                    sample_id=sample_id,
-                    input_text=user_prompt_content,
-                    generator_output=response_text,
-                    judge_score=judge_result.get("judge_score"),
-                    judge_rationale=judge_result.get("judge_rationale"),
-                    judge_raw_response=judge_result.get("judge_raw_response"),
-                    status=judge_result["status"],
-                    task_description=task_description,
-                    judge_metrics=judge_result.get("judge_metrics", {}),
-                    judge_flags=judge_result.get("judge_flags", {}),
-                    judge_overall_comment=judge_result.get("judge_overall_comment"),
-                )
-
-                samples.append(sample)
-
-                # Display progress
-                if sample.status == "completed":
-                    if sample.judge_score is not None:
-                        # Legacy single-metric mode
-                        typer.echo(
-                            f"    ✓ Generated and judged (score: {sample.judge_score:.1f}/5.0)",
-                            err=True,
-                        )
-                    else:
-                        # Rubric mode - show summary of metrics
-                        num_metrics = len(sample.judge_metrics)
-                        typer.echo(
-                            f"    ✓ Generated and judged ({num_metrics} metrics evaluated)",
-                            err=True,
-                        )
-                elif sample.status == "judge_invalid_response":
-                    error_msg = judge_result.get("error", "Invalid judge response")
-                    typer.echo(f"    ⚠ Generated but judge response invalid: {error_msg}", err=True)
+            for i in range(num_samples):
+                sample_idx += 1
+                if variant_name:
+                    sample_id = f"{run_id}-{variant_name}-sample-{i + 1}"
                 else:
-                    error_msg = judge_result.get("error")
-                    typer.echo(f"    ⚠ Generated but judge error: {error_msg}", err=True)
+                    sample_id = f"{run_id}-sample-{i + 1}"
 
-            except Exception as e:
-                typer.echo(f"    ✗ Error generating sample: {e}", err=True)
-                # Create a sample with error status
-                sample = Sample(
-                    sample_id=sample_id,
-                    input_text=user_prompt_content,
-                    generator_output="",
-                    status="generation_error",
-                    task_description=task_description,
-                )
-                samples.append(sample)
+                if variant_name:
+                    typer.echo(f"  Sample {i + 1}/{num_samples} ({variant_name})...", err=True)
+                else:
+                    typer.echo(f"  Sample {sample_idx}/{num_samples}...", err=True)
+
+                try:
+                    # Generate completion
+                    response_text, metadata = generate_completion(
+                        provider=provider_instance,
+                        system_prompt=variant_system_prompt,
+                        user_prompt=user_prompt_content,
+                        model=generator_config.model_name,
+                        temperature=generator_config.temperature,
+                        max_completion_tokens=generator_config.max_completion_tokens,
+                        seed=generator_config.seed,
+                    )
+
+                    # Judge the output
+                    judge_result = judge_completion(
+                        provider=provider_instance,
+                        input_text=user_prompt_content,
+                        generator_output=response_text,
+                        judge_config=judge_config,
+                        judge_system_prompt=judge_prompt_content,
+                        task_description=task_description,
+                        rubric=loaded_rubric,
+                    )
+
+                    # Create sample with judge results
+                    sample = Sample(
+                        sample_id=sample_id,
+                        input_text=user_prompt_content,
+                        generator_output=response_text,
+                        judge_score=judge_result.get("judge_score"),
+                        judge_rationale=judge_result.get("judge_rationale"),
+                        judge_raw_response=judge_result.get("judge_raw_response"),
+                        status=judge_result["status"],
+                        task_description=task_description,
+                        judge_metrics=judge_result.get("judge_metrics", {}),
+                        judge_flags=judge_result.get("judge_flags", {}),
+                        judge_overall_comment=judge_result.get("judge_overall_comment"),
+                        ab_variant=variant_name,
+                    )
+
+                    samples.append(sample)
+
+                    # Display progress
+                    if sample.status == "completed":
+                        if sample.judge_score is not None:
+                            # Legacy single-metric mode
+                            typer.echo(
+                                f"    ✓ Generated and judged (score: {sample.judge_score:.1f}/5.0)",
+                                err=True,
+                            )
+                        else:
+                            # Rubric mode - show summary of metrics
+                            num_metrics = len(sample.judge_metrics)
+                            typer.echo(
+                                f"    ✓ Generated and judged ({num_metrics} metrics evaluated)",
+                                err=True,
+                            )
+                    elif sample.status == "judge_invalid_response":
+                        error_msg = judge_result.get("error", "Invalid judge response")
+                        typer.echo(f"    ⚠ Generated but judge response invalid: {error_msg}", err=True)
+                    else:
+                        error_msg = judge_result.get("error")
+                        typer.echo(f"    ⚠ Generated but judge error: {error_msg}", err=True)
+
+                except Exception as e:
+                    typer.echo(f"    ✗ Error generating sample: {e}", err=True)
+                    # Create a sample with error status
+                    sample = Sample(
+                        sample_id=sample_id,
+                        input_text=user_prompt_content,
+                        generator_output="",
+                        status="generation_error",
+                        task_description=task_description,
+                        ab_variant=variant_name,
+                    )
+                    samples.append(sample)
 
         # Compute aggregate statistics with rubric awareness
         stats = compute_aggregate_statistics(samples, loaded_rubric)
+
+        # If A/B testing, also compute per-variant statistics
+        variant_stats = {}
+        if ab_test_system_prompt:
+            for variant_name, _ in variants:
+                if variant_name:
+                    variant_samples = [s for s in samples if s.ab_variant == variant_name]
+                    variant_stats[variant_name] = compute_aggregate_statistics(
+                        variant_samples, loaded_rubric
+                    )
 
         # Compute rubric metadata
         rubric_metadata = compute_rubric_metadata(loaded_rubric, rubric_path)
@@ -888,7 +1044,7 @@ def evaluate_single(
         evaluation_run = SingleEvaluationRun(
             run_id=run_id,
             timestamp=timestamp,
-            num_samples=num_samples,
+            num_samples=total_samples if ab_test_system_prompt else num_samples,
             generator_config=generator_config,
             judge_config=judge_config,
             samples=samples,
@@ -902,6 +1058,10 @@ def evaluate_single(
         evaluation_dict = evaluation_run.to_dict()
         # Add aggregate statistics
         evaluation_dict["aggregate_stats"] = stats
+        # Add variant statistics if A/B testing
+        if ab_test_system_prompt:
+            evaluation_dict["ab_test_enabled"] = True
+            evaluation_dict["variant_stats"] = variant_stats
         # Add rubric metadata
         if rubric_metadata:
             evaluation_dict["rubric_metadata"] = rubric_metadata
@@ -919,19 +1079,34 @@ def evaluate_single(
         typer.echo(f"Run ID: {run_id}", err=True)
         typer.echo(f"Generator Model: {generator_config.model_name}", err=True)
         typer.echo(f"Judge Model: {judge_config.model_name}", err=True)
-        typer.echo(f"Total Samples: {num_samples}", err=True)
+        if ab_test_system_prompt:
+            typer.echo(f"A/B Test Mode: Enabled", err=True)
+            typer.echo(f"Total Samples: {total_samples} ({num_samples} per variant)", err=True)
+        else:
+            typer.echo(f"Total Samples: {num_samples}", err=True)
         typer.echo(f"Successful: {stats['num_successful']}", err=True)
         typer.echo(f"Failed: {stats['num_failed']}", err=True)
 
-        # Print legacy statistics if available
-        if stats["mean_score"] is not None:
+        # Print variant statistics if A/B testing
+        if ab_test_system_prompt:
+            typer.echo("\nA/B Test Results:", err=True)
+            for variant_name in ["with_prompt", "no_prompt"]:
+                v_stats = variant_stats.get(variant_name, {})
+                typer.echo(f"\n  Variant: {variant_name}", err=True)
+                typer.echo(f"    Successful: {v_stats.get('num_successful', 0)}", err=True)
+                typer.echo(f"    Failed: {v_stats.get('num_failed', 0)}", err=True)
+                if v_stats.get("mean_score") is not None:
+                    typer.echo(f"    Mean Score: {v_stats['mean_score']:.2f}/5.0", err=True)
+
+        # Print legacy statistics if available (only for non-A/B mode)
+        if not ab_test_system_prompt and stats["mean_score"] is not None:
             typer.echo("\nLegacy Aggregate Statistics:", err=True)
             typer.echo(f"  Mean Score: {stats['mean_score']:.2f}/5.0", err=True)
             typer.echo(f"  Min Score:  {stats['min_score']:.2f}/5.0", err=True)
             typer.echo(f"  Max Score:  {stats['max_score']:.2f}/5.0", err=True)
 
-        # Print per-metric statistics if available
-        if "metric_stats" in stats and stats["metric_stats"]:
+        # Print per-metric statistics if available (only for non-A/B mode to avoid clutter)
+        if not ab_test_system_prompt and "metric_stats" in stats and stats["metric_stats"]:
             typer.echo("\nPer-Metric Statistics:", err=True)
             for metric_name, metric_data in stats["metric_stats"].items():
                 if metric_data["count"] > 0:
@@ -946,8 +1121,8 @@ def evaluate_single(
                 else:
                     typer.echo(f"  {metric_name}: No valid scores", err=True)
 
-        # Print per-flag statistics if available
-        if "flag_stats" in stats and stats["flag_stats"]:
+        # Print per-flag statistics if available (only for non-A/B mode to avoid clutter)
+        if not ab_test_system_prompt and "flag_stats" in stats and stats["flag_stats"]:
             typer.echo("\nPer-Flag Statistics:", err=True)
             for flag_name, flag_data in stats["flag_stats"].items():
                 if flag_data["total_count"] > 0:

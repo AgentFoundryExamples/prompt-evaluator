@@ -366,7 +366,10 @@ def generate(
         ..., "--input", "-i", help="Path to input file (use '-' for stdin)"
     ),
     provider: str | None = typer.Option(
-        None, "--provider", "-p", help="Provider to use (openai, claude, anthropic, mock). Uses config default if not specified."
+        None,
+        "--provider",
+        "-p",
+        help="Provider to use (openai, claude, anthropic, mock). Uses config default.",
     ),
     model: str | None = typer.Option(None, "--model", "-m", help="Model name override"),
     temperature: float | None = typer.Option(
@@ -377,7 +380,7 @@ def generate(
     ),
     seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
     output_dir: str | None = typer.Option(
-        None, "--output-dir", "-o", help="Output directory for runs. Uses config default if not specified."
+        None, "--output-dir", "-o", help="Output directory for runs. Uses config default."
     ),
     config_file: str | None = typer.Option(
         None, "--config", "-c", help="Path to config file (YAML/TOML)"
@@ -587,14 +590,19 @@ def evaluate_single(
         ..., "--num-samples", "-n", help="Number of samples to generate"
     ),
     provider: str | None = typer.Option(
-        None, "--provider", "-p", help="Provider to use (openai, claude, anthropic, mock). Uses config default if not specified."
+        None,
+        "--provider",
+        "-p",
+        help="Provider to use (openai, claude, anthropic, mock). Uses config default.",
     ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
     ),
     judge_model: str | None = typer.Option(None, "--judge-model", help="Judge model name override"),
     judge_system_prompt: str | None = typer.Option(
-        None, "--judge-system-prompt", help="Path to custom judge system prompt file or template key"
+        None,
+        "--judge-system-prompt",
+        help="Path to custom judge system prompt file or template key",
     ),
     rubric: str | None = typer.Option(
         None,
@@ -615,7 +623,7 @@ def evaluate_single(
         None, "--max-tokens", help="Maximum tokens for generator"
     ),
     output_dir: str | None = typer.Option(
-        None, "--output-dir", "-o", help="Output directory for evaluation runs. Uses config default if not specified."
+        None, "--output-dir", "-o", help="Output directory for runs. Uses config default."
     ),
     config_file: str | None = typer.Option(
         None, "--config", "-c", help="Path to config file (YAML/TOML)"
@@ -640,8 +648,8 @@ def evaluate_single(
 
     This command generates multiple completions for the same input, evaluates
     each output using a judge model, and produces aggregate statistics.
-    
-    System prompt and judge prompt can be either file paths or template keys defined 
+
+    System prompt and judge prompt can be either file paths or template keys defined
     in prompt_evaluator.yaml. Configuration defaults are used when CLI flags are omitted.
     """
     try:
@@ -1057,10 +1065,16 @@ def evaluate_dataset(
         ..., "--system-prompt", "-s", help="Path to generator system prompt file or template key"
     ),
     num_samples: int | None = typer.Option(
-        None, "--num-samples", "-n", help="Number of samples to generate per test case (default: 5)"
+        None,
+        "--num-samples",
+        "-n",
+        help="Number of samples to generate per test case (default: 5)",
     ),
     provider: str | None = typer.Option(
-        None, "--provider", "-p", help="Provider to use (openai, claude, anthropic, mock). Uses config default if not specified."
+        None,
+        "--provider",
+        "-p",
+        help="Provider to use (openai, claude, anthropic, mock). Uses config default.",
     ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
@@ -1069,7 +1083,7 @@ def evaluate_dataset(
     judge_system_prompt: str | None = typer.Option(
         None,
         "--judge-system-prompt",
-        help="Path to custom judge system prompt file or template key"
+        help="Path to custom judge system prompt file or template key",
     ),
     rubric: str | None = typer.Option(
         None,
@@ -1099,7 +1113,7 @@ def evaluate_dataset(
         False, "--quick", help="Quick mode: sets --num-samples=2 unless explicitly overridden"
     ),
     output_dir: str | None = typer.Option(
-        None, "--output-dir", "-o", help="Output directory for evaluation runs. Uses config default if not specified."
+        None, "--output-dir", "-o", help="Output directory for runs. Uses config default."
     ),
     config_file: str | None = typer.Option(
         None, "--config", "-c", help="Path to config file (YAML/TOML)"

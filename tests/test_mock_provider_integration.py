@@ -18,8 +18,6 @@ Tests validate that LocalMockProvider can be used for offline testing
 without making real API calls, ensuring deterministic behavior in tests.
 """
 
-import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest

@@ -149,16 +149,21 @@ class OpenAIProvider(BaseProvider, LLMProvider):
             api_key: OpenAI API key (if None, uses OPENAI_API_KEY env var)
             base_url: Optional custom base URL for OpenAI API
         """
-        super().__init__(api_key)
         self.base_url = base_url
         self.client = OpenAI(api_key=api_key, base_url=base_url)
+        # Initialize parent with the actual API key used by the client
+        super().__init__(self.client.api_key)
 
     def validate_config(self) -> None:
         """
         Validate OpenAI provider configuration.
 
+        This method validates the API key presence and base_url format if provided.
+        Note: This does not test actual connectivity to the API - connection errors
+        will be caught during actual API calls and returned in ProviderResult.error.
+
         Raises:
-            ValueError: If API key is not configured
+            ValueError: If API key is not configured or base_url format is invalid
         """
         # Check if API key is available (either passed or in environment)
         if not self.api_key and not os.environ.get("OPENAI_API_KEY"):
@@ -166,6 +171,14 @@ class OpenAIProvider(BaseProvider, LLMProvider):
                 "OpenAI API key is required. Set OPENAI_API_KEY environment variable "
                 "or pass api_key parameter."
             )
+
+        # Validate base_url format if provided
+        if self.base_url:
+            if not self.base_url.startswith(("http://", "https://")):
+                raise ValueError(
+                    f"Invalid base_url format: {self.base_url}. "
+                    "Must start with http:// or https://"
+                )
 
     def generate(
         self,
@@ -176,17 +189,25 @@ class OpenAIProvider(BaseProvider, LLMProvider):
         """
         Generate a completion using OpenAI API.
 
+        This method follows a non-throwing error pattern: API errors are caught
+        and returned in ProviderResult.error rather than being raised. This allows
+        callers to handle errors uniformly through the result object.
+
+        Note: The convenience wrapper generate_completion() converts errors to
+        exceptions for backward compatibility with existing code.
+
         Args:
             system_prompt: Optional system prompt to set context
             user_prompt: User prompt (string) or list of user prompts for multi-turn
             config: Provider configuration including model, temperature, etc.
 
         Returns:
-            ProviderResult with generated text, usage metadata, and latency
+            ProviderResult with generated text, usage metadata, and latency.
+            On error, result.error will contain the error message and result.text
+            will be empty.
 
         Raises:
-            ValueError: If configuration is invalid
-            RuntimeError: If API call fails
+            ValueError: Only if configuration validation fails before the API call
         """
         start_time = time.time()
 

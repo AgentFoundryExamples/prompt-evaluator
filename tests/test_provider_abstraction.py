@@ -18,7 +18,6 @@ Tests validate the pluggable provider interface, provider selection logic,
 LocalMockProvider behavior, and integration with CLI and dataset flows.
 """
 
-import os
 import threading
 from unittest.mock import patch
 
@@ -151,7 +150,7 @@ class TestGetProvider:
         """Test that get_provider validates configuration by default."""
         # Remove any existing API key from environment
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        
+
         # OpenAI provider without API key should fail validation
         # Note: OpenAI client throws error during initialization, not during validate_config
         with pytest.raises((ValueError, Exception), match="API key|OPENAI_API_KEY"):
@@ -356,13 +355,37 @@ class TestOpenAIProviderNewInterface:
     def test_openai_provider_validate_config_missing_key(self, mock_openai_class, monkeypatch):
         """Test OpenAI provider validation fails without API key."""
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        
-        # Mock OpenAI client to bypass initialization check
+
+        # Mock OpenAI client to bypass initialization check, but set api_key to None
+        mock_client = mock_openai_class.return_value
+        mock_client.api_key = None
+
         provider = OpenAIProvider(api_key=None)
-        
+
         # The validation should check environment which has no key
         with pytest.raises(ValueError, match="OpenAI API key is required"):
             provider.validate_config()
+
+    @patch("prompt_evaluator.provider.OpenAI")
+    def test_openai_provider_validate_invalid_base_url(self, mock_openai_class, monkeypatch):
+        """Test OpenAI provider validation fails with invalid base_url format."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create provider with invalid base_url
+        provider = OpenAIProvider(base_url="not-a-url")
+
+        with pytest.raises(ValueError, match="Invalid base_url format"):
+            provider.validate_config()
+
+    @patch("prompt_evaluator.provider.OpenAI")
+    def test_openai_provider_validate_valid_base_url(self, mock_openai_class, monkeypatch):
+        """Test OpenAI provider validation succeeds with valid base_url."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Test http and https URLs
+        for base_url in ["http://localhost:8000", "https://api.example.com"]:
+            provider = OpenAIProvider(base_url=base_url)
+            provider.validate_config()  # Should not raise
 
     @patch("prompt_evaluator.provider.OpenAI")
     def test_openai_provider_generate_success(self, mock_openai_class, monkeypatch):
@@ -488,3 +511,47 @@ class TestOpenAIProviderNewInterface:
         assert "Unexpected error" in result.error
         assert result.usage["total_tokens"] is None
         assert result.latency_ms > 0  # Should still track latency
+
+    @patch("prompt_evaluator.provider.OpenAI")
+    def test_openai_provider_passes_additional_params(self, mock_openai_class, monkeypatch):
+        """Test that additional_params are passed through to the API call."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_client = mock_openai_class.return_value
+        mock_completion = mock_client.chat.completions.create.return_value
+        mock_completion.choices[0].message.content = "Test response"
+        mock_completion.choices[0].finish_reason = "stop"
+        mock_completion.usage.total_tokens = 50
+        mock_completion.usage.prompt_tokens = 25
+        mock_completion.usage.completion_tokens = 25
+
+        provider = OpenAIProvider()
+
+        # Create config with additional params
+        config = ProviderConfig(
+            model="gpt-5.1",
+            temperature=0.7,
+            additional_params={"top_p": 0.9, "frequency_penalty": 0.5}
+        )
+
+        result = provider.generate(
+            system_prompt="System",
+            user_prompt="Test",
+            config=config,
+        )
+
+        assert result.text == "Test response"
+
+        # Verify additional_params were passed to the API
+        mock_client.chat.completions.create.assert_called_once()
+        call_kwargs = mock_client.chat.completions.create.call_args[1]
+
+        # Check that additional params were included
+        assert "top_p" in call_kwargs
+        assert call_kwargs["top_p"] == 0.9
+        assert "frequency_penalty" in call_kwargs
+        assert call_kwargs["frequency_penalty"] == 0.5
+
+        # Check that standard params are still there
+        assert call_kwargs["model"] == "gpt-5.1"
+        assert call_kwargs["temperature"] == 0.7

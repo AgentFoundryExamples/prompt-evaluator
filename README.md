@@ -44,7 +44,53 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
-After installation, try the tool with the provided example files:
+After installation, you can quickly test the tool with or without API keys.
+
+### Option 1: Test Without API Keys (Mock Provider)
+
+Try the tool immediately without any API setup using the mock provider:
+
+```bash
+# Create a test config that uses mock provider
+cat > prompt_evaluator.yaml << EOF
+defaults:
+  generator:
+    provider: mock
+    model: gpt-5.1
+    temperature: 0.7
+  judge:
+    provider: mock
+    model: gpt-5.1
+    temperature: 0.0
+EOF
+
+# Run a basic generation (no API calls, zero cost)
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+
+# View the mock output
+cat runs/*/output.txt
+
+# Run an evaluation (also with mock provider)
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 3
+
+# View evaluation results
+cat runs/*/evaluate-single.json | jq '.aggregate_stats'
+```
+
+The mock provider generates deterministic responses instantly without making real API calls. This is perfect for:
+- Learning the tool without API costs
+- Testing in CI/CD pipelines
+- Offline development
+- Validating evaluation workflows
+
+### Option 2: Test With OpenAI API
+
+Once you have an API key, try the tool with a real LLM provider:
 
 ```bash
 # Set your OpenAI API key
@@ -56,10 +102,56 @@ prompt-evaluator generate \
   --input examples/input.txt
 
 # View the generated output
-cat runs/<run-id>/output.txt
+cat runs/*/output.txt
 ```
 
-The tool will generate a completion, print it to stdout, and save both the output and metadata to a `runs/` directory with a unique run ID.
+The tool will generate a real completion, print it to stdout, and save both the output and metadata to a `runs/` directory with a unique run ID.
+
+### Option 3: Test With Anthropic Claude
+
+If you prefer Anthropic's Claude models:
+
+```bash
+# Set your Anthropic API key
+export ANTHROPIC_API_KEY="sk-ant-your-api-key-here"
+
+# Create config for Claude
+cat > prompt_evaluator.yaml << EOF
+defaults:
+  generator:
+    provider: claude
+    model: claude-sonnet-4.5
+    temperature: 0.7
+EOF
+
+# Run generation with Claude
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+```
+
+### Quick Evaluation Workflow
+
+Test a complete evaluation workflow with 2-3 samples (fast):
+
+```bash
+# With mock provider (instant, free)
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --quick \
+  --max-cases 3
+
+# With real provider (uses API credits)
+export OPENAI_API_KEY="sk-..."
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --quick \
+  --max-cases 3
+```
+
+This completes in seconds and gives you a taste of the full evaluation workflow.
 
 ## Usage
 
@@ -1830,6 +1922,228 @@ If some samples fail during evaluation:
 **No Progress Bar:**
 - Progress is shown as text messages, not a visual progress bar
 - Consider using `--max-cases` for quick testing
+
+
+## A/B Testing System Prompts
+
+The prompt evaluator supports A/B testing mode for comparing LLM behavior with and without system prompts. This feature helps quantify the influence of system prompts by running paired generations and evaluations.
+
+### Overview
+
+A/B testing mode automatically generates two variants for each evaluation:
+- **with_prompt**: Uses the configured system prompt
+- **no_prompt**: Runs without a system prompt (empty string)
+
+This enables systematic comparison to understand:
+- How much does the system prompt influence outputs?
+- Are outputs consistent without the system prompt?
+- Which prompt variations produce better results?
+
+### Key Features
+
+- **Automatic Pairing**: Each input generates two variants (with/without prompt)
+- **Variant Tagging**: All outputs tagged with variant metadata for filtering
+- **Separate Statistics**: Aggregate stats computed per variant for comparison
+- **Cost Awareness**: Clear warnings about doubled API usage before execution
+
+### Usage
+
+A/B testing is available on `generate`, `evaluate-single`, and `evaluate-dataset` commands:
+
+**Generate Command:**
+```bash
+# Single generation with A/B testing
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --ab-test-system-prompt
+
+# Outputs:
+# runs/<run-id>/output_with_prompt.txt
+# runs/<run-id>/output_no_prompt.txt
+# runs/<run-id>/metadata_with_prompt.json
+# runs/<run-id>/metadata_no_prompt.json
+```
+
+**Evaluate-Single Command:**
+```bash
+# Multiple samples per variant for statistical comparison
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 10 \
+  --ab-test-system-prompt
+
+# Warning: This will generate 20 samples total (10 × 2 variants)
+```
+
+**Evaluate-Dataset Command:**
+```bash
+# A/B test across entire dataset
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --num-samples 5 \
+  --ab-test-system-prompt
+
+# Warning: With 20 test cases and 5 samples, this generates 200 samples (20 × 5 × 2)
+```
+
+### Output Structure
+
+A/B testing outputs are organized to keep variants separate:
+
+**Single Generation:**
+```
+runs/<run-id>/
+  output_with_prompt.txt
+  output_no_prompt.txt
+  metadata_with_prompt.json
+  metadata_no_prompt.json
+```
+
+**Evaluation Results:**
+
+Each sample includes an `ab_variant` field:
+
+```json
+{
+  "samples": [
+    {
+      "sample_id": "abc123-sample-1",
+      "ab_variant": "with_prompt",
+      "input_text": "What is Python?",
+      "generator_output": "Python is a programming language...",
+      "judge_score": 4.5
+    },
+    {
+      "sample_id": "abc123-sample-2",
+      "ab_variant": "no_prompt",
+      "input_text": "What is Python?",
+      "generator_output": "Python is...",
+      "judge_score": 3.2
+    }
+  ],
+  "aggregate_stats": {
+    "variant_stats": {
+      "with_prompt": {
+        "mean_score": 4.3,
+        "num_samples": 10
+      },
+      "no_prompt": {
+        "mean_score": 3.5,
+        "num_samples": 10
+      }
+    }
+  }
+}
+```
+
+### Interpreting Results
+
+**Compare aggregate statistics** to understand system prompt impact:
+
+```bash
+# After A/B test evaluation
+cat runs/<run-id>/evaluate-single.json | jq '.aggregate_stats.variant_stats'
+
+# Example output:
+{
+  "with_prompt": {
+    "mean_score": 4.3,
+    "min_score": 3.8,
+    "max_score": 4.8,
+    "std": 0.25,
+    "num_samples": 10
+  },
+  "no_prompt": {
+    "mean_score": 3.1,
+    "min_score": 2.5,
+    "max_score": 3.9,
+    "std": 0.45,
+    "num_samples": 10
+  }
+}
+```
+
+**Key Insights:**
+
+1. **Mean Score Delta**: Difference between `with_prompt` and `no_prompt` means
+   - Large delta (>0.5): System prompt has strong influence
+   - Small delta (<0.2): System prompt has minimal effect
+   - Negative delta: System prompt may be harmful
+
+2. **Standard Deviation**: Consistency of each variant
+   - Lower std for `with_prompt`: System prompt stabilizes outputs
+   - Lower std for `no_prompt`: Model has inherent consistency
+   - High std for both: Prompt or task may be ambiguous
+
+3. **Sample Distribution**: Review individual samples for patterns
+   - Are `with_prompt` samples consistently better?
+   - Do `no_prompt` samples miss key requirements?
+   - Are there edge cases where one variant fails?
+
+### Cost Considerations
+
+⚠️ **Warning: A/B testing doubles API usage and costs.**
+
+Each input generates two completions (with and without prompt), plus two judge evaluations if using evaluation commands:
+
+**Cost Calculation:**
+```
+Total API Calls = Inputs × Samples × 2 (variants) × 2 (gen + judge)
+
+Example: 50 test cases, 5 samples per case
+= 50 × 5 × 2 × 2
+= 1,000 API calls
+```
+
+**Cost Mitigation Strategies:**
+
+1. **Start Small**: Use `--quick` or `--max-cases` for smoke tests
+   ```bash
+   # Test A/B mode with only 5 cases and 2 samples (40 API calls)
+   prompt-evaluator evaluate-dataset \
+     --dataset sample.yaml \
+     --system-prompt prompt.txt \
+     --max-cases 5 \
+     --quick \
+     --ab-test-system-prompt
+   ```
+
+2. **Use Mock Provider**: Test A/B logic without API costs
+   ```yaml
+   # prompt_evaluator.yaml
+   defaults:
+     generator:
+       provider: mock  # Zero API costs
+   ```
+   
+   ```bash
+   prompt-evaluator evaluate-dataset \
+     --dataset sample.yaml \
+     --system-prompt prompt.txt \
+     --ab-test-system-prompt  # No cost with mock provider
+   ```
+
+3. **Selective A/B Testing**: Only A/B test critical prompts
+   - Use standard evaluation for most experiments
+   - Reserve A/B testing for final validation
+
+4. **Monitor API Limits**: Check your provider's rate limits
+   - OpenAI: 3,500 RPM (Tier 3), 500 RPM (GPT-4)
+   - Anthropic: Varies by account tier
+   - Large A/B tests may hit limits quickly
+
+### Detailed Documentation
+
+For comprehensive A/B testing documentation, including:
+- Detailed output schema
+- Statistical comparison methods
+- Advanced filtering and analysis
+- Visualization recommendations
+
+See [docs/ab-testing.md](docs/ab-testing.md) for the complete guide.
 
 
 ## Prompt Versioning and Run Tracking
@@ -3765,6 +4079,90 @@ If the `markdown` package is not installed, the HTML report will be skipped with
 ### Reporting Specification
 
 For the complete specification including section structures, table formats, configuration parameters, and edge case handling, see [docs/reporting.md](docs/reporting.md).
+
+## Documentation
+
+The Prompt Evaluator provides comprehensive documentation across multiple files:
+
+### Core Documentation
+
+- **[README.md](README.md)** (this file) - Main documentation covering:
+  - Installation and quick start
+  - Provider architecture and configuration
+  - CLI commands and workflows
+  - Evaluation concepts and best practices
+  - Prompt versioning and comparison
+
+### Detailed Guides
+
+- **[LLMs.md](LLMs.md)** - LLM provider implementation guidelines:
+  - OpenAI GPT-5+ integration patterns
+  - Anthropic Claude Sonnet/Opus 4+ best practices
+  - Google Gemini 3+ recommendations
+  - Latest stable API versions and SDKs
+
+- **[docs/datasets.md](docs/datasets.md)** - Dataset format and usage:
+  - YAML and JSONL schema specifications
+  - Required and optional fields
+  - Custom metadata and passthrough
+  - Loading and validation
+  - Best practices for curating test datasets
+  - Evaluation workflows and examples
+
+- **[docs/reporting.md](docs/reporting.md)** - Report generation specification:
+  - Single-run report structure
+  - Comparison report structure
+  - Configuration knobs and thresholds
+  - HTML conversion and styling
+  - Edge case handling
+
+- **[docs/ab-testing.md](docs/ab-testing.md)** - A/B testing guide:
+  - System prompt comparison methodology
+  - Variant tagging and statistics
+  - Output structure and interpretation
+  - Cost considerations and mitigation
+  - Statistical analysis recommendations
+
+### Configuration References
+
+- **[.env.example](.env.example)** - Environment variable template:
+  - OpenAI API configuration
+  - Anthropic API configuration
+  - Default provider settings
+  - Optional model overrides
+
+- **[prompt_evaluator.yaml](prompt_evaluator.yaml)** - Application configuration example:
+  - Generator and judge defaults
+  - Prompt template mappings
+  - Dataset path shortcuts
+  - Rubric configuration
+
+### Example Files
+
+- **[examples/](examples/)** - Sample files for quick start:
+  - `system_prompt.txt` - Example system prompt
+  - `input.txt` - Example input
+  - `datasets/` - Sample YAML and JSONL datasets
+  - `rubrics/` - Preset rubric definitions
+  - `run-artifacts/` - Example evaluation outputs
+
+### Documentation Navigation Tips
+
+1. **Start Here**: README.md (this file) for overview and setup
+2. **Provider Setup**: Check LLMs.md for provider-specific guidance
+3. **Data Preparation**: Read docs/datasets.md for dataset formatting
+4. **Running Evaluations**: Follow CLI examples in README.md
+5. **Analyzing Results**: See docs/reporting.md for report generation
+6. **Advanced Features**: Explore docs/ab-testing.md for A/B testing
+
+### Documentation Updates
+
+When contributing changes:
+- Update relevant documentation files alongside code changes
+- Maintain consistency between README and docs/ files
+- Validate internal links (e.g., `[link](docs/file.md)`)
+- Update examples if command signatures change
+- Never commit API keys or secrets (use .env.example references)
 
 ## Development
 

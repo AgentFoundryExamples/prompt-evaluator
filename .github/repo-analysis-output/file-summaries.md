@@ -20,8 +20,8 @@ Total files: 29
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 71.59 KB  
-**LOC:** 1422  
+**Size:** 80.97 KB  
+**LOC:** 1603  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/comparison.py
@@ -47,8 +47,8 @@ Total files: 29
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 16.11 KB  
-**LOC:** 340  
+**Size:** 17.50 KB  
+**LOC:** 359  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/models.py
@@ -56,8 +56,8 @@ Total files: 29
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 32.96 KB  
-**LOC:** 701  
+**Size:** 33.08 KB  
+**LOC:** 703  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -191,8 +191,8 @@ Total files: 29
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 36.45 KB  
-**LOC:** 857  
+**Size:** 46.29 KB  
+**LOC:** 1078  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_generate_cli.py
@@ -200,8 +200,8 @@ Total files: 29
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 17.81 KB  
-**LOC:** 433  
+**Size:** 26.04 KB  
+**LOC:** 600  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_judge_models.py

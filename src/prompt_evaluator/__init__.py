@@ -21,8 +21,23 @@ This package provides functionality for:
 - Analyzing and comparing results
 """
 
+from prompt_evaluator.config import (
+    DefaultGeneratorConfig,
+    DefaultJudgeConfig,
+    DefaultsConfig,
+    PromptEvaluatorConfig,
+    load_prompt_evaluator_config,
+    locate_config_file,
+)
+
 __version__ = "0.1.0"
 
 __all__ = [
     "__version__",
+    "DefaultGeneratorConfig",
+    "DefaultJudgeConfig",
+    "DefaultsConfig",
+    "PromptEvaluatorConfig",
+    "load_prompt_evaluator_config",
+    "locate_config_file",
 ]

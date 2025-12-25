@@ -22,7 +22,13 @@ from pathlib import Path
 
 import pytest
 
-from prompt_evaluator.config import APIConfig, load_api_config
+from prompt_evaluator.config import (
+    APIConfig,
+    PromptEvaluatorConfig,
+    load_api_config,
+    load_prompt_evaluator_config,
+    locate_config_file,
+)
 from prompt_evaluator.models import GeneratorConfig, PromptRun
 
 
@@ -316,3 +322,483 @@ model_name: gpt-4
         assert config.api_key == "env-key"
         assert config.base_url == "https://env.openai.com"
         assert config.model_name == "file-model"
+
+
+class TestPromptEvaluatorConfig:
+    """Tests for PromptEvaluatorConfig and related models."""
+
+    def test_default_values(self):
+        """Test that PromptEvaluatorConfig has sensible defaults."""
+        config = PromptEvaluatorConfig()
+
+        assert config.defaults.generator.provider == "openai"
+        assert config.defaults.generator.model == "gpt-5.1"
+        assert config.defaults.generator.temperature == 0.7
+        assert config.defaults.generator.max_completion_tokens == 1024
+
+        assert config.defaults.judge.provider == "openai"
+        assert config.defaults.judge.model == "gpt-5.1"
+        assert config.defaults.judge.temperature == 0.0
+
+        assert config.defaults.rubric is None
+        assert config.defaults.run_directory == "runs"
+
+        assert config.prompt_templates == {}
+        assert config.dataset_paths == {}
+
+    def test_custom_defaults(self):
+        """Test that custom default values are accepted."""
+        config_data = {
+            "defaults": {
+                "generator": {
+                    "provider": "anthropic",
+                    "model": "claude-3-opus",
+                    "temperature": 0.5,
+                    "max_completion_tokens": 2048
+                },
+                "judge": {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                    "temperature": 0.1
+                },
+                "rubric": "content-quality",
+                "run_directory": "custom_runs"
+            }
+        }
+
+        config = PromptEvaluatorConfig(**config_data)
+
+        assert config.defaults.generator.provider == "anthropic"
+        assert config.defaults.generator.model == "claude-3-opus"
+        assert config.defaults.generator.temperature == 0.5
+        assert config.defaults.generator.max_completion_tokens == 2048
+
+        assert config.defaults.judge.provider == "openai"
+        assert config.defaults.judge.model == "gpt-4"
+        assert config.defaults.judge.temperature == 0.1
+
+        assert config.defaults.rubric == "content-quality"
+        assert config.defaults.run_directory == "custom_runs"
+
+    def test_prompt_templates_mapping(self):
+        """Test that prompt templates can be defined."""
+        config_data = {
+            "prompt_templates": {
+                "checkout_compiler": "prompts/checkout.txt",
+                "default_system": "prompts/system.txt"
+            }
+        }
+
+        config = PromptEvaluatorConfig(**config_data)
+
+        assert len(config.prompt_templates) == 2
+        assert config.prompt_templates["checkout_compiler"] == "prompts/checkout.txt"
+        assert config.prompt_templates["default_system"] == "prompts/system.txt"
+
+    def test_dataset_paths_mapping(self):
+        """Test that dataset paths can be defined."""
+        config_data = {
+            "dataset_paths": {
+                "sample": "datasets/sample.yaml",
+                "production": "datasets/prod.jsonl"
+            }
+        }
+
+        config = PromptEvaluatorConfig(**config_data)
+
+        assert len(config.dataset_paths) == 2
+        assert config.dataset_paths["sample"] == "datasets/sample.yaml"
+        assert config.dataset_paths["production"] == "datasets/prod.jsonl"
+
+    def test_empty_template_key_validation(self):
+        """Test that empty template keys are rejected."""
+        config_data = {
+            "prompt_templates": {
+                "": "some/path.txt"
+            }
+        }
+
+        with pytest.raises(ValueError, match="Prompt template keys cannot be empty"):
+            PromptEvaluatorConfig(**config_data)
+
+    def test_empty_template_value_validation(self):
+        """Test that empty template values are rejected."""
+        config_data = {
+            "prompt_templates": {
+                "test": ""
+            }
+        }
+
+        with pytest.raises(ValueError, match="Prompt template path for key 'test' cannot be empty"):
+            PromptEvaluatorConfig(**config_data)
+
+    def test_empty_dataset_key_validation(self):
+        """Test that empty dataset keys are rejected."""
+        config_data = {
+            "dataset_paths": {
+                "": "some/path.yaml"
+            }
+        }
+
+        with pytest.raises(ValueError, match="Dataset keys cannot be empty"):
+            PromptEvaluatorConfig(**config_data)
+
+    def test_empty_dataset_value_validation(self):
+        """Test that empty dataset values are rejected."""
+        config_data = {
+            "dataset_paths": {
+                "test": ""
+            }
+        }
+
+        with pytest.raises(ValueError, match="Dataset path for key 'test' cannot be empty"):
+            PromptEvaluatorConfig(**config_data)
+
+    def test_invalid_generator_provider(self):
+        """Test that invalid generator provider is rejected."""
+        config_data = {
+            "defaults": {
+                "generator": {
+                    "provider": "invalid_provider",
+                    "model": "some-model"
+                }
+            }
+        }
+
+        with pytest.raises(ValueError, match="Invalid provider 'invalid_provider'"):
+            PromptEvaluatorConfig(**config_data)
+
+    def test_invalid_judge_provider(self):
+        """Test that invalid judge provider is rejected."""
+        config_data = {
+            "defaults": {
+                "judge": {
+                    "provider": "invalid_provider",
+                    "model": "some-model"
+                }
+            }
+        }
+
+        with pytest.raises(ValueError, match="Invalid provider 'invalid_provider'"):
+            PromptEvaluatorConfig(**config_data)
+
+    def test_resolve_absolute_path(self, tmp_path):
+        """Test that absolute paths are resolved correctly."""
+        config = PromptEvaluatorConfig()
+        config._config_dir = tmp_path
+
+        abs_path = tmp_path / "test.txt"
+        resolved = config.resolve_path(str(abs_path))
+
+        assert resolved == abs_path
+
+    def test_resolve_relative_path_with_config_dir(self, tmp_path):
+        """Test that relative paths are resolved relative to config dir."""
+        config = PromptEvaluatorConfig()
+        config._config_dir = tmp_path
+
+        resolved = config.resolve_path("subdir/test.txt")
+
+        assert resolved == (tmp_path / "subdir/test.txt").resolve()
+
+    def test_resolve_relative_path_without_config_dir(self, monkeypatch, tmp_path):
+        """Test that relative paths fall back to cwd when config dir not set."""
+        monkeypatch.chdir(tmp_path)
+
+        config = PromptEvaluatorConfig()
+        # Don't set config._config_dir
+
+        resolved = config.resolve_path("test.txt")
+
+        assert resolved == (tmp_path / "test.txt").resolve()
+
+    def test_get_prompt_template_path_success(self, tmp_path):
+        """Test getting prompt template path successfully."""
+        # Create a test file
+        template_file = tmp_path / "template.txt"
+        template_file.write_text("test template")
+
+        config_data = {
+            "prompt_templates": {
+                "test_template": str(template_file)
+            }
+        }
+
+        config = PromptEvaluatorConfig(**config_data)
+        config._config_dir = tmp_path
+
+        path = config.get_prompt_template_path("test_template")
+
+        assert path == template_file
+        assert path.exists()
+
+    def test_get_prompt_template_path_key_not_found(self):
+        """Test that missing template key raises KeyError."""
+        config_data = {
+            "prompt_templates": {
+                "existing": "some/path.txt"
+            }
+        }
+
+        config = PromptEvaluatorConfig(**config_data)
+
+        with pytest.raises(KeyError, match="Prompt template key 'missing' not found"):
+            config.get_prompt_template_path("missing")
+
+    def test_get_prompt_template_path_file_not_found(self, tmp_path):
+        """Test that missing template file raises FileNotFoundError."""
+        config_data = {
+            "prompt_templates": {
+                "test": "nonexistent.txt"
+            }
+        }
+
+        config = PromptEvaluatorConfig(**config_data)
+        config._config_dir = tmp_path
+
+        with pytest.raises(FileNotFoundError, match="Prompt template file not found"):
+            config.get_prompt_template_path("test")
+
+    def test_get_dataset_path_success(self, tmp_path):
+        """Test getting dataset path successfully."""
+        # Create a test file
+        dataset_file = tmp_path / "dataset.yaml"
+        dataset_file.write_text("test: data")
+
+        config_data = {
+            "dataset_paths": {
+                "test_dataset": str(dataset_file)
+            }
+        }
+
+        config = PromptEvaluatorConfig(**config_data)
+        config._config_dir = tmp_path
+
+        path = config.get_dataset_path("test_dataset")
+
+        assert path == dataset_file
+        assert path.exists()
+
+    def test_get_dataset_path_key_not_found(self):
+        """Test that missing dataset key raises KeyError."""
+        config_data = {
+            "dataset_paths": {
+                "existing": "some/path.yaml"
+            }
+        }
+
+        config = PromptEvaluatorConfig(**config_data)
+
+        with pytest.raises(KeyError, match="Dataset key 'missing' not found"):
+            config.get_dataset_path("missing")
+
+    def test_get_dataset_path_file_not_found(self, tmp_path):
+        """Test that missing dataset file raises FileNotFoundError."""
+        config_data = {
+            "dataset_paths": {
+                "test": "nonexistent.yaml"
+            }
+        }
+
+        config = PromptEvaluatorConfig(**config_data)
+        config._config_dir = tmp_path
+
+        with pytest.raises(FileNotFoundError, match="Dataset file not found"):
+            config.get_dataset_path("test")
+
+
+class TestLocateConfigFile:
+    """Tests for locate_config_file function."""
+
+    def test_cli_path_takes_precedence(self, tmp_path, monkeypatch):
+        """Test that CLI path has highest precedence."""
+        cli_path = tmp_path / "cli_config.yaml"
+        env_path = tmp_path / "env_config.yaml"
+        default_path = tmp_path / "prompt_evaluator.yaml"
+
+        # Create all files
+        cli_path.write_text("cli: config")
+        env_path.write_text("env: config")
+        default_path.write_text("default: config")
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("PROMPT_EVALUATOR_CONFIG", str(env_path))
+
+        result = locate_config_file(cli_path=cli_path)
+
+        assert result == cli_path
+
+    def test_env_var_second_precedence(self, tmp_path, monkeypatch):
+        """Test that env var is checked when CLI path not provided."""
+        env_path = tmp_path / "env_config.yaml"
+        default_path = tmp_path / "prompt_evaluator.yaml"
+
+        env_path.write_text("env: config")
+        default_path.write_text("default: config")
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("PROMPT_EVALUATOR_CONFIG", str(env_path))
+
+        result = locate_config_file()
+
+        assert result == env_path
+
+    def test_default_path_lowest_precedence(self, tmp_path, monkeypatch):
+        """Test that default path is used as fallback."""
+        default_path = tmp_path / "prompt_evaluator.yaml"
+        default_path.write_text("default: config")
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("PROMPT_EVALUATOR_CONFIG", raising=False)
+
+        result = locate_config_file()
+
+        assert result == default_path
+
+    def test_returns_none_when_not_found(self, tmp_path, monkeypatch):
+        """Test that None is returned when no config found."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("PROMPT_EVALUATOR_CONFIG", raising=False)
+
+        result = locate_config_file()
+
+        assert result is None
+
+
+class TestLoadPromptEvaluatorConfig:
+    """Tests for load_prompt_evaluator_config function."""
+
+    def test_load_valid_config(self, tmp_path):
+        """Test loading a valid configuration file."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+defaults:
+  generator:
+    provider: openai
+    model: gpt-4
+    temperature: 0.8
+    max_completion_tokens: 2048
+  judge:
+    provider: anthropic
+    model: claude-3
+    temperature: 0.0
+  rubric: default
+  run_directory: custom_runs
+
+prompt_templates:
+  test_template: prompts/test.txt
+
+dataset_paths:
+  test_dataset: datasets/test.yaml
+""")
+
+        config = load_prompt_evaluator_config(config_path=config_file, warn_if_missing=False)
+
+        assert config is not None
+        assert config.defaults.generator.provider == "openai"
+        assert config.defaults.generator.model == "gpt-4"
+        assert config.defaults.generator.temperature == 0.8
+        assert config.defaults.judge.provider == "anthropic"
+        assert config.defaults.rubric == "default"
+        assert config.prompt_templates["test_template"] == "prompts/test.txt"
+        assert config.dataset_paths["test_dataset"] == "datasets/test.yaml"
+
+    def test_load_minimal_config(self, tmp_path):
+        """Test loading a minimal configuration with defaults."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("# Minimal config\n")
+
+        config = load_prompt_evaluator_config(config_path=config_file, warn_if_missing=False)
+
+        assert config is not None
+        # Should have all defaults
+        assert config.defaults.generator.provider == "openai"
+        assert config.defaults.generator.model == "gpt-5.1"
+        assert config.prompt_templates == {}
+
+    def test_load_config_with_relative_paths(self, tmp_path):
+        """Test that config directory is stored for path resolution."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+prompt_templates:
+  rel_template: relative/path.txt
+""")
+
+        config = load_prompt_evaluator_config(config_path=config_file, warn_if_missing=False)
+
+        assert config is not None
+        assert config._config_dir == tmp_path.resolve()
+
+    def test_load_missing_config_with_warning(self, tmp_path, monkeypatch):
+        """Test that missing config returns None with warning when not explicitly provided."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("PROMPT_EVALUATOR_CONFIG", raising=False)
+
+        # No config file exists, and we're not providing an explicit path
+        with pytest.warns(UserWarning, match="No prompt_evaluator.yaml config file found"):
+            config = load_prompt_evaluator_config(warn_if_missing=True)
+
+        assert config is None
+
+    def test_load_explicit_missing_config_raises(self, tmp_path):
+        """Test that explicitly provided missing config raises FileNotFoundError."""
+        nonexistent = tmp_path / "nonexistent.yaml"
+
+        with pytest.raises(FileNotFoundError, match="Configuration file not found"):
+            load_prompt_evaluator_config(config_path=nonexistent, warn_if_missing=True)
+
+    def test_load_missing_config_without_warning(self, tmp_path, monkeypatch):
+        """Test that missing config returns None without warning when disabled."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("PROMPT_EVALUATOR_CONFIG", raising=False)
+
+        # Should not raise any warnings
+        config = load_prompt_evaluator_config(warn_if_missing=False)
+
+        assert config is None
+
+    def test_load_invalid_yaml(self, tmp_path):
+        """Test that invalid YAML raises ValueError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("invalid: yaml: [unclosed")
+
+        with pytest.raises(ValueError, match="Failed to parse YAML configuration"):
+            load_prompt_evaluator_config(config_path=config_file, warn_if_missing=False)
+
+    def test_load_invalid_schema(self, tmp_path):
+        """Test that invalid config schema raises ValueError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+defaults:
+  generator:
+    provider: invalid_provider
+    model: test
+""")
+
+        with pytest.raises(ValueError, match="Invalid configuration"):
+            load_prompt_evaluator_config(config_path=config_file, warn_if_missing=False)
+
+    def test_locate_via_env_var(self, tmp_path, monkeypatch):
+        """Test that config is located via environment variable."""
+        config_file = tmp_path / "custom.yaml"
+        config_file.write_text("defaults: {}")
+
+        monkeypatch.setenv("PROMPT_EVALUATOR_CONFIG", str(config_file))
+
+        config = load_prompt_evaluator_config(warn_if_missing=False)
+
+        assert config is not None
+        assert config._config_dir == tmp_path.resolve()
+
+    def test_locate_default_file(self, tmp_path, monkeypatch):
+        """Test that default config file is found in cwd."""
+        config_file = tmp_path / "prompt_evaluator.yaml"
+        config_file.write_text("defaults: {}")
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("PROMPT_EVALUATOR_CONFIG", raising=False)
+
+        config = load_prompt_evaluator_config(warn_if_missing=False)
+
+        assert config is not None
+        assert config._config_dir == tmp_path.resolve()

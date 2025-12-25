@@ -1,0 +1,36 @@
+# Prompt Evaluator Configuration
+# This file defines defaults, prompt templates, datasets, and other settings
+# for the prompt evaluator tool.
+
+# Default settings for generators, judges, and runs
+defaults:
+  # Generator LLM defaults (used for generating completions)
+  generator:
+    provider: openai
+    model: gpt-5.1
+    temperature: 0.7
+    max_completion_tokens: 1024
+
+  # Judge LLM defaults (used for evaluating outputs)
+  judge:
+    provider: openai
+    model: gpt-5.1
+    temperature: 0.0
+
+  # Default rubric (can be a preset name or file path)
+  rubric: default
+
+  # Default directory for run outputs
+  run_directory: runs
+
+# Prompt template mappings (key -> file path)
+# Use these keys in CLI commands instead of full file paths
+prompt_templates:
+  checkout_compiler: examples/system_prompt.txt
+  default_system: examples/system_prompt.txt
+
+# Dataset mappings (key -> file path)
+# Use these keys in CLI commands instead of full file paths
+dataset_paths:
+  sample: examples/datasets/sample.yaml
+  sample_jsonl: examples/datasets/sample.jsonl

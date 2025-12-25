@@ -109,6 +109,142 @@ model_name = "gpt-4"
 
 Config file values take precedence over environment variables. If the config file is missing, the tool will gracefully fall back to environment variables and defaults.
 
+### Application Configuration (prompt_evaluator.yaml)
+
+For more advanced usage, you can create a `prompt_evaluator.yaml` configuration file to define defaults, prompt templates, and dataset mappings. This eliminates the need to specify full file paths repeatedly.
+
+#### Configuration File Location
+
+The configuration file is located using the following precedence:
+
+1. **CLI flag** - Explicit path via `--config` flag (highest precedence)
+2. **Environment variable** - Path specified in `PROMPT_EVALUATOR_CONFIG`
+3. **Default location** - `prompt_evaluator.yaml` in current working directory
+
+If no configuration file is found, the tool will use defaults and CLI arguments without warning.
+
+#### Configuration Schema
+
+**prompt_evaluator.yaml:**
+```yaml
+# Default settings for generators, judges, and runs
+defaults:
+  # Generator LLM defaults (used for generating completions)
+  generator:
+    provider: openai
+    model: gpt-5.1
+    temperature: 0.7
+    max_completion_tokens: 1024
+
+  # Judge LLM defaults (used for evaluating outputs)
+  judge:
+    provider: openai
+    model: gpt-5.1
+    temperature: 0.0
+
+  # Default rubric (can be a preset name or file path)
+  rubric: default
+
+  # Default directory for run outputs
+  run_directory: runs
+
+# Prompt template mappings (key -> file path)
+# Use these keys in CLI commands instead of full file paths
+prompt_templates:
+  checkout_compiler: examples/system_prompt.txt
+  default_system: examples/system_prompt.txt
+
+# Dataset mappings (key -> file path)
+# Use these keys in CLI commands instead of full file paths
+dataset_paths:
+  sample: examples/datasets/sample.yaml
+  sample_jsonl: examples/datasets/sample.jsonl
+```
+
+#### Using Template Keys
+
+Once you define prompt templates and datasets in your config, you can reference them by key:
+
+```bash
+# Without config - use full paths
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+
+# With config - use template keys
+prompt-evaluator generate \
+  --system-prompt checkout_compiler \
+  --input examples/input.txt
+
+# Evaluate dataset using keys
+prompt-evaluator evaluate-dataset \
+  --dataset sample \
+  --system-prompt default_system \
+  --num-samples 5
+```
+
+**Benefits:**
+- **Shorter commands** - Use memorable keys instead of long file paths
+- **Consistency** - Same keys work regardless of where CLI is executed
+- **Organization** - Centralized configuration for all prompts and datasets
+- **Path resolution** - Relative paths in config are resolved relative to config file location
+
+#### Configuration Precedence Rules
+
+Settings are resolved using the following precedence (highest to lowest):
+
+1. **CLI flags** - Explicit arguments like `--model`, `--temperature`
+2. **API config** - Values from environment variables (e.g., `OPENAI_MODEL`)
+3. **App config defaults** - Defaults from `prompt_evaluator.yaml`
+4. **Hardcoded defaults** - Built-in fallback values
+
+**Example:**
+```bash
+# Config file sets generator.model = "gpt-5.1"
+# CLI flag overrides it
+prompt-evaluator generate \
+  --system-prompt default_system \
+  --input examples/input.txt \
+  --model gpt-4  # This takes precedence over config
+```
+
+#### Path Resolution
+
+Paths in the configuration file can be:
+- **Relative** - Resolved relative to the config file's directory
+- **Absolute** - Used as-is
+
+This ensures that relative paths work consistently even when the CLI is executed from different directories.
+
+**Example:**
+```yaml
+# If prompt_evaluator.yaml is in /home/user/project/
+prompt_templates:
+  # Relative path - resolved to /home/user/project/prompts/system.txt
+  my_prompt: prompts/system.txt
+  
+  # Absolute path - used as-is
+  shared_prompt: /shared/prompts/common.txt
+```
+
+#### Validation
+
+The configuration system provides helpful error messages:
+
+```bash
+# Unknown template key
+$ prompt-evaluator generate --system-prompt unknown_key --input test.txt
+Error: Prompt template key 'unknown_key' not found in configuration. Available templates: checkout_compiler, default_system
+
+# Invalid provider in config
+$ prompt-evaluator generate --system-prompt test.txt --input test.txt
+Error: Invalid configuration: Invalid provider 'invalid_provider'. Valid providers: openai, anthropic, claude, mock
+
+# Missing file referenced by template
+$ prompt-evaluator generate --system-prompt my_key --input test.txt
+Error: Prompt template file not found: /path/to/missing.txt (key: 'my_key')
+```
+
 ### Provider Architecture
 
 The prompt evaluator uses a pluggable provider abstraction that allows for multiple LLM backends. This architecture enables:

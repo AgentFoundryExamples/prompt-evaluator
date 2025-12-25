@@ -1271,6 +1271,11 @@ def evaluate_dataset(
     run_note: str | None = typer.Option(
         None, "--run-note", help="Optional note about this evaluation run"
     ),
+    ab_test_system_prompt: bool = typer.Option(
+        False,
+        "--ab-test-system-prompt",
+        help="Run A/B test: evaluate with and without system prompt. Doubles API calls per case.",
+    ),
 ) -> None:
     """
     Evaluate a dataset of test cases with multiple samples per case.
@@ -1488,13 +1493,32 @@ def evaluate_dataset(
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
 
+        # Warn about doubled API calls if A/B testing is enabled
+        if ab_test_system_prompt:
+            total_api_calls = len(test_cases) * num_samples * 2
+            typer.echo(
+                "⚠️  WARNING: A/B testing mode enabled. This will DOUBLE your API calls and costs.",
+                err=True,
+            )
+            typer.echo(
+                f"    Total API calls: ~{total_api_calls} "
+                f"({len(test_cases)} cases × {num_samples} samples × 2 variants)",
+                err=True,
+            )
+            typer.echo("", err=True)
+
         # Run dataset evaluation
         typer.echo("\n" + "=" * 60, err=True)
         typer.echo("Starting Dataset Evaluation", err=True)
         typer.echo("=" * 60, err=True)
         typer.echo(f"Dataset: {dataset_path}", err=True)
         typer.echo(f"Test Cases: {len(test_cases)}", err=True)
-        typer.echo(f"Samples per Case: {num_samples}", err=True)
+        if ab_test_system_prompt:
+            typer.echo(f"A/B Test Mode: Enabled", err=True)
+            typer.echo(f"Samples per Case per Variant: {num_samples}", err=True)
+            typer.echo(f"Total Samples per Case: {num_samples * 2}", err=True)
+        else:
+            typer.echo(f"Samples per Case: {num_samples}", err=True)
         typer.echo(f"Generator Model: {generator_config.model_name}", err=True)
         typer.echo(f"Judge Model: {judge_config.model_name}", err=True)
         typer.echo("=" * 60 + "\n", err=True)
@@ -1518,6 +1542,7 @@ def evaluate_dataset(
             prompt_version_id=prompt_version_id,
             prompt_hash=prompt_hash,
             run_notes=run_note,
+            ab_test_system_prompt=ab_test_system_prompt,
         )
 
         # Print summary

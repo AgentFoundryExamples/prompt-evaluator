@@ -20,7 +20,6 @@ prompt evaluations, managing configurations, and viewing results.
 
 import hashlib
 import json
-import os
 import sys
 import uuid
 from dataclasses import asdict
@@ -30,7 +29,11 @@ from typing import Any
 
 import typer
 
-from prompt_evaluator.config import APIConfig
+from prompt_evaluator.config import (
+    APIConfig,
+    PromptEvaluatorConfig,
+    load_prompt_evaluator_config,
+)
 from prompt_evaluator.models import (
     GeneratorConfig,
     JudgeConfig,
@@ -57,6 +60,106 @@ DEFAULT_NUM_SAMPLES = 5  # Default number of samples per test case
 QUICK_MODE_NUM_SAMPLES = 2  # Number of samples in quick mode
 HIGH_STD_ABSOLUTE_THRESHOLD = 1.0  # Absolute std threshold for high variability warning
 HIGH_STD_RELATIVE_THRESHOLD = 0.2  # Relative std/mean threshold for high variability warning
+
+
+def resolve_prompt_path(
+    prompt_input: str,
+    app_config: PromptEvaluatorConfig | None = None
+) -> Path:
+    """
+    Resolve a prompt path from user input, supporting both template keys and file paths.
+
+    Args:
+        prompt_input: User-provided prompt identifier - can be:
+                     - A template key from config (e.g., "checkout_compiler")
+                     - An absolute or relative file path
+        app_config: Optional loaded application config with prompt templates
+
+    Returns:
+        Resolved absolute Path to the prompt file
+
+    Raises:
+        FileNotFoundError: If the prompt file doesn't exist
+        ValueError: If prompt_input is invalid
+    """
+    # Try to resolve as a template key first if config available
+    if app_config is not None and prompt_input in app_config.prompt_templates:
+        try:
+            return app_config.get_prompt_template_path(prompt_input)
+        except FileNotFoundError:
+            # Template key found but file doesn't exist - let it raise
+            raise
+
+    # Treat as a file path (absolute or relative)
+    prompt_path = Path(prompt_input)
+
+    # Resolve to absolute path
+    if not prompt_path.is_absolute():
+        prompt_path = Path.cwd() / prompt_path
+
+    # Check if path exists
+    if not prompt_path.exists():
+        # Provide helpful error message
+        if app_config is not None and app_config.prompt_templates:
+            available = ', '.join(sorted(app_config.prompt_templates.keys()))
+            raise FileNotFoundError(
+                f"Prompt file not found: {prompt_path}. "
+                f"Available template keys: {available}"
+            )
+        else:
+            raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+
+    return prompt_path
+
+
+def resolve_dataset_path(
+    dataset_input: str,
+    app_config: PromptEvaluatorConfig | None = None
+) -> Path:
+    """
+    Resolve a dataset path from user input, supporting both dataset keys and file paths.
+
+    Args:
+        dataset_input: User-provided dataset identifier - can be:
+                      - A dataset key from config (e.g., "sample")
+                      - An absolute or relative file path
+        app_config: Optional loaded application config with dataset paths
+
+    Returns:
+        Resolved absolute Path to the dataset file
+
+    Raises:
+        FileNotFoundError: If the dataset file doesn't exist
+        ValueError: If dataset_input is invalid
+    """
+    # Try to resolve as a dataset key first if config available
+    if app_config is not None and dataset_input in app_config.dataset_paths:
+        try:
+            return app_config.get_dataset_path(dataset_input)
+        except FileNotFoundError:
+            # Dataset key found but file doesn't exist - let it raise
+            raise
+
+    # Treat as a file path (absolute or relative)
+    dataset_path = Path(dataset_input)
+
+    # Resolve to absolute path
+    if not dataset_path.is_absolute():
+        dataset_path = Path.cwd() / dataset_path
+
+    # Check if path exists
+    if not dataset_path.exists():
+        # Provide helpful error message
+        if app_config is not None and app_config.dataset_paths:
+            available = ', '.join(sorted(app_config.dataset_paths.keys()))
+            raise FileNotFoundError(
+                f"Dataset file not found: {dataset_path}. "
+                f"Available dataset keys: {available}"
+            )
+        else:
+            raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
+
+    return dataset_path
 
 
 def compute_rubric_metadata(rubric: Rubric | None, rubric_path: Path | None) -> dict[str, Any]:
@@ -245,7 +348,7 @@ def version() -> None:
 @app.command()
 def generate(
     system_prompt: str = typer.Option(
-        ..., "--system-prompt", "-s", help="Path to system prompt file"
+        ..., "--system-prompt", "-s", help="Path to system prompt file or template key"
     ),
     input_path: str = typer.Option(
         ..., "--input", "-i", help="Path to input file (use '-' for stdin)"
@@ -271,16 +374,25 @@ def generate(
 
     This command reads prompts from files, calls the LLM API, and saves
     the output along with metadata to the runs directory.
+
+    System prompt can be either a file path or a template key defined in prompt_evaluator.yaml.
     """
     try:
+        # Load prompt evaluator config (for template resolution)
+        app_config = load_prompt_evaluator_config(
+            config_path=Path(config_file) if config_file else None,
+            warn_if_missing=False
+        )
+
         # Load API configuration
         config_path = Path(config_file) if config_file else None
         api_config = APIConfig(config_file_path=config_path)
 
-        # Read system prompt
-        system_prompt_path = Path(system_prompt)
-        if not system_prompt_path.exists():
-            typer.echo(f"Error: System prompt file not found: {system_prompt}", err=True)
+        # Resolve system prompt path (supports template keys)
+        try:
+            system_prompt_path = resolve_prompt_path(system_prompt, app_config)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
 
         system_prompt_content = system_prompt_path.read_text(encoding="utf-8")
@@ -298,9 +410,22 @@ def generate(
             user_prompt_content = input_file_path.read_text(encoding="utf-8")
 
         # Build GeneratorConfig with CLI overrides
-        # Precedence: CLI > config file > defaults
-        # Start with model defaults, override with API config, then with CLI args
-        base_config = GeneratorConfig(model_name=api_config.model_name)
+        # Precedence: CLI > API config > app config defaults > hardcoded defaults
+        # Start with defaults from app config if available
+        if app_config is not None:
+            default_model = app_config.defaults.generator.model
+            default_temp = app_config.defaults.generator.temperature
+            default_max_tokens = app_config.defaults.generator.max_completion_tokens
+        else:
+            default_model = api_config.model_name
+            default_temp = 0.7
+            default_max_tokens = 1024
+
+        base_config = GeneratorConfig(
+            model_name=default_model,
+            temperature=default_temp,
+            max_completion_tokens=default_max_tokens
+        )
 
         # Create overrides dict, filtering out None values
         cli_overrides: dict[str, Any] = {}
@@ -327,11 +452,11 @@ def generate(
         # Providers handle API key detection internally via environment variables
         # Only pass api_key for OpenAI to support custom config
         provider_api_key = api_config.api_key if provider.lower() == "openai" else None
-        
+
         try:
             provider_instance = get_provider(
-                provider, 
-                api_key=provider_api_key, 
+                provider,
+                api_key=provider_api_key,
                 base_url=api_config.base_url if provider.lower() == "openai" else None
             )
         except ValueError as e:
@@ -558,11 +683,11 @@ def evaluate_single(
         # Providers handle API key detection internally via environment variables
         # Only pass api_key for OpenAI to support custom config
         provider_api_key = api_config.api_key if provider.lower() == "openai" else None
-        
+
         try:
             provider_instance = get_provider(
-                provider, 
-                api_key=provider_api_key, 
+                provider,
+                api_key=provider_api_key,
                 base_url=api_config.base_url if provider.lower() == "openai" else None
             )
         except ValueError as e:
@@ -824,10 +949,10 @@ def show_rubric(
 @app.command()
 def evaluate_dataset(
     dataset: str = typer.Option(
-        ..., "--dataset", "-d", help="Path to dataset file (.yaml/.yml or .jsonl)"
+        ..., "--dataset", "-d", help="Path to dataset file (.yaml/.yml or .jsonl) or dataset key"
     ),
     system_prompt: str = typer.Option(
-        ..., "--system-prompt", "-s", help="Path to generator system prompt file"
+        ..., "--system-prompt", "-s", help="Path to generator system prompt file or template key"
     ),
     num_samples: int | None = typer.Option(
         None, "--num-samples", "-n", help="Number of samples to generate per test case (default: 5)"
@@ -840,7 +965,9 @@ def evaluate_dataset(
     ),
     judge_model: str | None = typer.Option(None, "--judge-model", help="Judge model name override"),
     judge_system_prompt: str | None = typer.Option(
-        None, "--judge-system-prompt", help="Path to custom judge system prompt file"
+        None,
+        "--judge-system-prompt",
+        help="Path to custom judge system prompt file or template key"
     ),
     rubric: str | None = typer.Option(
         None,
@@ -896,8 +1023,17 @@ def evaluate_dataset(
 
     Supports filtering by case IDs, limiting total cases, quick mode for testing,
     and resuming from interrupted runs.
+
+    Dataset and system prompt can be specified as file paths or keys defined in
+    prompt_evaluator.yaml.
     """
     try:
+        # Load prompt evaluator config (for template/dataset resolution)
+        app_config = load_prompt_evaluator_config(
+            config_path=Path(config_file) if config_file else None,
+            warn_if_missing=False
+        )
+
         # Handle --quick flag and num_samples interaction
         if quick and num_samples is not None:
             typer.echo(
@@ -922,12 +1058,13 @@ def evaluate_dataset(
         config_path = Path(config_file) if config_file else None
         api_config = APIConfig(config_file_path=config_path)
 
-        # Load dataset
+        # Load dataset (supports dataset keys from config)
         from prompt_evaluator.config import load_dataset
 
-        dataset_path = Path(dataset)
-        if not dataset_path.exists():
-            typer.echo(f"Error: Dataset file not found: {dataset}", err=True)
+        try:
+            dataset_path = resolve_dataset_path(dataset, app_config)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
 
         typer.echo(f"Loading dataset from {dataset_path}...", err=True)
@@ -961,15 +1098,21 @@ def evaluate_dataset(
                 test_cases = test_cases[:max_cases]
                 typer.echo(f"Limited to first {max_cases} test cases by --max-cases", err=True)
 
-        # Read system prompt
-        system_prompt_path = Path(system_prompt)
-        if not system_prompt_path.exists():
-            typer.echo(f"Error: System prompt file not found: {system_prompt}", err=True)
+        # Resolve system prompt path (supports template keys)
+        try:
+            system_prompt_path = resolve_prompt_path(system_prompt, app_config)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
 
         system_prompt_content = system_prompt_path.read_text(encoding="utf-8")
 
         # Load rubric (preset, custom, or default)
+        # If rubric not specified and app_config has a default, use it
+        if rubric is None and app_config is not None and app_config.defaults.rubric is not None:
+            rubric = app_config.defaults.rubric
+            typer.echo(f"Using default rubric from config: {rubric}", err=True)
+
         try:
             from prompt_evaluator.config import load_rubric, resolve_rubric_path
 
@@ -980,10 +1123,10 @@ def evaluate_dataset(
             typer.echo(f"Error loading rubric: {e}", err=True)
             raise typer.Exit(1)
 
-        # Load judge prompt (custom or default)
+        # Load judge prompt (custom or default, supports template keys)
         try:
             if judge_system_prompt:
-                judge_prompt_path = Path(judge_system_prompt)
+                judge_prompt_path = resolve_prompt_path(judge_system_prompt, app_config)
                 judge_prompt_content = load_judge_prompt(judge_prompt_path)
             else:
                 judge_prompt_content = load_judge_prompt()
@@ -991,8 +1134,23 @@ def evaluate_dataset(
             typer.echo(f"Error loading judge prompt: {e}", err=True)
             raise typer.Exit(1)
 
-        # Build GeneratorConfig
-        base_gen_config = GeneratorConfig(model_name=api_config.model_name)
+        # Build GeneratorConfig with proper precedence
+        # Precedence: CLI > API config > app config defaults > hardcoded defaults
+        if app_config is not None:
+            default_gen_model = app_config.defaults.generator.model
+            default_gen_temp = app_config.defaults.generator.temperature
+            default_gen_max_tokens = app_config.defaults.generator.max_completion_tokens
+        else:
+            default_gen_model = api_config.model_name
+            default_gen_temp = 0.7
+            default_gen_max_tokens = 1024
+
+        base_gen_config = GeneratorConfig(
+            model_name=default_gen_model,
+            temperature=default_gen_temp,
+            max_completion_tokens=default_gen_max_tokens
+        )
+
         cli_overrides: dict[str, Any] = {}
         if generator_model is not None:
             cli_overrides["model_name"] = generator_model
@@ -1012,9 +1170,14 @@ def evaluate_dataset(
             seed=cli_overrides.get("seed", base_gen_config.seed),
         )
 
-        # Build JudgeConfig
+        # Build JudgeConfig with proper precedence
+        if app_config is not None:
+            default_judge_model = app_config.defaults.judge.model
+        else:
+            default_judge_model = api_config.model_name
+
         judge_config = JudgeConfig(
-            model_name=judge_model if judge_model else api_config.model_name,
+            model_name=judge_model if judge_model is not None else default_judge_model,
             temperature=0.0,  # Use deterministic judge
         )
 
@@ -1022,11 +1185,11 @@ def evaluate_dataset(
         # Providers handle API key detection internally via environment variables
         # Only pass api_key for OpenAI to support custom config
         provider_api_key = api_config.api_key if provider.lower() == "openai" else None
-        
+
         try:
             provider_instance = get_provider(
-                provider, 
-                api_key=provider_api_key, 
+                provider,
+                api_key=provider_api_key,
                 base_url=api_config.base_url if provider.lower() == "openai" else None
             )
         except ValueError as e:

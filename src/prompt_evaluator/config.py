@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class ProviderConfig(BaseModel):
@@ -77,7 +77,10 @@ def load_config(config_path: Path) -> EvaluationConfig:
 class DefaultGeneratorConfig(BaseModel):
     """Default configuration for the generator LLM."""
 
-    provider: str = Field("openai", description="Default generator provider (e.g., 'openai', 'anthropic')")
+    provider: str = Field(
+        "openai",
+        description="Default generator provider (e.g., 'openai', 'anthropic')"
+    )
     model: str = Field("gpt-5.1", description="Default generator model ID")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Default temperature")
     max_completion_tokens: int = Field(1024, gt=0, description="Default max completion tokens")
@@ -97,7 +100,10 @@ class DefaultGeneratorConfig(BaseModel):
 class DefaultJudgeConfig(BaseModel):
     """Default configuration for the judge LLM."""
 
-    provider: str = Field("openai", description="Default judge provider (e.g., 'openai', 'anthropic')")
+    provider: str = Field(
+        "openai",
+        description="Default judge provider (e.g., 'openai', 'anthropic')"
+    )
     model: str = Field("gpt-5.1", description="Default judge model ID")
     temperature: float = Field(0.0, ge=0.0, le=2.0, description="Default temperature for judge")
 
@@ -153,14 +159,14 @@ class PromptEvaluatorConfig(BaseModel):
         """Validate that template keys don't have duplicates (case handled by dict)."""
         if not v:
             return v
-        
+
         # Check for empty keys or values
         for key, value in v.items():
             if not key.strip():
                 raise ValueError("Prompt template keys cannot be empty")
             if not value.strip():
                 raise ValueError(f"Prompt template path for key '{key}' cannot be empty")
-        
+
         return v
 
     @field_validator("dataset_paths")
@@ -169,13 +175,13 @@ class PromptEvaluatorConfig(BaseModel):
         """Validate that dataset keys are not empty."""
         if not v:
             return v
-        
+
         for key, value in v.items():
             if not key.strip():
                 raise ValueError("Dataset keys cannot be empty")
             if not value.strip():
                 raise ValueError(f"Dataset path for key '{key}' cannot be empty")
-        
+
         return v
 
     def resolve_path(self, path_str: str) -> Path:
@@ -189,15 +195,15 @@ class PromptEvaluatorConfig(BaseModel):
             Resolved absolute Path object
         """
         path = Path(path_str)
-        
+
         # If already absolute, return as-is
         if path.is_absolute():
             return path
-        
+
         # Resolve relative to config directory if available
         if self._config_dir is not None:
             return (self._config_dir / path).resolve()
-        
+
         # Fallback to current working directory
         return (Path.cwd() / path).resolve()
 
@@ -216,19 +222,22 @@ class PromptEvaluatorConfig(BaseModel):
             FileNotFoundError: If resolved file doesn't exist
         """
         if key not in self.prompt_templates:
-            available = ', '.join(sorted(self.prompt_templates.keys())) if self.prompt_templates else 'none'
+            available = (
+                ', '.join(sorted(self.prompt_templates.keys()))
+                if self.prompt_templates else 'none'
+            )
             raise KeyError(
                 f"Prompt template key '{key}' not found in configuration. "
                 f"Available templates: {available}"
             )
-        
+
         path = self.resolve_path(self.prompt_templates[key])
-        
+
         if not path.exists():
             raise FileNotFoundError(
                 f"Prompt template file not found: {path} (key: '{key}')"
             )
-        
+
         return path
 
     def get_dataset_path(self, key: str) -> Path:
@@ -246,19 +255,22 @@ class PromptEvaluatorConfig(BaseModel):
             FileNotFoundError: If resolved file doesn't exist
         """
         if key not in self.dataset_paths:
-            available = ', '.join(sorted(self.dataset_paths.keys())) if self.dataset_paths else 'none'
+            available = (
+                ', '.join(sorted(self.dataset_paths.keys()))
+                if self.dataset_paths else 'none'
+            )
             raise KeyError(
                 f"Dataset key '{key}' not found in configuration. "
                 f"Available datasets: {available}"
             )
-        
+
         path = self.resolve_path(self.dataset_paths[key])
-        
+
         if not path.exists():
             raise FileNotFoundError(
                 f"Dataset file not found: {path} (key: '{key}')"
             )
-        
+
         return path
 
 
@@ -281,17 +293,17 @@ def locate_config_file(
     # 1. CLI flag takes highest precedence
     if cli_path is not None:
         return cli_path
-    
+
     # 2. Check environment variable
     env_path = os.environ.get(env_var)
     if env_path:
         return Path(env_path)
-    
+
     # 3. Look for default file in current working directory
     default_path = Path.cwd() / default_name
     if default_path.exists():
         return default_path
-    
+
     # Not found
     return None
 
@@ -317,7 +329,7 @@ def load_prompt_evaluator_config(
     """
     # Locate config file
     located_path = locate_config_file(cli_path=config_path, env_var=env_var)
-    
+
     if located_path is None:
         if warn_if_missing:
             warnings.warn(
@@ -329,13 +341,13 @@ def load_prompt_evaluator_config(
                 stacklevel=2
             )
         return None
-    
+
     # Check if file exists
     if not located_path.exists():
         raise FileNotFoundError(
             f"Configuration file not found: {located_path}"
         )
-    
+
     # Load and parse YAML
     try:
         with open(located_path, encoding="utf-8") as f:
@@ -348,7 +360,7 @@ def load_prompt_evaluator_config(
         raise ValueError(
             f"Failed to read configuration file {located_path}: {str(e)}"
         ) from e
-    
+
     # Validate and create config object
     try:
         config = PromptEvaluatorConfig(**config_data)

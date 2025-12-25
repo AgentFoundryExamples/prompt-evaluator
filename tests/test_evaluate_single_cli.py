@@ -961,3 +961,107 @@ flags:
         assert stats["flag_stats"]["test_flag"]["total_count"] == 2
         assert stats["flag_stats"]["test_flag"]["true_count"] == 1
         assert stats["flag_stats"]["test_flag"]["true_proportion"] == 0.5
+
+    def test_evaluate_single_uses_config_defaults(
+        self, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that evaluate-single uses config defaults when flags are omitted."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create a config file with defaults
+        config_file = temp_prompts["system"].parent / "test_config.yaml"
+        config_file.write_text(
+            """
+defaults:
+  generator:
+    provider: mock
+    model: config-model
+    temperature: 0.8
+  judge:
+    provider: mock
+    model: config-judge-model
+  rubric: default
+  run_directory: config_runs
+"""
+        )
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "2",
+                "--config",
+                str(config_file),
+            ],
+        )
+
+        # Should succeed
+        assert result.exit_code == 0
+        # Check that config defaults were used
+        assert "Using provider from config: mock" in result.stdout
+        assert "Using output directory from config: config_runs" in result.stdout
+        assert "Using default rubric from config: default" in result.stdout
+
+    def test_evaluate_single_cli_overrides_config_defaults(
+        self, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that CLI flags override config defaults."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create a config file with defaults
+        config_file = temp_prompts["system"].parent / "test_config.yaml"
+        config_file.write_text(
+            """
+defaults:
+  generator:
+    provider: anthropic
+    model: config-model
+  run_directory: config_runs
+"""
+        )
+
+        # Create a minimal rubric file for testing
+        rubric_file = temp_prompts["system"].parent / "test_rubric.yaml"
+        rubric_file.write_text(
+            """
+metrics:
+  - name: test_metric
+    description: A test metric
+    min_score: 1
+    max_score: 5
+    guidelines: Test guidelines
+flags: []
+"""
+        )
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "2",
+                "--provider",
+                "mock",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--rubric",
+                str(rubric_file),
+                "--config",
+                str(config_file),
+            ],
+        )
+
+        # Should succeed with CLI overrides
+        assert result.exit_code == 0
+        # Should NOT show config messages since CLI flags were provided
+        assert "Using provider from config:" not in result.stdout
+        assert "Using output directory from config:" not in result.stdout

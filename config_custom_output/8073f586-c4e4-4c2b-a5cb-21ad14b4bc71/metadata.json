@@ -1,0 +1,15 @@
+{
+  "id": "8073f586-c4e4-4c2b-a5cb-21ad14b4bc71",
+  "timestamp": "2025-12-25T17:40:48.072192+00:00",
+  "system_prompt_path": "/tmp/pytest-of-runner/pytest-7/test_generate_uses_config_defa1/system.txt",
+  "input_path": "/tmp/pytest-of-runner/pytest-7/test_generate_uses_config_defa1/input.txt",
+  "model_config": {
+    "model_name": "gpt-5.1",
+    "temperature": 0.7,
+    "max_completion_tokens": 1024,
+    "seed": null
+  },
+  "raw_output_path": "config_custom_output/8073f586-c4e4-4c2b-a5cb-21ad14b4bc71/output.txt",
+  "tokens_used": 20,
+  "latency_ms": 10.003814697265625
+}

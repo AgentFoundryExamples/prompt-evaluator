@@ -110,7 +110,7 @@ class LLMProvider(ABC):
 class BaseProvider(ABC):
     """
     Abstract base class for LLM providers (legacy interface).
-    
+
     Note: This is maintained for backward compatibility.
     New code should use LLMProvider instead.
     """
@@ -421,6 +421,7 @@ def get_provider(
     provider_name_lower = provider_name.lower()
 
     # Registry of available providers
+    provider: LLMProvider
     if provider_name_lower == "openai":
         provider = OpenAIProvider(api_key=api_key, base_url=base_url)
     elif provider_name_lower == "mock" or provider_name_lower == "local-mock":

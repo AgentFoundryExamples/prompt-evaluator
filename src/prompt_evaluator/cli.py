@@ -40,7 +40,6 @@ from prompt_evaluator.models import (
     load_judge_prompt,
 )
 from prompt_evaluator.provider import (
-    LLMProvider,
     generate_completion,
     get_provider,
     judge_completion,

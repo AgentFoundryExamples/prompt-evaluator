@@ -20,8 +20,8 @@ Total files: 29
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 60.18 KB  
-**LOC:** 1192  
+**Size:** 62.04 KB  
+**LOC:** 1229  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/comparison.py
@@ -65,8 +65,8 @@ Total files: 29
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 34.99 KB  
-**LOC:** 731  
+**Size:** 46.72 KB  
+**LOC:** 950  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/reporting/__init__.py
@@ -236,8 +236,8 @@ Total files: 29
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 21.55 KB  
-**LOC:** 415  
+**Size:** 33.55 KB  
+**LOC:** 635  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_rubric_cli.py

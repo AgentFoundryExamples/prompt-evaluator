@@ -302,6 +302,10 @@
     },
     {
       "type": "file",
+      "name": ".env.example"
+    },
+    {
+      "type": "file",
       "name": ".gitignore"
     },
     {

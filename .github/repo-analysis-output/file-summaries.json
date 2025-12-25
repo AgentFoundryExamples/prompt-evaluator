@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 61625,
-        "loc": 1192,
+        "size_bytes": 63534,
+        "loc": 1229,
         "todo_count": 0
       }
     },
@@ -95,8 +95,8 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 35828,
-        "loc": 731,
+        "size_bytes": 47846,
+        "loc": 950,
         "todo_count": 0
       }
     },
@@ -361,8 +361,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 22065,
-        "loc": 415,
+        "size_bytes": 34356,
+        "loc": 635,
         "todo_count": 0
       }
     },

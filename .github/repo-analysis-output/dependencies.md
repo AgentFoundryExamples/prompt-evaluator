@@ -11,7 +11,7 @@ Includes classification of external dependencies as stdlib vs third-party.
 - **Total files**: 29
 - **Intra-repo dependencies**: 49
 - **External stdlib dependencies**: 26
-- **External third-party dependencies**: 12
+- **External third-party dependencies**: 14
 
 ## External Dependencies
 
@@ -43,8 +43,10 @@ Total: 26 unique modules
 
 ### Third-Party Packages
 
-Total: 12 unique packages
+Total: 14 unique packages
 
+- `anthropic.Anthropic`
+- `anthropic.AnthropicError`
 - `markdown`
 - `openai.OpenAI`
 - `openai.OpenAIError`

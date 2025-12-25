@@ -68,6 +68,7 @@
   ├── test_rubric_cli.py
   ├── test_rubric_models.py
   └── test_run_report.py
+├── .env.example
 ├── .gitignore
 ├── LICENSE
 ├── LLMs.md

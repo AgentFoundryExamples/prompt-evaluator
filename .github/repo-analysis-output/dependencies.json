@@ -20,6 +20,7 @@
           "datetime.timezone",
           "hashlib",
           "json",
+          "os",
           "pathlib.Path",
           "sys",
           "typing.Any",
@@ -124,6 +125,8 @@
           "typing.Any"
         ],
         "third-party": [
+          "anthropic.Anthropic",
+          "anthropic.AnthropicError",
           "openai.OpenAI",
           "openai.OpenAIError"
         ]
@@ -674,6 +677,8 @@
       "uuid"
     ],
     "third-party": [
+      "anthropic.Anthropic",
+      "anthropic.AnthropicError",
       "markdown",
       "openai.OpenAI",
       "openai.OpenAIError",
@@ -688,6 +693,6 @@
       "yaml"
     ],
     "stdlib_count": 26,
-    "third-party_count": 12
+    "third-party_count": 14
   }
 }

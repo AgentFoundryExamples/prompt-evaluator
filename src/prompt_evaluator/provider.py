@@ -26,6 +26,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
+from anthropic import Anthropic, AnthropicError
 from openai import OpenAI, OpenAIError
 
 from prompt_evaluator.models import EvaluationRequest, EvaluationResponse
@@ -187,7 +188,7 @@ class OpenAIProvider(BaseProvider, LLMProvider):
         config: ProviderConfig,
     ) -> ProviderResult:
         """
-        Generate a completion using OpenAI API.
+        Generate a completion using OpenAI Responses API.
 
         This method follows a non-throwing error pattern: API errors are caught
         and returned in ProviderResult.error rather than being raised. This allows
@@ -197,7 +198,7 @@ class OpenAIProvider(BaseProvider, LLMProvider):
         exceptions for backward compatibility with existing code.
 
         Args:
-            system_prompt: Optional system prompt to set context
+            system_prompt: Optional system prompt to set context (maps to instructions)
             user_prompt: User prompt (string) or list of user prompts for multi-turn
             config: Provider configuration including model, temperature, etc.
 
@@ -212,42 +213,65 @@ class OpenAIProvider(BaseProvider, LLMProvider):
         start_time = time.time()
 
         try:
-            # Build messages
-            messages: list[dict[str, str]] = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-
-            # Handle single or multiple user prompts
+            # Build input content
+            # For multi-turn, concatenate with newlines
             if isinstance(user_prompt, str):
-                messages.append({"role": "user", "content": user_prompt})
+                input_content = user_prompt
             else:
-                for prompt in user_prompt:
-                    messages.append({"role": "user", "content": prompt})
+                input_content = "\n".join(user_prompt)
 
-            # Build API parameters
+            # Build API parameters for Responses API
             params: dict[str, Any] = {
                 "model": config.model,
-                "messages": messages,
+                "input": input_content,
                 "temperature": config.temperature,
-                "max_completion_tokens": config.max_completion_tokens,
+                "max_output_tokens": config.max_completion_tokens,
             }
 
-            # Add seed if provided
+            # Add instructions (system prompt) if provided
+            if system_prompt:
+                params["instructions"] = system_prompt
+
+            # Add seed if provided (using metadata as per Responses API)
             if config.seed is not None:
-                params["seed"] = config.seed
+                params["metadata"] = {"seed": config.seed}
 
             # Add additional parameters if provided
             if config.additional_params:
                 params.update(config.additional_params)
 
-            # Make API call
-            completion = self.client.chat.completions.create(**params)  # type: ignore[call-overload]
+            # Make API call using Responses API
+            response = self.client.responses.create(**params)  # type: ignore[call-overload]
 
-            response_text = completion.choices[0].message.content or ""
-            tokens_used = completion.usage.total_tokens if completion.usage else None
-            prompt_tokens = completion.usage.prompt_tokens if completion.usage else None
-            completion_tokens = completion.usage.completion_tokens if completion.usage else None
-            finish_reason = completion.choices[0].finish_reason if completion.choices else None
+            # Extract response text from output
+            response_text = ""
+            if hasattr(response, "output") and response.output:
+                if isinstance(response.output, list) and len(response.output) > 0:
+                    # Handle list of output items
+                    output_item = response.output[0]
+                    if hasattr(output_item, "content"):
+                        if isinstance(output_item.content, list) and len(output_item.content) > 0:
+                            response_text = output_item.content[0].get("text", "")
+                        elif isinstance(output_item.content, str):
+                            response_text = output_item.content
+                elif hasattr(response.output, "content"):
+                    response_text = response.output.content
+                elif isinstance(response.output, str):
+                    response_text = response.output
+
+            # Extract usage metadata
+            tokens_used = None
+            prompt_tokens = None
+            completion_tokens = None
+            if hasattr(response, "usage") and response.usage:
+                tokens_used = getattr(response.usage, "total_tokens", None)
+                prompt_tokens = getattr(response.usage, "input_tokens", None)
+                completion_tokens = getattr(response.usage, "output_tokens", None)
+
+            # Extract finish reason / status
+            finish_reason = None
+            if hasattr(response, "status"):
+                finish_reason = response.status
 
             latency_ms = (time.time() - start_time) * 1000
 
@@ -320,6 +344,234 @@ class OpenAIProvider(BaseProvider, LLMProvider):
             logger.error("OpenAI API request failed: %s", e, exc_info=True)
         except Exception as e:
             # Catch any other unexpected errors
+            error_msg = f"Unexpected error: {str(e)}"
+            logger.error("Unexpected error during evaluation: %s", e, exc_info=True)
+
+        latency_ms = (time.time() - start_time) * 1000
+
+        return EvaluationResponse(
+            request=request,
+            response_text=response_text,
+            tokens_used=tokens_used,
+            latency_ms=latency_ms,
+            error=error_msg,
+        )
+
+
+class ClaudeProvider(BaseProvider, LLMProvider):
+    """Provider implementation for Anthropic Claude models using Messages API."""
+
+    def __init__(self, api_key: str | None = None, base_url: str | None = None):
+        """
+        Initialize Claude provider.
+
+        Args:
+            api_key: Anthropic API key (if None, uses ANTHROPIC_API_KEY env var)
+            base_url: Optional custom base URL for Anthropic API
+        """
+        self.base_url = base_url
+        # Initialize Anthropic client
+        client_kwargs: dict[str, Any] = {}
+        if api_key:
+            client_kwargs["api_key"] = api_key
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        
+        self.client = Anthropic(**client_kwargs)
+        # Initialize parent with the actual API key used by the client
+        super().__init__(self.client.api_key)
+
+    def validate_config(self) -> None:
+        """
+        Validate Claude provider configuration.
+
+        This method validates the API key presence and base_url format if provided.
+        Note: This does not test actual connectivity to the API - connection errors
+        will be caught during actual API calls and returned in ProviderResult.error.
+
+        Raises:
+            ValueError: If API key is not configured or base_url format is invalid
+        """
+        # Check if API key is available (either passed or in environment)
+        if not self.api_key and not os.environ.get("ANTHROPIC_API_KEY"):
+            raise ValueError(
+                "Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable "
+                "or pass api_key parameter."
+            )
+
+        # Validate base_url format if provided
+        if self.base_url:
+            if not self.base_url.startswith(("http://", "https://")):
+                raise ValueError(
+                    f"Invalid base_url format: {self.base_url}. "
+                    "Must start with http:// or https://"
+                )
+
+    def generate(
+        self,
+        system_prompt: str | None,
+        user_prompt: str | list[str],
+        config: ProviderConfig,
+    ) -> ProviderResult:
+        """
+        Generate a completion using Anthropic Messages API.
+
+        This method follows a non-throwing error pattern: API errors are caught
+        and returned in ProviderResult.error rather than being raised. This allows
+        callers to handle errors uniformly through the result object.
+
+        Args:
+            system_prompt: Optional system prompt to set context
+            user_prompt: User prompt (string) or list of user prompts for multi-turn
+            config: Provider configuration including model, temperature, etc.
+
+        Returns:
+            ProviderResult with generated text, usage metadata, and latency.
+            On error, result.error will contain the error message and result.text
+            will be empty.
+
+        Raises:
+            ValueError: Only if configuration validation fails before the API call
+        """
+        start_time = time.time()
+
+        try:
+            # Build messages for Anthropic Messages API
+            messages: list[dict[str, str]] = []
+            
+            # Handle single or multiple user prompts
+            if isinstance(user_prompt, str):
+                messages.append({"role": "user", "content": user_prompt})
+            else:
+                # For multi-turn, alternate user messages or combine
+                for prompt in user_prompt:
+                    messages.append({"role": "user", "content": prompt})
+
+            # Build API parameters
+            params: dict[str, Any] = {
+                "model": config.model,
+                "messages": messages,
+                "temperature": config.temperature,
+                "max_tokens": config.max_completion_tokens,
+            }
+
+            # Add system prompt if provided
+            if system_prompt:
+                params["system"] = system_prompt
+
+            # Add additional parameters if provided
+            if config.additional_params:
+                params.update(config.additional_params)
+
+            # Make API call using Anthropic Messages API
+            response = self.client.messages.create(**params)  # type: ignore[call-overload]
+
+            # Extract response text from content blocks
+            response_text = ""
+            if hasattr(response, "content") and response.content:
+                # Anthropic returns a list of content blocks
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        response_text += block.text
+
+            # Extract usage metadata
+            tokens_used = None
+            prompt_tokens = None
+            completion_tokens = None
+            if hasattr(response, "usage") and response.usage:
+                prompt_tokens = getattr(response.usage, "input_tokens", None)
+                completion_tokens = getattr(response.usage, "output_tokens", None)
+                if prompt_tokens is not None and completion_tokens is not None:
+                    tokens_used = prompt_tokens + completion_tokens
+
+            # Extract finish reason / stop reason
+            finish_reason = None
+            if hasattr(response, "stop_reason"):
+                finish_reason = response.stop_reason
+
+            latency_ms = (time.time() - start_time) * 1000
+
+            return ProviderResult(
+                text=response_text,
+                usage={
+                    "total_tokens": tokens_used,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+                latency_ms=latency_ms,
+                model=config.model,
+                finish_reason=finish_reason,
+            )
+
+        except AnthropicError as e:
+            logger.error("Anthropic API request failed: %s", e, exc_info=True)
+            latency_ms = (time.time() - start_time) * 1000
+            
+            # Extract more specific error information if available
+            error_msg = f"Anthropic API error: {str(e)}"
+            if hasattr(e, "status_code"):
+                error_msg = f"Anthropic API error (status {e.status_code}): {str(e)}"
+            
+            return ProviderResult(
+                text="",
+                usage={"total_tokens": None, "prompt_tokens": None, "completion_tokens": None},
+                latency_ms=latency_ms,
+                model=config.model,
+                error=error_msg,
+            )
+        except Exception as e:
+            logger.error("Unexpected error during generation: %s", e, exc_info=True)
+            latency_ms = (time.time() - start_time) * 1000
+            return ProviderResult(
+                text="",
+                usage={"total_tokens": None, "prompt_tokens": None, "completion_tokens": None},
+                latency_ms=latency_ms,
+                model=config.model,
+                error=f"Unexpected error: {str(e)}",
+            )
+
+    def evaluate(self, request: EvaluationRequest) -> EvaluationResponse:
+        """
+        Evaluate a prompt using Anthropic API.
+
+        Args:
+            request: The evaluation request
+
+        Returns:
+            Evaluation response with generated text and metadata
+        """
+        start_time = time.time()
+        error_msg: str | None = None
+        response_text = ""
+        tokens_used: int | None = None
+
+        try:
+            # Build API parameters
+            params: dict[str, Any] = {
+                "model": request.model,
+                "messages": [{"role": "user", "content": request.prompt}],
+                "temperature": request.temperature,
+                "max_tokens": request.max_completion_tokens or 1024,
+            }
+
+            response = self.client.messages.create(**params)  # type: ignore[call-overload]
+
+            # Extract response text from content blocks
+            if hasattr(response, "content") and response.content:
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        response_text += block.text
+
+            # Extract token usage
+            if hasattr(response, "usage") and response.usage:
+                input_tokens = getattr(response.usage, "input_tokens", 0)
+                output_tokens = getattr(response.usage, "output_tokens", 0)
+                tokens_used = input_tokens + output_tokens
+
+        except AnthropicError as e:
+            error_msg = f"Anthropic API error: {str(e)}"
+            logger.error("Anthropic API request failed: %s", e, exc_info=True)
+        except Exception as e:
             error_msg = f"Unexpected error: {str(e)}"
             logger.error("Unexpected error during evaluation: %s", e, exc_info=True)
 
@@ -428,7 +680,7 @@ def get_provider(
     selection via name string and validates configuration before returning.
 
     Args:
-        provider_name: Name of the provider (e.g., 'openai', 'mock')
+        provider_name: Name of the provider (e.g., 'openai', 'claude', 'anthropic', 'mock')
         api_key: Optional API key (for providers that require it)
         base_url: Optional custom base URL (for providers that support it)
         validate: Whether to validate provider configuration (default: True)
@@ -445,10 +697,12 @@ def get_provider(
     provider: LLMProvider
     if provider_name_lower == "openai":
         provider = OpenAIProvider(api_key=api_key, base_url=base_url)
+    elif provider_name_lower in ("claude", "anthropic"):
+        provider = ClaudeProvider(api_key=api_key, base_url=base_url)
     elif provider_name_lower == "mock" or provider_name_lower == "local-mock":
         provider = LocalMockProvider()
     else:
-        supported = ["openai", "mock", "local-mock"]
+        supported = ["openai", "claude", "anthropic", "mock", "local-mock"]
         raise ValueError(
             f"Unsupported provider: {provider_name}. "
             f"Supported providers: {supported}"

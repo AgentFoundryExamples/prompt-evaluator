@@ -19,11 +19,12 @@ managing provider settings, and storing evaluation parameters.
 """
 
 import os
+import warnings
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ProviderConfig(BaseModel):
@@ -71,6 +72,293 @@ def load_config(config_path: Path) -> EvaluationConfig:
         config_data = yaml.safe_load(f)
 
     return EvaluationConfig(**config_data)
+
+
+class DefaultGeneratorConfig(BaseModel):
+    """Default configuration for the generator LLM."""
+
+    provider: str = Field("openai", description="Default generator provider (e.g., 'openai', 'anthropic')")
+    model: str = Field("gpt-5.1", description="Default generator model ID")
+    temperature: float = Field(0.7, ge=0.0, le=2.0, description="Default temperature")
+    max_completion_tokens: int = Field(1024, gt=0, description="Default max completion tokens")
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, v: str) -> str:
+        """Validate provider name."""
+        valid_providers = ["openai", "anthropic", "claude", "mock"]
+        if v not in valid_providers:
+            raise ValueError(
+                f"Invalid provider '{v}'. Valid providers: {', '.join(valid_providers)}"
+            )
+        return v
+
+
+class DefaultJudgeConfig(BaseModel):
+    """Default configuration for the judge LLM."""
+
+    provider: str = Field("openai", description="Default judge provider (e.g., 'openai', 'anthropic')")
+    model: str = Field("gpt-5.1", description="Default judge model ID")
+    temperature: float = Field(0.0, ge=0.0, le=2.0, description="Default temperature for judge")
+
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, v: str) -> str:
+        """Validate provider name."""
+        valid_providers = ["openai", "anthropic", "claude", "mock"]
+        if v not in valid_providers:
+            raise ValueError(
+                f"Invalid provider '{v}'. Valid providers: {', '.join(valid_providers)}"
+            )
+        return v
+
+
+class DefaultsConfig(BaseModel):
+    """Default configuration values for generators and judges."""
+
+    generator: DefaultGeneratorConfig = Field(
+        default_factory=DefaultGeneratorConfig,
+        description="Default generator configuration"
+    )
+    judge: DefaultJudgeConfig = Field(
+        default_factory=DefaultJudgeConfig,
+        description="Default judge configuration"
+    )
+    rubric: str | None = Field(None, description="Default rubric path or preset name")
+    run_directory: str = Field("runs", description="Default directory for run outputs")
+
+
+class PromptEvaluatorConfig(BaseModel):
+    """Main configuration for prompt evaluator loaded from prompt_evaluator.yaml."""
+
+    defaults: DefaultsConfig = Field(
+        default_factory=DefaultsConfig,
+        description="Default settings for generators, judges, and runs"
+    )
+    prompt_templates: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of template keys to file paths"
+    )
+    dataset_paths: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of dataset keys to file paths"
+    )
+
+    # Store the config file directory for resolving relative paths
+    _config_dir: Path | None = None
+
+    @field_validator("prompt_templates")
+    @classmethod
+    def validate_template_keys(cls, v: dict[str, str]) -> dict[str, str]:
+        """Validate that template keys don't have duplicates (case handled by dict)."""
+        if not v:
+            return v
+        
+        # Check for empty keys or values
+        for key, value in v.items():
+            if not key.strip():
+                raise ValueError("Prompt template keys cannot be empty")
+            if not value.strip():
+                raise ValueError(f"Prompt template path for key '{key}' cannot be empty")
+        
+        return v
+
+    @field_validator("dataset_paths")
+    @classmethod
+    def validate_dataset_keys(cls, v: dict[str, str]) -> dict[str, str]:
+        """Validate that dataset keys are not empty."""
+        if not v:
+            return v
+        
+        for key, value in v.items():
+            if not key.strip():
+                raise ValueError("Dataset keys cannot be empty")
+            if not value.strip():
+                raise ValueError(f"Dataset path for key '{key}' cannot be empty")
+        
+        return v
+
+    def resolve_path(self, path_str: str) -> Path:
+        """
+        Resolve a path string relative to the config file location.
+
+        Args:
+            path_str: Path string from config (can be relative or absolute)
+
+        Returns:
+            Resolved absolute Path object
+        """
+        path = Path(path_str)
+        
+        # If already absolute, return as-is
+        if path.is_absolute():
+            return path
+        
+        # Resolve relative to config directory if available
+        if self._config_dir is not None:
+            return (self._config_dir / path).resolve()
+        
+        # Fallback to current working directory
+        return (Path.cwd() / path).resolve()
+
+    def get_prompt_template_path(self, key: str) -> Path:
+        """
+        Get resolved path for a prompt template by key.
+
+        Args:
+            key: Template key
+
+        Returns:
+            Resolved absolute path to template file
+
+        Raises:
+            KeyError: If key not found in prompt_templates
+            FileNotFoundError: If resolved file doesn't exist
+        """
+        if key not in self.prompt_templates:
+            available = ', '.join(sorted(self.prompt_templates.keys())) if self.prompt_templates else 'none'
+            raise KeyError(
+                f"Prompt template key '{key}' not found in configuration. "
+                f"Available templates: {available}"
+            )
+        
+        path = self.resolve_path(self.prompt_templates[key])
+        
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Prompt template file not found: {path} (key: '{key}')"
+            )
+        
+        return path
+
+    def get_dataset_path(self, key: str) -> Path:
+        """
+        Get resolved path for a dataset by key.
+
+        Args:
+            key: Dataset key
+
+        Returns:
+            Resolved absolute path to dataset file
+
+        Raises:
+            KeyError: If key not found in dataset_paths
+            FileNotFoundError: If resolved file doesn't exist
+        """
+        if key not in self.dataset_paths:
+            available = ', '.join(sorted(self.dataset_paths.keys())) if self.dataset_paths else 'none'
+            raise KeyError(
+                f"Dataset key '{key}' not found in configuration. "
+                f"Available datasets: {available}"
+            )
+        
+        path = self.resolve_path(self.dataset_paths[key])
+        
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Dataset file not found: {path} (key: '{key}')"
+            )
+        
+        return path
+
+
+def locate_config_file(
+    cli_path: Path | None = None,
+    env_var: str = "PROMPT_EVALUATOR_CONFIG",
+    default_name: str = "prompt_evaluator.yaml"
+) -> Path | None:
+    """
+    Locate the configuration file using precedence: CLI flag > env var > default path.
+
+    Args:
+        cli_path: Path provided via CLI flag (highest precedence)
+        env_var: Environment variable name to check
+        default_name: Default config filename to look for in cwd
+
+    Returns:
+        Path to config file if found, None otherwise
+    """
+    # 1. CLI flag takes highest precedence
+    if cli_path is not None:
+        return cli_path
+    
+    # 2. Check environment variable
+    env_path = os.environ.get(env_var)
+    if env_path:
+        return Path(env_path)
+    
+    # 3. Look for default file in current working directory
+    default_path = Path.cwd() / default_name
+    if default_path.exists():
+        return default_path
+    
+    # Not found
+    return None
+
+
+def load_prompt_evaluator_config(
+    config_path: Path | None = None,
+    env_var: str = "PROMPT_EVALUATOR_CONFIG",
+    warn_if_missing: bool = True
+) -> PromptEvaluatorConfig | None:
+    """
+    Load the main prompt evaluator configuration from YAML file.
+
+    Args:
+        config_path: Optional explicit path to config file
+        env_var: Environment variable to check for config path
+        warn_if_missing: Whether to warn if config file not found
+
+    Returns:
+        Loaded configuration or None if not found and not required
+
+    Raises:
+        ValueError: If config file is found but invalid
+    """
+    # Locate config file
+    located_path = locate_config_file(cli_path=config_path, env_var=env_var)
+    
+    if located_path is None:
+        if warn_if_missing:
+            warnings.warn(
+                "No prompt_evaluator.yaml config file found. "
+                "Using default settings and CLI arguments. "
+                f"To use a config file, create 'prompt_evaluator.yaml' in current directory "
+                f"or set {env_var} environment variable.",
+                UserWarning,
+                stacklevel=2
+            )
+        return None
+    
+    # Check if file exists
+    if not located_path.exists():
+        raise FileNotFoundError(
+            f"Configuration file not found: {located_path}"
+        )
+    
+    # Load and parse YAML
+    try:
+        with open(located_path, encoding="utf-8") as f:
+            config_data = yaml.safe_load(f) or {}
+    except yaml.YAMLError as e:
+        raise ValueError(
+            f"Failed to parse YAML configuration file {located_path}: {str(e)}"
+        ) from e
+    except OSError as e:
+        raise ValueError(
+            f"Failed to read configuration file {located_path}: {str(e)}"
+        ) from e
+    
+    # Validate and create config object
+    try:
+        config = PromptEvaluatorConfig(**config_data)
+        # Store config directory for relative path resolution
+        config._config_dir = located_path.parent.resolve()
+        return config
+    except Exception as e:
+        raise ValueError(
+            f"Invalid configuration in {located_path}: {str(e)}"
+        ) from e
 
 
 class APIConfig:

@@ -109,6 +109,70 @@ model_name = "gpt-4"
 
 Config file values take precedence over environment variables. If the config file is missing, the tool will gracefully fall back to environment variables and defaults.
 
+### Provider Architecture
+
+The prompt evaluator uses a pluggable provider abstraction that allows for multiple LLM backends. This architecture enables:
+
+- **Flexible provider selection** - Easily switch between different LLM providers
+- **Offline testing** - Use mock providers for testing without API calls
+- **Consistent interface** - All providers implement the same `LLMProvider` interface
+
+#### Available Providers
+
+1. **OpenAI Provider** (default)
+   - Uses OpenAI's Chat Completions API
+   - Supports GPT-5+ models
+   - Requires `OPENAI_API_KEY` environment variable
+
+2. **Local Mock Provider** (for testing)
+   - Generates deterministic mock responses
+   - No API key required
+   - Useful for offline development and testing
+
+#### Provider Selection
+
+Providers are selected automatically based on configuration. The default provider is OpenAI. To use a different provider programmatically:
+
+```python
+from prompt_evaluator.provider import get_provider, ProviderConfig
+
+# Get OpenAI provider (default)
+provider = get_provider("openai", api_key="sk-...")
+
+# Get mock provider for testing
+mock_provider = get_provider("mock")
+
+# Use the provider
+config = ProviderConfig(model="gpt-5.1", temperature=0.7)
+result = provider.generate(
+    system_prompt="You are helpful",
+    user_prompt="What is Python?",
+    config=config
+)
+print(result.text)  # Generated response
+print(result.usage)  # Token usage statistics
+```
+
+#### Testing with Mock Provider
+
+The mock provider is useful for testing and development without making real API calls:
+
+```python
+import pytest
+from unittest.mock import patch
+from prompt_evaluator.provider import get_provider
+
+# In your tests
+@patch("prompt_evaluator.cli.get_provider")
+def test_my_feature(mock_get_provider):
+    # Use mock provider to avoid API calls
+    mock_provider = get_provider("mock")
+    mock_get_provider.return_value = mock_provider
+    
+    # Your test code here - no real API calls will be made
+    ...
+```
+
 ### Generate Command
 
 The `generate` command performs a single LLM completion with system and user prompts:

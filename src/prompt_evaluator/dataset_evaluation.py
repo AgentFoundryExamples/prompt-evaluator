@@ -35,7 +35,7 @@ from prompt_evaluator.models import (
     TestCase,
     TestCaseResult,
 )
-from prompt_evaluator.provider import OpenAIProvider, generate_completion, judge_completion
+from prompt_evaluator.provider import LLMProvider, generate_completion, judge_completion
 
 
 def compute_per_case_statistics(
@@ -194,7 +194,7 @@ def compute_overall_statistics(
 
 
 def evaluate_dataset(
-    provider: OpenAIProvider,
+    provider: LLMProvider,
     test_cases: list[TestCase],
     dataset_metadata: dict[str, Any],
     system_prompt: str,

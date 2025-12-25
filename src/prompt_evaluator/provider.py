@@ -20,8 +20,10 @@ LLM providers (OpenAI, Anthropic, etc.) and handles API communication.
 
 import json
 import logging
+import os
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any
 
 from openai import OpenAI, OpenAIError
@@ -31,8 +33,87 @@ from prompt_evaluator.models import EvaluationRequest, EvaluationResponse
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ProviderConfig:
+    """Configuration for LLM provider requests."""
+
+    model: str
+    temperature: float = 0.7
+    max_completion_tokens: int = 1024
+    seed: int | None = None
+    additional_params: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        if not 0.0 <= self.temperature <= 2.0:
+            raise ValueError("temperature must be between 0.0 and 2.0")
+        if self.max_completion_tokens <= 0:
+            raise ValueError("max_completion_tokens must be positive")
+
+
+@dataclass
+class ProviderResult:
+    """Result from LLM provider generation."""
+
+    text: str
+    usage: dict[str, int | None]
+    latency_ms: float
+    model: str
+    finish_reason: str | None = None
+    error: str | None = None
+
+
+class LLMProvider(ABC):
+    """
+    Abstract base class defining the canonical interface for LLM providers.
+
+    All providers must implement the generate() method which accepts system
+    and user prompts along with provider-specific configuration and returns
+    normalized text and usage metadata.
+    """
+
+    @abstractmethod
+    def generate(
+        self,
+        system_prompt: str | None,
+        user_prompt: str | list[str],
+        config: ProviderConfig,
+    ) -> ProviderResult:
+        """
+        Generate a completion from the LLM.
+
+        Args:
+            system_prompt: Optional system prompt to set context
+            user_prompt: User prompt or list of user prompts (for multi-turn)
+            config: Provider-specific configuration including model, temperature, etc.
+
+        Returns:
+            ProviderResult with generated text, usage metadata, and latency
+
+        Raises:
+            ValueError: If configuration is invalid
+            RuntimeError: If provider API call fails
+        """
+        pass
+
+    @abstractmethod
+    def validate_config(self) -> None:
+        """
+        Validate provider configuration (API keys, etc.) before use.
+
+        Raises:
+            ValueError: If required configuration is missing or invalid
+        """
+        pass
+
+
 class BaseProvider(ABC):
-    """Abstract base class for LLM providers."""
+    """
+    Abstract base class for LLM providers (legacy interface).
+
+    Note: This is maintained for backward compatibility.
+    New code should use LLMProvider instead.
+    """
 
     def __init__(self, api_key: str | None = None):
         """
@@ -57,7 +138,7 @@ class BaseProvider(ABC):
         pass
 
 
-class OpenAIProvider(BaseProvider):
+class OpenAIProvider(BaseProvider, LLMProvider):
     """Provider implementation for OpenAI models."""
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None):
@@ -68,8 +149,140 @@ class OpenAIProvider(BaseProvider):
             api_key: OpenAI API key (if None, uses OPENAI_API_KEY env var)
             base_url: Optional custom base URL for OpenAI API
         """
-        super().__init__(api_key)
+        self.base_url = base_url
         self.client = OpenAI(api_key=api_key, base_url=base_url)
+        # Initialize parent with the actual API key used by the client
+        super().__init__(self.client.api_key)
+
+    def validate_config(self) -> None:
+        """
+        Validate OpenAI provider configuration.
+
+        This method validates the API key presence and base_url format if provided.
+        Note: This does not test actual connectivity to the API - connection errors
+        will be caught during actual API calls and returned in ProviderResult.error.
+
+        Raises:
+            ValueError: If API key is not configured or base_url format is invalid
+        """
+        # Check if API key is available (either passed or in environment)
+        if not self.api_key and not os.environ.get("OPENAI_API_KEY"):
+            raise ValueError(
+                "OpenAI API key is required. Set OPENAI_API_KEY environment variable "
+                "or pass api_key parameter."
+            )
+
+        # Validate base_url format if provided
+        if self.base_url:
+            if not self.base_url.startswith(("http://", "https://")):
+                raise ValueError(
+                    f"Invalid base_url format: {self.base_url}. "
+                    "Must start with http:// or https://"
+                )
+
+    def generate(
+        self,
+        system_prompt: str | None,
+        user_prompt: str | list[str],
+        config: ProviderConfig,
+    ) -> ProviderResult:
+        """
+        Generate a completion using OpenAI API.
+
+        This method follows a non-throwing error pattern: API errors are caught
+        and returned in ProviderResult.error rather than being raised. This allows
+        callers to handle errors uniformly through the result object.
+
+        Note: The convenience wrapper generate_completion() converts errors to
+        exceptions for backward compatibility with existing code.
+
+        Args:
+            system_prompt: Optional system prompt to set context
+            user_prompt: User prompt (string) or list of user prompts for multi-turn
+            config: Provider configuration including model, temperature, etc.
+
+        Returns:
+            ProviderResult with generated text, usage metadata, and latency.
+            On error, result.error will contain the error message and result.text
+            will be empty.
+
+        Raises:
+            ValueError: Only if configuration validation fails before the API call
+        """
+        start_time = time.time()
+
+        try:
+            # Build messages
+            messages: list[dict[str, str]] = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+
+            # Handle single or multiple user prompts
+            if isinstance(user_prompt, str):
+                messages.append({"role": "user", "content": user_prompt})
+            else:
+                for prompt in user_prompt:
+                    messages.append({"role": "user", "content": prompt})
+
+            # Build API parameters
+            params: dict[str, Any] = {
+                "model": config.model,
+                "messages": messages,
+                "temperature": config.temperature,
+                "max_completion_tokens": config.max_completion_tokens,
+            }
+
+            # Add seed if provided
+            if config.seed is not None:
+                params["seed"] = config.seed
+
+            # Add additional parameters if provided
+            if config.additional_params:
+                params.update(config.additional_params)
+
+            # Make API call
+            completion = self.client.chat.completions.create(**params)  # type: ignore[call-overload]
+
+            response_text = completion.choices[0].message.content or ""
+            tokens_used = completion.usage.total_tokens if completion.usage else None
+            prompt_tokens = completion.usage.prompt_tokens if completion.usage else None
+            completion_tokens = completion.usage.completion_tokens if completion.usage else None
+            finish_reason = completion.choices[0].finish_reason if completion.choices else None
+
+            latency_ms = (time.time() - start_time) * 1000
+
+            return ProviderResult(
+                text=response_text,
+                usage={
+                    "total_tokens": tokens_used,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+                latency_ms=latency_ms,
+                model=config.model,
+                finish_reason=finish_reason,
+            )
+
+        except OpenAIError as e:
+            logger.error("OpenAI API request failed: %s", e, exc_info=True)
+            latency_ms = (time.time() - start_time) * 1000
+            return ProviderResult(
+                text="",
+                usage={"total_tokens": None, "prompt_tokens": None, "completion_tokens": None},
+                latency_ms=latency_ms,
+                model=config.model,
+                error=f"OpenAI API error: {str(e)}",
+            )
+        except Exception as e:
+            logger.error("Unexpected error during generation: %s", e, exc_info=True)
+            latency_ms = (time.time() - start_time) * 1000
+            return ProviderResult(
+                text="",
+                usage={"total_tokens": None, "prompt_tokens": None, "completion_tokens": None},
+                latency_ms=latency_ms,
+                model=config.model,
+                error=f"Unexpected error: {str(e)}",
+            )
 
     def evaluate(self, request: EvaluationRequest) -> EvaluationResponse:
         """
@@ -121,43 +334,138 @@ class OpenAIProvider(BaseProvider):
         )
 
 
-def get_provider(
-    provider_name: str, api_key: str | None = None, base_url: str | None = None
-) -> BaseProvider:
+class LocalMockProvider(LLMProvider):
     """
-    Factory function to get a provider instance.
+    Mock provider for testing and offline operation.
 
-    Args:
-        provider_name: Name of the provider (e.g., 'openai')
-        api_key: Optional API key
-        base_url: Optional custom base URL for the provider
-
-    Returns:
-        Provider instance
-
-    Raises:
-        ValueError: If provider name is not supported
+    Provides deterministic stubbed outputs without making real API calls.
+    Thread-safe and suitable for concurrent operations.
     """
-    providers = {
-        "openai": OpenAIProvider,
-    }
 
-    provider_class = providers.get(provider_name.lower())
-    if not provider_class:
-        raise ValueError(
-            f"Unsupported provider: {provider_name}. Supported providers: {list(providers.keys())}"
+    def __init__(self, response_template: str = "Mock response to: {prompt}"):
+        """
+        Initialize local mock provider.
+
+        Args:
+            response_template: Template for mock responses. Use {prompt} placeholder
+                             to include the user prompt in the response.
+        """
+        self.response_template = response_template
+
+    def validate_config(self) -> None:
+        """
+        Validate mock provider configuration.
+
+        Mock provider doesn't require any configuration, so this is a no-op.
+        """
+        pass  # No configuration required for mock provider
+
+    def generate(
+        self,
+        system_prompt: str | None,
+        user_prompt: str | list[str],
+        config: ProviderConfig,
+    ) -> ProviderResult:
+        """
+        Generate a mock completion deterministically.
+
+        Args:
+            system_prompt: Optional system prompt (included in mock metadata)
+            user_prompt: User prompt (string) or list of user prompts
+            config: Provider configuration (model name used in result)
+
+        Returns:
+            ProviderResult with deterministic mock text and metadata
+        """
+        start_time = time.time()
+
+        # Construct prompt text for template
+        if isinstance(user_prompt, str):
+            prompt_text = user_prompt
+        else:
+            prompt_text = " | ".join(user_prompt)
+
+        # Generate deterministic mock response
+        response_text = self.response_template.format(prompt=prompt_text[:100])
+
+        # Add system prompt context if provided
+        if system_prompt:
+            response_text = f"[System: {system_prompt[:50]}...] {response_text}"
+
+        # Compute deterministic mock token counts based on text length
+        mock_prompt_tokens = len(prompt_text.split()) + (
+            len(system_prompt.split()) if system_prompt else 0
+        )
+        mock_completion_tokens = len(response_text.split())
+        mock_total_tokens = mock_prompt_tokens + mock_completion_tokens
+
+        # Simulate minimal latency
+        latency_ms = (time.time() - start_time) * 1000 + 10.0  # Add 10ms base
+
+        return ProviderResult(
+            text=response_text,
+            usage={
+                "total_tokens": mock_total_tokens,
+                "prompt_tokens": mock_prompt_tokens,
+                "completion_tokens": mock_completion_tokens,
+            },
+            latency_ms=latency_ms,
+            model=f"mock-{config.model}",
+            finish_reason="stop",
         )
 
-    # OpenAI provider supports base_url parameter
-    if provider_name.lower() == "openai":
-        return provider_class(api_key=api_key, base_url=base_url)
 
-    # For other providers that don't support base_url
-    return provider_class(api_key=api_key)  # type: ignore[call-arg]
+def get_provider(
+    provider_name: str,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    validate: bool = True,
+) -> LLMProvider:
+    """
+    Factory function to get a provider instance by name.
+
+    This is the canonical way to instantiate providers. It supports provider
+    selection via name string and validates configuration before returning.
+
+    Args:
+        provider_name: Name of the provider (e.g., 'openai', 'mock')
+        api_key: Optional API key (for providers that require it)
+        base_url: Optional custom base URL (for providers that support it)
+        validate: Whether to validate provider configuration (default: True)
+
+    Returns:
+        LLMProvider instance ready for use
+
+    Raises:
+        ValueError: If provider name is not supported or configuration is invalid
+    """
+    provider_name_lower = provider_name.lower()
+
+    # Registry of available providers
+    provider: LLMProvider
+    if provider_name_lower == "openai":
+        provider = OpenAIProvider(api_key=api_key, base_url=base_url)
+    elif provider_name_lower == "mock" or provider_name_lower == "local-mock":
+        provider = LocalMockProvider()
+    else:
+        supported = ["openai", "mock", "local-mock"]
+        raise ValueError(
+            f"Unsupported provider: {provider_name}. "
+            f"Supported providers: {supported}"
+        )
+
+    # Validate provider configuration if requested
+    if validate:
+        try:
+            provider.validate_config()
+        except ValueError as e:
+            raise ValueError(f"Provider configuration invalid for '{provider_name}': {e}") from e
+
+    return provider
 
 
 def generate_completion(
-    provider: OpenAIProvider,
+    provider: LLMProvider,
     system_prompt: str,
     user_prompt: str,
     model: str,
@@ -166,10 +474,13 @@ def generate_completion(
     seed: int | None = None,
 ) -> tuple[str, dict[str, float | int | None]]:
     """
-    Generate a completion using the OpenAI provider with system and user prompts.
+    Generate a completion using an LLM provider with system and user prompts.
+
+    This is a convenience wrapper around the provider's generate() method that
+    maintains backward compatibility with the existing codebase signature.
 
     Args:
-        provider: The OpenAI provider to use
+        provider: The LLM provider to use (OpenAIProvider, LocalMockProvider, etc.)
         system_prompt: System prompt to set context
         user_prompt: User prompt/input
         model: Model identifier
@@ -181,48 +492,34 @@ def generate_completion(
         Tuple of (response_text, metadata) where metadata contains tokens_used and latency_ms
 
     Raises:
-        OpenAIError: If the API call fails
+        RuntimeError: If the provider API call fails
     """
-    start_time = time.time()
+    # Create provider config
+    config = ProviderConfig(
+        model=model,
+        temperature=temperature,
+        max_completion_tokens=max_completion_tokens,
+        seed=seed,
+    )
 
-    try:
-        # Build messages with system and user prompts
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
+    # Generate using the provider
+    result = provider.generate(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        config=config,
+    )
 
-        # Build API parameters
-        params: dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_completion_tokens": max_completion_tokens,
-        }
+    # Check for errors
+    if result.error:
+        raise RuntimeError(result.error)
 
-        # Add seed if provided
-        if seed is not None:
-            params["seed"] = seed
+    # Format metadata for backward compatibility
+    metadata = {
+        "tokens_used": result.usage.get("total_tokens"),
+        "latency_ms": result.latency_ms,
+    }
 
-        completion = provider.client.chat.completions.create(**params)  # type: ignore[call-overload]
-
-        response_text = completion.choices[0].message.content or ""
-        tokens_used = completion.usage.total_tokens if completion.usage else None
-        latency_ms = (time.time() - start_time) * 1000
-
-        metadata = {
-            "tokens_used": tokens_used,
-            "latency_ms": latency_ms,
-        }
-
-        return response_text, metadata
-
-    except OpenAIError as e:
-        logger.error("OpenAI API request failed: %s", e, exc_info=True)
-        raise
-    except Exception as e:
-        logger.error("Unexpected error during completion: %s", e, exc_info=True)
-        raise
+    return result.text, metadata
 
 
 def build_rubric_judge_prompt(rubric: Any) -> str:
@@ -520,7 +817,7 @@ def parse_rubric_judge_response(response_text: str, rubric: Any) -> dict[str, An
 
 
 def judge_completion(
-    provider: OpenAIProvider,
+    provider: LLMProvider,
     input_text: str,
     generator_output: str,
     judge_config: Any,
@@ -536,7 +833,7 @@ def judge_completion(
     or a judge_error status with raw text preserved.
 
     Args:
-        provider: The OpenAI provider to use for judge model
+        provider: The LLM provider to use for judge model
         input_text: Original input text
         generator_output: Output from the generator model to evaluate
         judge_config: JudgeConfig with model settings

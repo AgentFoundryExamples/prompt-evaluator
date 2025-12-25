@@ -40,7 +40,6 @@ from prompt_evaluator.models import (
     load_judge_prompt,
 )
 from prompt_evaluator.provider import (
-    OpenAIProvider,
     generate_completion,
     get_provider,
     judge_completion,
@@ -322,8 +321,6 @@ def generate(
 
         # Create provider
         provider = get_provider("openai", api_key=api_config.api_key, base_url=api_config.base_url)
-        # Type assertion: get_provider with "openai" always returns OpenAIProvider
-        assert isinstance(provider, OpenAIProvider)
 
         # Generate completion
         typer.echo("Generating completion...", err=True)
@@ -540,7 +537,6 @@ def evaluate_single(
 
         # Create provider
         provider = get_provider("openai", api_key=api_config.api_key, base_url=api_config.base_url)
-        assert isinstance(provider, OpenAIProvider)
 
         # Create run metadata
         run_id = str(uuid.uuid4())
@@ -990,7 +986,6 @@ def evaluate_dataset(
 
         # Create provider
         provider = get_provider("openai", api_key=api_config.api_key, base_url=api_config.base_url)
-        assert isinstance(provider, OpenAIProvider)
 
         # Prepare output directory
         output_dir_path = Path(output_dir)

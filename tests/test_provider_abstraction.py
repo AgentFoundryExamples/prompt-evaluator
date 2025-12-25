@@ -144,6 +144,8 @@ class TestGetProvider:
             get_provider("unknown")
         except ValueError as e:
             assert "openai" in str(e)
+            assert "claude" in str(e)
+            assert "anthropic" in str(e)
             assert "mock" in str(e)
 
     def test_get_provider_validates_config_by_default(self, monkeypatch):

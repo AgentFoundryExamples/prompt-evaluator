@@ -44,7 +44,53 @@ pip install -e ".[dev]"
 
 ## Quick Start
 
-After installation, try the tool with the provided example files:
+After installation, you can quickly test the tool with or without API keys.
+
+### Option 1: Test Without API Keys (Mock Provider)
+
+Try the tool immediately without any API setup using the mock provider:
+
+```bash
+# Create a test config that uses mock provider
+cat > prompt_evaluator.yaml << EOF
+defaults:
+  generator:
+    provider: mock
+    model: gpt-5.1
+    temperature: 0.7
+  judge:
+    provider: mock
+    model: gpt-5.1
+    temperature: 0.0
+EOF
+
+# Run a basic generation (no API calls, zero cost)
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+
+# View the mock output
+cat runs/*/output.txt
+
+# Run an evaluation (also with mock provider)
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 3
+
+# View evaluation results
+cat runs/*/evaluate-single.json | jq '.aggregate_stats'
+```
+
+The mock provider generates deterministic responses instantly without making real API calls. This is perfect for:
+- Learning the tool without API costs
+- Testing in CI/CD pipelines
+- Offline development
+- Validating evaluation workflows
+
+### Option 2: Test With OpenAI API
+
+Once you have an API key, try the tool with a real LLM provider:
 
 ```bash
 # Set your OpenAI API key
@@ -56,10 +102,56 @@ prompt-evaluator generate \
   --input examples/input.txt
 
 # View the generated output
-cat runs/<run-id>/output.txt
+cat runs/*/output.txt
 ```
 
-The tool will generate a completion, print it to stdout, and save both the output and metadata to a `runs/` directory with a unique run ID.
+The tool will generate a real completion, print it to stdout, and save both the output and metadata to a `runs/` directory with a unique run ID.
+
+### Option 3: Test With Anthropic Claude
+
+If you prefer Anthropic's Claude models:
+
+```bash
+# Set your Anthropic API key
+export ANTHROPIC_API_KEY="sk-ant-your-api-key-here"
+
+# Create config for Claude
+cat > prompt_evaluator.yaml << EOF
+defaults:
+  generator:
+    provider: claude
+    model: claude-sonnet-4.5
+    temperature: 0.7
+EOF
+
+# Run generation with Claude
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+```
+
+### Quick Evaluation Workflow
+
+Test a complete evaluation workflow with 2-3 samples (fast):
+
+```bash
+# With mock provider (instant, free)
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --quick \
+  --max-cases 3
+
+# With real provider (uses API credits)
+export OPENAI_API_KEY="sk-..."
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --quick \
+  --max-cases 3
+```
+
+This completes in seconds and gives you a taste of the full evaluation workflow.
 
 ## Usage
 
@@ -125,41 +217,121 @@ If no configuration file is found, the tool will use defaults and CLI arguments 
 
 #### Configuration Schema
 
+The `prompt_evaluator.yaml` file defines defaults, shortcuts, and settings for the evaluation tool. Below is a complete example with all supported fields:
+
+**Note on Model Names:** Model names in this documentation (e.g., `gpt-5.1`, `claude-sonnet-4.5`) are used as placeholders for illustration. Always refer to `LLMs.md` and official provider documentation for actual available model names. For example:
+- OpenAI: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`
+- Anthropic: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`
+
 **prompt_evaluator.yaml:**
 ```yaml
 # Default settings for generators, judges, and runs
 defaults:
   # Generator LLM defaults (used for generating completions)
   generator:
-    provider: openai
-    model: gpt-5.1
-    temperature: 0.7
-    max_completion_tokens: 1024
+    provider: openai              # Provider name: openai, claude, anthropic, or mock
+    model: gpt-5.1                # Model identifier (provider-specific)
+    temperature: 0.7              # Sampling temperature (0.0-2.0, higher = more random)
+    max_completion_tokens: 1024   # Maximum tokens to generate (provider-specific limits apply)
+    seed: null                    # Optional: seed for reproducible outputs (if supported by provider)
 
   # Judge LLM defaults (used for evaluating outputs)
   judge:
-    provider: openai
-    model: gpt-5.1
-    temperature: 0.0
+    provider: openai              # Can use different provider than generator
+    model: gpt-5.1                # Recommended: use same or more capable model as generator
+    temperature: 0.0              # Use 0.0 for deterministic judge scoring
+    max_completion_tokens: 512    # Judge responses are typically shorter than generator outputs
+    seed: null                    # Optional: seed for reproducible judge evaluations
 
-  # Default rubric (can be a preset name or file path)
-  rubric: default
+  # Default rubric for evaluations
+  # Can be a preset name (default, content-quality, code-review) or file path
+  rubric: default                 # Preset: default, content-quality, code-review
+  # rubric: path/to/custom_rubric.yaml  # Or path to custom rubric file
 
   # Default directory for run outputs
-  run_directory: runs
+  run_directory: runs             # All evaluation artifacts saved here (gitignored by default)
 
 # Prompt template mappings (key -> file path)
 # Use these keys in CLI commands instead of full file paths
 prompt_templates:
+  # Production prompts
+  production_v1: prompts/production/v1.txt
+  production_v2: prompts/production/v2.txt
+  
+  # Experimental prompts
+  experiment_clarity: prompts/experiments/clarity_improvements.txt
+  experiment_constraints: prompts/experiments/constraint_aware.txt
+  
+  # Example prompts (for quick start)
   checkout_compiler: examples/system_prompt.txt
   default_system: examples/system_prompt.txt
 
 # Dataset mappings (key -> file path)
 # Use these keys in CLI commands instead of full file paths
 dataset_paths:
+  # Test suites
+  production_suite: datasets/production_test_suite.yaml
+  smoke_tests: datasets/smoke_tests.yaml
+  
+  # Examples
   sample: examples/datasets/sample.yaml
   sample_jsonl: examples/datasets/sample.jsonl
+
+# Rubric mappings (key -> file path) - Optional
+# Define custom rubrics for different evaluation scenarios
+rubric_paths:
+  production: rubrics/production.yaml
+  experimental: rubrics/experimental.yaml
+  code_quality: rubrics/code_quality.json
 ```
+
+**Field Descriptions:**
+
+- **defaults.generator**: Settings for the LLM that generates responses
+  - `provider`: Which LLM service to use (openai, claude, anthropic, mock)
+  - `model`: Model identifier (e.g., gpt-5.1, claude-sonnet-4.5)
+  - `temperature`: Controls randomness (0.0 = deterministic, 2.0 = very random)
+  - `max_completion_tokens`: Maximum length of generated responses
+  - `seed`: Optional seed for reproducibility (provider-dependent)
+
+- **defaults.judge**: Settings for the LLM that evaluates responses
+  - Typically uses `temperature: 0.0` for consistent scoring
+  - Can use same or different provider/model than generator
+  - Recommended: use same or more capable model for accurate evaluation
+
+- **defaults.rubric**: Default evaluation criteria
+  - Preset names: `default`, `content-quality`, `code-review`
+  - Or path to custom YAML/JSON rubric file
+  - Rubrics define metrics (scored dimensions) and flags (binary checks)
+
+- **defaults.run_directory**: Where to save evaluation results
+  - Default: `runs/` (automatically created, should be gitignored)
+  - Each run gets a unique subdirectory with UUID-based name
+
+- **prompt_templates**: Shortcuts for system prompts
+  - Keys can be used in `--system-prompt` CLI argument
+  - Paths are relative to config file location
+  - Useful for managing multiple prompt versions
+
+- **dataset_paths**: Shortcuts for dataset files
+  - Keys can be used in `--dataset` CLI argument
+  - Supports both YAML and JSONL formats
+  - Enables quick switching between test suites
+
+- **rubric_paths**: Shortcuts for custom rubric files (optional)
+  - Keys can be used in `--rubric` CLI argument
+  - Useful for different evaluation scenarios
+
+**Configuration Tips:**
+
+1. **Use provider-specific models**: Check `LLMs.md` and official docs for current model names
+   - OpenAI: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo` (model names change; verify with OpenAI docs)
+   - Anthropic: `claude-3-opus-20240229`, `claude-3-sonnet-20240229` (verify with Anthropic docs)
+   - Model names in this documentation (e.g., `gpt-5.1`, `claude-sonnet-4.5`) are placeholders
+2. **Keep judge temperature at 0.0**: Ensures consistent, deterministic scoring
+3. **Use mock provider for testing**: Set `provider: mock` to avoid API costs during development
+4. **Organize prompts by version**: Use descriptive keys like `v1.0-baseline`, `v2.0-candidate`
+5. **Reference .env.example**: Never commit API keys to config files
 
 #### Using Template Keys
 
@@ -191,21 +363,159 @@ prompt-evaluator evaluate-dataset \
 
 #### Configuration Precedence Rules
 
-Settings are resolved using the following precedence (highest to lowest):
+Understanding how settings are resolved helps you control the tool's behavior effectively. The tool uses a layered configuration system where each layer can override the previous one.
 
-1. **CLI flags** - Explicit arguments like `--model`, `--temperature`
-2. **API config** - Values from environment variables (e.g., `OPENAI_MODEL`)
-3. **App config defaults** - Defaults from `prompt_evaluator.yaml`
-4. **Hardcoded defaults** - Built-in fallback values
+**Precedence order (highest to lowest):**
 
-**Example:**
+1. **CLI flags** - Explicit command-line arguments (highest priority)
+   - Example: `--model gpt-4`, `--temperature 0.5`, `--provider claude`
+   - Use when: You need to override settings for a single run
+
+2. **Environment variables** - Provider-specific API configuration
+   - Example: `OPENAI_API_KEY`, `OPENAI_MODEL`, `ANTHROPIC_API_KEY`
+   - Use when: You need per-environment settings (dev vs prod)
+
+3. **App config defaults** - Settings from `prompt_evaluator.yaml`
+   - Example: `defaults.generator.model`, `defaults.judge.provider`
+   - Use when: You want project-wide defaults
+
+4. **Hardcoded defaults** - Built-in fallback values (lowest priority)
+   - Example: `provider=openai`, `temperature=0.7`, `model=gpt-5.1`
+   - Use when: No other configuration is provided
+
+**Precedence Examples:**
+
 ```bash
-# Config file sets generator.model = "gpt-5.1"
-# CLI flag overrides it
+# Example 1: CLI flag overrides config file
+# Config file: defaults.generator.model = "gpt-5.1"
+# CLI: --model gpt-4
+# Result: Uses gpt-4 (CLI wins)
+
 prompt-evaluator generate \
   --system-prompt default_system \
   --input examples/input.txt \
-  --model gpt-4  # This takes precedence over config
+  --model gpt-4
+
+# Example 2: Environment variable overrides config file model
+# Config file: defaults.generator.model = "gpt-5.1"
+# Environment: OPENAI_MODEL=gpt-4
+# CLI: (no model flag)
+# Result: Uses gpt-4 (environment wins over config for this setting)
+
+export OPENAI_MODEL=gpt-4
+prompt-evaluator generate \
+  --system-prompt default_system \
+  --input examples/input.txt
+
+# Example 3: Config file provides defaults
+# Config file: defaults.generator.temperature = 0.7
+# CLI: (no temperature flag)
+# Result: Uses 0.7 from config
+
+prompt-evaluator generate \
+  --system-prompt default_system \
+  --input examples/input.txt
+
+# Example 4: Multiple overrides
+# Hardcoded: provider=openai, model=gpt-5.1, temperature=0.7
+# Config: provider=claude, model=claude-sonnet-4.5, temperature=0.5
+# Environment: ANTHROPIC_API_KEY=sk-ant-...
+# CLI: --temperature 0.3
+# Result: provider=claude (config), model=claude-sonnet-4.5 (config), temperature=0.3 (CLI)
+
+prompt-evaluator generate \
+  --system-prompt default_system \
+  --input examples/input.txt \
+  --temperature 0.3
+```
+
+**Provider Selection Priority:**
+
+Provider selection follows the same precedence rules but with additional nuances:
+
+```bash
+# Priority 1: CLI flag
+--provider claude  # Overrides everything
+
+# Priority 2: Config file
+defaults:
+  generator:
+    provider: claude  # Used if no CLI flag
+
+# Priority 3: Environment variable (provider-specific)
+# If no provider is set via CLI or config, the presence of a provider-specific
+# API key can act as a fallback to select the provider.
+OPENAI_API_KEY=sk-...      # Implies 'openai' provider if not otherwise specified
+ANTHROPIC_API_KEY=sk-ant-... # Implies 'anthropic' provider if not otherwise specified
+
+# Priority 4: Hardcoded default
+# Uses openai if no other configuration exists
+```
+
+**Common Configuration Patterns:**
+
+1. **Development with mock provider** (no API costs):
+```yaml
+# prompt_evaluator.yaml
+defaults:
+  generator:
+    provider: mock  # No API calls during development
+```
+
+2. **Production with real providers** (override mock):
+```bash
+# Override mock provider for production run
+prompt-evaluator evaluate-dataset \
+  --dataset production_suite \
+  --system-prompt production_v1 \
+  --provider openai \
+  --model gpt-5.1
+```
+
+3. **Per-environment settings** (use environment variables):
+```bash
+# Development environment
+export OPENAI_API_KEY="sk-dev-key"
+export OPENAI_MODEL="gpt-3.5-turbo"  # Cheaper model for dev
+
+# Production environment
+export OPENAI_API_KEY="sk-prod-key"
+export OPENAI_MODEL="gpt-5.1"  # Production model
+```
+
+4. **Project-wide defaults with CLI overrides**:
+```yaml
+# prompt_evaluator.yaml - project defaults
+defaults:
+  generator:
+    provider: openai
+    model: gpt-5.1
+    temperature: 0.7
+```
+
+```bash
+# Override temperature for specific experiment
+prompt-evaluator evaluate-dataset \
+  --dataset sample \
+  --system-prompt experiment_clarity \
+  --temperature 0.3  # Lower temperature for this run
+```
+
+**Configuration Validation:**
+
+The tool validates configuration at startup and provides clear error messages:
+
+```bash
+# Invalid provider in config
+Error: Invalid configuration: Invalid provider 'invalid_provider'. 
+Valid providers: openai, anthropic, claude, mock
+
+# Missing API key for selected provider
+Error: OpenAI API key is required. Set OPENAI_API_KEY environment variable 
+or pass api_key parameter.
+
+# Temperature out of range
+Error: temperature must be between 0.0 and 2.0
 ```
 
 #### Path Resolution
@@ -249,50 +559,278 @@ Error: Prompt template file not found: /path/to/missing.txt (key: 'my_key')
 
 The prompt evaluator uses a pluggable provider abstraction that allows for multiple LLM backends. This architecture enables:
 
-- **Flexible provider selection** - Easily switch between different LLM providers
+- **Flexible provider selection** - Easily switch between different LLM providers (OpenAI, Anthropic, Mock)
 - **Offline testing** - Use mock providers for testing without API calls
 - **Consistent interface** - All providers implement the same `LLMProvider` interface
+- **Provider-agnostic code** - Write evaluation logic once, run with any provider
+
+The provider abstraction is defined by the `LLMProvider` abstract base class, which all providers must implement. This ensures a consistent API regardless of the underlying LLM service.
 
 #### Available Providers
 
-1. **OpenAI Provider** (default)
-   - Uses OpenAI's Chat Completions API
-   - Supports GPT-5+ models
-   - Requires `OPENAI_API_KEY` environment variable
+The tool currently supports three providers out of the box:
 
-2. **Local Mock Provider** (for testing)
-   - Generates deterministic mock responses
+1. **OpenAI Provider** (`openai`) - Default provider
+   - Uses OpenAI's Responses API (recommended for GPT-4 and newer models)
+   - Supports models: Check OpenAI's API documentation for current model names
+     - Examples: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`
+     - Note: `gpt-5.1` used in this documentation is a placeholder; use actual available models
+   - Required environment variable: `OPENAI_API_KEY`
+   - Optional environment variable: `OPENAI_BASE_URL` (for proxies or custom endpoints)
+   - Note: Follows OpenAI's latest API patterns, not legacy Completions API
+
+2. **Anthropic Claude Provider** (`claude` or `anthropic`)
+   - Uses Anthropic's Messages API (API version `2023-06-01` or newer)
+   - Supports models: Check Anthropic's API documentation for current model names
+     - Examples: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`
+     - Note: `claude-sonnet-4.5`, `claude-opus-4` used in this documentation are placeholders
+   - Required environment variable: `ANTHROPIC_API_KEY`
+   - Optional environment variable: `ANTHROPIC_BASE_URL` (for proxies or custom endpoints)
+   - Follows Anthropic's recommended Messages API, not legacy Text Completions API
+
+3. **Local Mock Provider** (`mock` or `local-mock`) - For testing
+   - Generates deterministic mock responses without making real API calls
    - No API key required
-   - Useful for offline development and testing
+   - Useful for offline development, testing, and CI/CD pipelines
+   - Returns predictable outputs based on input text
+
+#### Required Environment Variables
+
+Each provider requires specific environment variables for authentication:
+
+**OpenAI:**
+```bash
+# Required for authentication
+export OPENAI_API_KEY="sk-your-openai-api-key-here"
+
+# Optional configuration overrides
+export OPENAI_BASE_URL="https://api.openai.com/v1"  # Custom endpoint
+export OPENAI_MODEL="gpt-4"                          # Override default model
+```
+
+**Anthropic Claude:**
+```bash
+# Required for authentication
+export ANTHROPIC_API_KEY="sk-ant-your-anthropic-api-key-here"
+
+# Optional configuration overrides
+export ANTHROPIC_BASE_URL="https://api.anthropic.com"  # Custom endpoint
+export CLAUDE_MODEL="claude-3-sonnet-20240229"         # Override default model
+```
+
+**Mock Provider:**
+```bash
+# No environment variables required
+# Works offline without any configuration
+```
+
+**Environment Variable Types:**
+- **Authentication variables** (required): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
+  - These are needed to authenticate with the provider's API
+  - Provider selection can be inferred from which key is present
+- **Configuration variables** (optional): `OPENAI_MODEL`, `CLAUDE_MODEL`, `OPENAI_BASE_URL`, etc.
+  - These override default configuration values
+  - They follow the precedence rules: CLI flags > env vars > config file > hardcoded defaults
+
+See `.env.example` for a complete template of all supported environment variables.
 
 #### Provider Selection
 
-Providers are selected automatically based on configuration. The default provider is OpenAI. To use a different provider programmatically:
+Providers can be selected via configuration file or programmatically:
+
+**Via Configuration File:**
+
+```yaml
+# prompt_evaluator.yaml
+defaults:
+  generator:
+    provider: openai      # or 'claude', 'anthropic', 'mock'
+    model: gpt-5.1
+    temperature: 0.7
+  
+  judge:
+    provider: openai      # Can use different provider for judging
+    model: gpt-5.1
+    temperature: 0.0
+```
+
+**Programmatically:**
 
 ```python
 from prompt_evaluator.provider import get_provider, ProviderConfig
 
 # Get OpenAI provider (default)
-provider = get_provider("openai", api_key="sk-...")
+openai_provider = get_provider("openai", api_key="sk-...")
 
-# Get mock provider for testing
+# Get Claude provider
+claude_provider = get_provider("claude", api_key="sk-ant-...")
+
+# Get mock provider for testing (no API key needed)
 mock_provider = get_provider("mock")
 
-# Use the provider
+# Use any provider with the same interface
 config = ProviderConfig(model="gpt-5.1", temperature=0.7)
-result = provider.generate(
-    system_prompt="You are helpful",
+result = openai_provider.generate(
+    system_prompt="You are a helpful assistant.",
     user_prompt="What is Python?",
     config=config
 )
-print(result.text)  # Generated response
-print(result.usage)  # Token usage statistics
+print(result.text)        # Generated response
+print(result.usage)       # Token usage statistics
+print(result.latency_ms)  # Response latency in milliseconds
 ```
+
+#### How to Add a New Provider
+
+To add support for a new LLM provider (e.g., Google Gemini, Hugging Face, etc.), follow these steps:
+
+**Note:** The examples below use `MyCustomProvider` as a conceptual guide. This is not actual code in the repository but a template showing the pattern to follow when implementing a new provider. The actual provider implementations (OpenAI, Claude, Mock) can be found in `src/prompt_evaluator/provider.py`.
+
+**Important:** Model names used in examples (e.g., `gpt-5.1`, `claude-sonnet-4.5`) are placeholders. Always refer to `LLMs.md` and official provider documentation for current model names. For example:
+- OpenAI: Use `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo` (check OpenAI's API docs for latest)
+- Anthropic: Use `claude-3-opus-20240229`, `claude-3-sonnet-20240229` (check Anthropic's API docs for latest)
+
+1. **Implement the `LLMProvider` interface** in `src/prompt_evaluator/provider.py`:
+
+```python
+class MyCustomProvider(LLMProvider):
+    """Provider implementation for MyCustom LLM service."""
+    
+    def __init__(self, api_key: str | None = None, base_url: str | None = None):
+        """Initialize provider with API credentials."""
+        self.api_key = api_key or os.environ.get("MYCUSTOM_API_KEY")
+        self.base_url = base_url or os.environ.get("MYCUSTOM_BASE_URL", "https://api.mycustom.com")
+        # Initialize your API client here
+    
+    def validate_config(self) -> None:
+        """Validate that required configuration is present."""
+        if not self.api_key:
+            raise ValueError(
+                "MyCustom API key is required. Set MYCUSTOM_API_KEY environment variable "
+                "or pass api_key parameter."
+            )
+    
+    def generate(
+        self,
+        system_prompt: str | None,
+        user_prompt: str | list[str],
+        config: ProviderConfig,
+    ) -> ProviderResult:
+        """Generate a completion using your LLM service."""
+        start_time = time.time()
+        
+        try:
+            # Make API call to your service
+            # ... your API call logic here ...
+            
+            # Extract response text and metadata from API response
+            response_text = "..."  # Extract from API response
+            prompt_tokens = 0      # Extract from API response
+            completion_tokens = 0  # Extract from API response
+            
+            latency_ms = (time.time() - start_time) * 1000
+            
+            return ProviderResult(
+                text=response_text,
+                usage={
+                    "total_tokens": prompt_tokens + completion_tokens,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+                latency_ms=latency_ms,
+                model=config.model,
+                finish_reason="stop",  # Or extract from API response
+            )
+        
+        except Exception as e:
+            # Return error in ProviderResult, don't raise exception
+            latency_ms = (time.time() - start_time) * 1000
+            return ProviderResult(
+                text="",
+                usage={"total_tokens": None, "prompt_tokens": None, "completion_tokens": None},
+                latency_ms=latency_ms,
+                model=config.model,
+                error=f"API error: {str(e)}",
+            )
+```
+
+2. **Register the provider** in the `get_provider()` factory function:
+
+```python
+def get_provider(
+    provider_name: str,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    validate: bool = True,
+) -> LLMProvider:
+    """Factory function to get a provider instance by name."""
+    provider_name_lower = provider_name.lower()
+    provider: LLMProvider | None = None
+    
+    # Add your provider to the registry
+    if provider_name_lower == "mycustom":
+        provider = MyCustomProvider(api_key=api_key, base_url=base_url)
+    elif provider_name_lower == "openai":
+        provider = OpenAIProvider(api_key=api_key, base_url=base_url)
+    # ... other providers ...
+    
+    if provider:
+        if validate:
+            provider.validate_config()
+        return provider
+    else:
+        supported = ["openai", "claude", "anthropic", "mock", "mycustom"]  # Add yours here
+        raise ValueError(
+            f"Unsupported provider: {provider_name}. "
+            f"Supported providers: {supported}"
+        )
+```
+
+3. **Add environment variable documentation** to `.env.example`:
+
+```bash
+# MyCustom API Configuration
+MYCUSTOM_API_KEY=your-mycustom-api-key-here
+MYCUSTOM_BASE_URL=https://api.mycustom.com  # Optional
+```
+
+4. **Test your provider**:
+
+```python
+# Test basic functionality
+provider = get_provider("mycustom", api_key="test-key")
+config = ProviderConfig(model="mycustom-model", temperature=0.7)
+result = provider.generate(
+    system_prompt="You are helpful",
+    user_prompt="Hello",
+    config=config
+)
+assert result.text != ""
+assert result.error is None
+```
+
+See `LLMs.md` for guidelines on implementing LLM integrations following best practices for specific providers (OpenAI GPT-5, Anthropic Claude Sonnet/Opus 4, Google Gemini 3, etc.).
 
 #### Testing with Mock Provider
 
 The mock provider is useful for testing and development without making real API calls:
 
+**Command-Line Usage:**
+```bash
+# Set mock provider in config
+# prompt_evaluator.yaml:
+defaults:
+  generator:
+    provider: mock
+    model: gpt-5.1  # Model name is ignored by mock but required
+
+# Run evaluation with mock provider (no API calls, no cost)
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+```
+
+**Programmatic Usage:**
 ```python
 import pytest
 from unittest.mock import patch
@@ -306,8 +844,32 @@ def test_my_feature(mock_get_provider):
     mock_get_provider.return_value = mock_provider
     
     # Your test code here - no real API calls will be made
+    # Mock provider returns deterministic responses
     ...
+
+# Direct usage in tests
+def test_evaluation_logic():
+    """Test evaluation logic without API calls."""
+    provider = get_provider("mock", validate=False)
+    
+    config = ProviderConfig(model="test-model", temperature=0.7)
+    result = provider.generate(
+        system_prompt="You are a test assistant.",
+        user_prompt="Hello, world!",
+        config=config
+    )
+    
+    # Mock provider returns predictable output
+    assert "Mock response to: Hello, world!" in result.text
+    assert result.error is None
 ```
+
+**Benefits of Mock Provider:**
+- **Zero cost** - No API charges during development or CI/CD
+- **Deterministic** - Same input always produces same output
+- **Fast** - No network latency, instant responses
+- **Offline-friendly** - Works without internet connection
+- **CI/CD safe** - No secrets required in test environments
 
 ### Generate Command
 
@@ -1388,6 +1950,228 @@ If some samples fail during evaluation:
 **No Progress Bar:**
 - Progress is shown as text messages, not a visual progress bar
 - Consider using `--max-cases` for quick testing
+
+
+## A/B Testing System Prompts
+
+The prompt evaluator supports A/B testing mode for comparing LLM behavior with and without system prompts. This feature helps quantify the influence of system prompts by running paired generations and evaluations.
+
+### Overview
+
+A/B testing mode automatically generates two variants for each evaluation:
+- **with_prompt**: Uses the configured system prompt
+- **no_prompt**: Runs without a system prompt (empty string)
+
+This enables systematic comparison to understand:
+- How much does the system prompt influence outputs?
+- Are outputs consistent without the system prompt?
+- Which prompt variations produce better results?
+
+### Key Features
+
+- **Automatic Pairing**: Each input generates two variants (with/without prompt)
+- **Variant Tagging**: All outputs tagged with variant metadata for filtering
+- **Separate Statistics**: Aggregate stats computed per variant for comparison
+- **Cost Awareness**: Clear warnings about doubled API usage before execution
+
+### Usage
+
+A/B testing is available on `generate`, `evaluate-single`, and `evaluate-dataset` commands:
+
+**Generate Command:**
+```bash
+# Single generation with A/B testing
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --ab-test-system-prompt
+
+# Outputs:
+# runs/<run-id>/output_with_prompt.txt
+# runs/<run-id>/output_no_prompt.txt
+# runs/<run-id>/metadata_with_prompt.json
+# runs/<run-id>/metadata_no_prompt.json
+```
+
+**Evaluate-Single Command:**
+```bash
+# Multiple samples per variant for statistical comparison
+prompt-evaluator evaluate-single \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --num-samples 10 \
+  --ab-test-system-prompt
+
+# Warning: This will generate 20 samples total (10 × 2 variants)
+```
+
+**Evaluate-Dataset Command:**
+```bash
+# A/B test across entire dataset
+prompt-evaluator evaluate-dataset \
+  --dataset examples/datasets/sample.yaml \
+  --system-prompt examples/system_prompt.txt \
+  --num-samples 5 \
+  --ab-test-system-prompt
+
+# Warning: With 20 test cases and 5 samples, this generates 200 samples (20 × 5 × 2)
+```
+
+### Output Structure
+
+A/B testing outputs are organized to keep variants separate:
+
+**Single Generation:**
+```
+runs/<run-id>/
+  output_with_prompt.txt
+  output_no_prompt.txt
+  metadata_with_prompt.json
+  metadata_no_prompt.json
+```
+
+**Evaluation Results:**
+
+Each sample includes an `ab_variant` field:
+
+```json
+{
+  "samples": [
+    {
+      "sample_id": "abc123-sample-1",
+      "ab_variant": "with_prompt",
+      "input_text": "What is Python?",
+      "generator_output": "Python is a programming language...",
+      "judge_score": 4.5
+    },
+    {
+      "sample_id": "abc123-sample-2",
+      "ab_variant": "no_prompt",
+      "input_text": "What is Python?",
+      "generator_output": "Python is...",
+      "judge_score": 3.2
+    }
+  ],
+  "aggregate_stats": {
+    "variant_stats": {
+      "with_prompt": {
+        "mean_score": 4.3,
+        "num_samples": 10
+      },
+      "no_prompt": {
+        "mean_score": 3.5,
+        "num_samples": 10
+      }
+    }
+  }
+}
+```
+
+### Interpreting Results
+
+**Compare aggregate statistics** to understand system prompt impact:
+
+```bash
+# After A/B test evaluation
+cat runs/<run-id>/evaluate-single.json | jq '.aggregate_stats.variant_stats'
+
+# Example output:
+{
+  "with_prompt": {
+    "mean_score": 4.3,
+    "min_score": 3.8,
+    "max_score": 4.8,
+    "std": 0.25,
+    "num_samples": 10
+  },
+  "no_prompt": {
+    "mean_score": 3.1,
+    "min_score": 2.5,
+    "max_score": 3.9,
+    "std": 0.45,
+    "num_samples": 10
+  }
+}
+```
+
+**Key Insights:**
+
+1. **Mean Score Delta**: Difference between `with_prompt` and `no_prompt` means
+   - Large delta (>0.5): System prompt has strong influence
+   - Small delta (<0.2): System prompt has minimal effect
+   - Negative delta: System prompt may be harmful
+
+2. **Standard Deviation**: Consistency of each variant
+   - Lower std for `with_prompt`: System prompt stabilizes outputs
+   - Lower std for `no_prompt`: Model has inherent consistency
+   - High std for both: Prompt or task may be ambiguous
+
+3. **Sample Distribution**: Review individual samples for patterns
+   - Are `with_prompt` samples consistently better?
+   - Do `no_prompt` samples miss key requirements?
+   - Are there edge cases where one variant fails?
+
+### Cost Considerations
+
+⚠️ **Warning: A/B testing doubles API usage and costs.**
+
+Each input generates two completions (with and without prompt), plus two judge evaluations if using evaluation commands:
+
+**Cost Calculation:**
+```
+Total API Calls = Inputs × Samples × 2 (variants) × 2 (gen + judge)
+
+Example: 50 test cases, 5 samples per case
+= 50 × 5 × 2 × 2
+= 1,000 API calls
+```
+
+**Cost Mitigation Strategies:**
+
+1. **Start Small**: Use `--quick` or `--max-cases` for smoke tests
+   ```bash
+   # Test A/B mode with only 5 cases and 2 samples (40 API calls)
+   prompt-evaluator evaluate-dataset \
+     --dataset sample.yaml \
+     --system-prompt prompt.txt \
+     --max-cases 5 \
+     --quick \
+     --ab-test-system-prompt
+   ```
+
+2. **Use Mock Provider**: Test A/B logic without API costs
+   ```yaml
+   # prompt_evaluator.yaml
+   defaults:
+     generator:
+       provider: mock  # Zero API costs
+   ```
+   
+   ```bash
+   prompt-evaluator evaluate-dataset \
+     --dataset sample.yaml \
+     --system-prompt prompt.txt \
+     --ab-test-system-prompt  # No cost with mock provider
+   ```
+
+3. **Selective A/B Testing**: Only A/B test critical prompts
+   - Use standard evaluation for most experiments
+   - Reserve A/B testing for final validation
+
+4. **Monitor API Limits**: Check your provider's rate limits
+   - OpenAI: 3,500 RPM (Tier 3), 500 RPM (GPT-4)
+   - Anthropic: Varies by account tier
+   - Large A/B tests may hit limits quickly
+
+### Detailed Documentation
+
+For comprehensive A/B testing documentation, including:
+- Detailed output schema
+- Statistical comparison methods
+- Advanced filtering and analysis
+- Visualization recommendations
+
+See [docs/ab-testing.md](docs/ab-testing.md) for the complete guide.
 
 
 ## Prompt Versioning and Run Tracking
@@ -3323,6 +4107,90 @@ If the `markdown` package is not installed, the HTML report will be skipped with
 ### Reporting Specification
 
 For the complete specification including section structures, table formats, configuration parameters, and edge case handling, see [docs/reporting.md](docs/reporting.md).
+
+## Documentation
+
+The Prompt Evaluator provides comprehensive documentation across multiple files:
+
+### Core Documentation
+
+- **[README.md](README.md)** (this file) - Main documentation covering:
+  - Installation and quick start
+  - Provider architecture and configuration
+  - CLI commands and workflows
+  - Evaluation concepts and best practices
+  - Prompt versioning and comparison
+
+### Detailed Guides
+
+- **[LLMs.md](LLMs.md)** - LLM provider implementation guidelines:
+  - OpenAI GPT-5+ integration patterns
+  - Anthropic Claude Sonnet/Opus 4+ best practices
+  - Google Gemini 3+ recommendations
+  - Latest stable API versions and SDKs
+
+- **[docs/datasets.md](docs/datasets.md)** - Dataset format and usage:
+  - YAML and JSONL schema specifications
+  - Required and optional fields
+  - Custom metadata and passthrough
+  - Loading and validation
+  - Best practices for curating test datasets
+  - Evaluation workflows and examples
+
+- **[docs/reporting.md](docs/reporting.md)** - Report generation specification:
+  - Single-run report structure
+  - Comparison report structure
+  - Configuration knobs and thresholds
+  - HTML conversion and styling
+  - Edge case handling
+
+- **[docs/ab-testing.md](docs/ab-testing.md)** - A/B testing guide:
+  - System prompt comparison methodology
+  - Variant tagging and statistics
+  - Output structure and interpretation
+  - Cost considerations and mitigation
+  - Statistical analysis recommendations
+
+### Configuration References
+
+- **[.env.example](.env.example)** - Environment variable template:
+  - OpenAI API configuration
+  - Anthropic API configuration
+  - Default provider settings
+  - Optional model overrides
+
+- **[prompt_evaluator.yaml](prompt_evaluator.yaml)** - Application configuration example:
+  - Generator and judge defaults
+  - Prompt template mappings
+  - Dataset path shortcuts
+  - Rubric configuration
+
+### Example Files
+
+- **[examples/](examples/)** - Sample files for quick start:
+  - `system_prompt.txt` - Example system prompt
+  - `input.txt` - Example input
+  - `datasets/` - Sample YAML and JSONL datasets
+  - `rubrics/` - Preset rubric definitions
+  - `run-artifacts/` - Example evaluation outputs
+
+### Documentation Navigation Tips
+
+1. **Start Here**: README.md (this file) for overview and setup
+2. **Provider Setup**: Check LLMs.md for provider-specific guidance
+3. **Data Preparation**: Read docs/datasets.md for dataset formatting
+4. **Running Evaluations**: Follow CLI examples in README.md
+5. **Analyzing Results**: See docs/reporting.md for report generation
+6. **Advanced Features**: Explore docs/ab-testing.md for A/B testing
+
+### Documentation Updates
+
+When contributing changes:
+- Update relevant documentation files alongside code changes
+- Maintain consistency between README and docs/ files
+- Validate internal links (e.g., `[link](docs/file.md)`)
+- Update examples if command signatures change
+- Never commit API keys or secrets (use .env.example references)
 
 ## Development
 

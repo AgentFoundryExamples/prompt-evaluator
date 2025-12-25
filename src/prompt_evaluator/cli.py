@@ -20,6 +20,7 @@ prompt evaluations, managing configurations, and viewing results.
 
 import hashlib
 import json
+import os
 import sys
 import uuid
 from dataclasses import asdict

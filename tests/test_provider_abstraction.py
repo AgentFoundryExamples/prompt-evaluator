@@ -772,7 +772,7 @@ class TestClaudeProvider:
     def test_claude_provider_generate_with_error(self, mock_anthropic_class, monkeypatch):
         """Test that Claude provider returns error result on failure."""
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-        from prompt_evaluator.provider import ClaudeProvider, AnthropicError
+        from prompt_evaluator.provider import ClaudeProvider
 
         mock_client = mock_anthropic_class.return_value
         mock_client.messages.create.side_effect = Exception("API error")

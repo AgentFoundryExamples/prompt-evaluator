@@ -251,7 +251,14 @@ class OpenAIProvider(BaseProvider, LLMProvider):
                     output_item = response.output[0]
                     if hasattr(output_item, "content"):
                         if isinstance(output_item.content, list) and len(output_item.content) > 0:
-                            response_text = output_item.content[0].get("text", "")
+                            content_item = output_item.content[0]
+                            # Handle both dict and object with attributes
+                            if isinstance(content_item, dict):
+                                response_text = content_item.get("text", "")
+                            elif hasattr(content_item, "text"):
+                                response_text = content_item.text
+                            else:
+                                response_text = str(content_item)
                         elif isinstance(output_item.content, str):
                             response_text = output_item.content
                 elif hasattr(response.output, "content"):

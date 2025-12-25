@@ -144,6 +144,8 @@ class TestGetProvider:
             get_provider("unknown")
         except ValueError as e:
             assert "openai" in str(e)
+            assert "claude" in str(e)
+            assert "anthropic" in str(e)
             assert "mock" in str(e)
 
     def test_get_provider_validates_config_by_default(self, monkeypatch):
@@ -389,17 +391,27 @@ class TestOpenAIProviderNewInterface:
 
     @patch("prompt_evaluator.provider.OpenAI")
     def test_openai_provider_generate_success(self, mock_openai_class, monkeypatch):
-        """Test successful generation with OpenAIProvider."""
+        """Test successful generation with OpenAIProvider using Responses API."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        # Mock OpenAI client response
+        # Mock OpenAI client response for Responses API
         mock_client = mock_openai_class.return_value
-        mock_completion = mock_client.chat.completions.create.return_value
-        mock_completion.choices[0].message.content = "Test response"
-        mock_completion.choices[0].finish_reason = "stop"
-        mock_completion.usage.total_tokens = 100
-        mock_completion.usage.prompt_tokens = 50
-        mock_completion.usage.completion_tokens = 50
+        mock_response = mock_client.responses.create.return_value
+        
+        # Mock the response structure for Responses API
+        mock_output_item = type('obj', (object,), {
+            'content': [{'text': 'Test response'}]
+        })()
+        mock_response.output = [mock_output_item]
+        mock_response.status = "completed"
+        
+        # Mock usage
+        mock_usage = type('obj', (object,), {
+            'total_tokens': 100,
+            'input_tokens': 50,
+            'output_tokens': 50
+        })()
+        mock_response.usage = mock_usage
 
         provider = OpenAIProvider()
         config = ProviderConfig(model="gpt-5.1", temperature=0.5, seed=42)
@@ -412,35 +424,44 @@ class TestOpenAIProviderNewInterface:
 
         assert result.text == "Test response"
         assert result.model == "gpt-5.1"
-        assert result.finish_reason == "stop"
+        assert result.finish_reason == "completed"
         assert result.usage["total_tokens"] == 100
         assert result.usage["prompt_tokens"] == 50
         assert result.usage["completion_tokens"] == 50
         assert result.error is None
         assert result.latency_ms > 0
 
-        # Verify API was called correctly
-        mock_client.chat.completions.create.assert_called_once()
-        call_kwargs = mock_client.chat.completions.create.call_args[1]
+        # Verify API was called correctly with Responses API
+        mock_client.responses.create.assert_called_once()
+        call_kwargs = mock_client.responses.create.call_args[1]
         assert call_kwargs["model"] == "gpt-5.1"
         assert call_kwargs["temperature"] == 0.5
-        assert call_kwargs["seed"] == 42
-        assert len(call_kwargs["messages"]) == 2
-        assert call_kwargs["messages"][0]["role"] == "system"
-        assert call_kwargs["messages"][1]["role"] == "user"
+        assert call_kwargs["input"] == "What is Python?"
+        assert call_kwargs["instructions"] == "You are a helpful assistant."
+        assert call_kwargs["metadata"] == {"seed": 42}
 
     @patch("prompt_evaluator.provider.OpenAI")
     def test_openai_provider_generate_without_system_prompt(self, mock_openai_class, monkeypatch):
-        """Test generation without system prompt."""
+        """Test generation without system prompt using Responses API."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
         mock_client = mock_openai_class.return_value
-        mock_completion = mock_client.chat.completions.create.return_value
-        mock_completion.choices[0].message.content = "Test response"
-        mock_completion.choices[0].finish_reason = "stop"
-        mock_completion.usage.total_tokens = 50
-        mock_completion.usage.prompt_tokens = 25
-        mock_completion.usage.completion_tokens = 25
+        mock_response = mock_client.responses.create.return_value
+        
+        # Mock the response structure
+        mock_output_item = type('obj', (object,), {
+            'content': [{'text': 'Test response'}]
+        })()
+        mock_response.output = [mock_output_item]
+        mock_response.status = "completed"
+        
+        # Mock usage
+        mock_usage = type('obj', (object,), {
+            'total_tokens': 50,
+            'input_tokens': 25,
+            'output_tokens': 25
+        })()
+        mock_response.usage = mock_usage
 
         provider = OpenAIProvider()
         config = ProviderConfig(model="gpt-5.1")
@@ -453,21 +474,26 @@ class TestOpenAIProviderNewInterface:
 
         assert result.text == "Test response"
 
-        # Verify only user message was sent
-        call_kwargs = mock_client.chat.completions.create.call_args[1]
-        assert len(call_kwargs["messages"]) == 1
-        assert call_kwargs["messages"][0]["role"] == "user"
+        # Verify only user content was sent (no instructions)
+        call_kwargs = mock_client.responses.create.call_args[1]
+        assert "instructions" not in call_kwargs
+        assert call_kwargs["input"] == "What is Python?"
 
     @patch("prompt_evaluator.provider.OpenAI")
     def test_openai_provider_generate_multi_turn(self, mock_openai_class, monkeypatch):
-        """Test generation with multiple user prompts."""
+        """Test generation with multiple user prompts using Responses API."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
         mock_client = mock_openai_class.return_value
-        mock_completion = mock_client.chat.completions.create.return_value
-        mock_completion.choices[0].message.content = "Multi-turn response"
-        mock_completion.choices[0].finish_reason = "stop"
-        mock_completion.usage = None  # Test case with no usage info
+        mock_response = mock_client.responses.create.return_value
+        
+        # Mock the response structure
+        mock_output_item = type('obj', (object,), {
+            'content': [{'text': 'Multi-turn response'}]
+        })()
+        mock_response.output = [mock_output_item]
+        mock_response.status = "completed"
+        mock_response.usage = None  # Test case with no usage info
 
         provider = OpenAIProvider()
         config = ProviderConfig(model="gpt-5.1")
@@ -478,24 +504,21 @@ class TestOpenAIProviderNewInterface:
             config=config,
         )
 
-        # Verify all user prompts were sent
-        call_kwargs = mock_client.chat.completions.create.call_args[1]
-        assert len(call_kwargs["messages"]) == 4  # 1 system + 3 user
-        assert call_kwargs["messages"][0]["role"] == "system"
-        assert call_kwargs["messages"][1]["content"] == "First"
-        assert call_kwargs["messages"][2]["content"] == "Second"
-        assert call_kwargs["messages"][3]["content"] == "Third"
+        # Verify all user prompts were concatenated into input
+        call_kwargs = mock_client.responses.create.call_args[1]
+        assert call_kwargs["input"] == "First\nSecond\nThird"
+        assert call_kwargs["instructions"] == "System"
 
         # Test that None usage is handled
         assert result.usage["total_tokens"] is None
 
     @patch("prompt_evaluator.provider.OpenAI")
     def test_openai_provider_generate_with_error(self, mock_openai_class, monkeypatch):
-        """Test that OpenAI provider returns error result on failure."""
+        """Test that OpenAI provider returns error result on failure with Responses API."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
         mock_client = mock_openai_class.return_value
-        mock_client.chat.completions.create.side_effect = Exception("API error")
+        mock_client.responses.create.side_effect = Exception("API error")
 
         provider = OpenAIProvider()
         config = ProviderConfig(model="gpt-5.1")
@@ -514,16 +537,26 @@ class TestOpenAIProviderNewInterface:
 
     @patch("prompt_evaluator.provider.OpenAI")
     def test_openai_provider_passes_additional_params(self, mock_openai_class, monkeypatch):
-        """Test that additional_params are passed through to the API call."""
+        """Test that additional_params are passed through to the Responses API call."""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
         mock_client = mock_openai_class.return_value
-        mock_completion = mock_client.chat.completions.create.return_value
-        mock_completion.choices[0].message.content = "Test response"
-        mock_completion.choices[0].finish_reason = "stop"
-        mock_completion.usage.total_tokens = 50
-        mock_completion.usage.prompt_tokens = 25
-        mock_completion.usage.completion_tokens = 25
+        mock_response = mock_client.responses.create.return_value
+        
+        # Mock the response structure
+        mock_output_item = type('obj', (object,), {
+            'content': [{'text': 'Test response'}]
+        })()
+        mock_response.output = [mock_output_item]
+        mock_response.status = "completed"
+        
+        # Mock usage
+        mock_usage = type('obj', (object,), {
+            'total_tokens': 50,
+            'input_tokens': 25,
+            'output_tokens': 25
+        })()
+        mock_response.usage = mock_usage
 
         provider = OpenAIProvider()
 
@@ -531,7 +564,7 @@ class TestOpenAIProviderNewInterface:
         config = ProviderConfig(
             model="gpt-5.1",
             temperature=0.7,
-            additional_params={"top_p": 0.9, "frequency_penalty": 0.5}
+            additional_params={"top_p": 0.9, "truncation": "auto"}
         )
 
         result = provider.generate(
@@ -543,15 +576,291 @@ class TestOpenAIProviderNewInterface:
         assert result.text == "Test response"
 
         # Verify additional_params were passed to the API
-        mock_client.chat.completions.create.assert_called_once()
-        call_kwargs = mock_client.chat.completions.create.call_args[1]
+        mock_client.responses.create.assert_called_once()
+        call_kwargs = mock_client.responses.create.call_args[1]
 
         # Check that additional params were included
         assert "top_p" in call_kwargs
         assert call_kwargs["top_p"] == 0.9
-        assert "frequency_penalty" in call_kwargs
-        assert call_kwargs["frequency_penalty"] == 0.5
+        assert "truncation" in call_kwargs
+        assert call_kwargs["truncation"] == "auto"
 
         # Check that standard params are still there
         assert call_kwargs["model"] == "gpt-5.1"
         assert call_kwargs["temperature"] == 0.7
+
+
+class TestClaudeProvider:
+    """Tests for ClaudeProvider using new LLMProvider interface."""
+
+    def test_claude_provider_validate_config_with_env_key(self, monkeypatch):
+        """Test Claude provider validation with environment API key."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        from prompt_evaluator.provider import ClaudeProvider
+        provider = ClaudeProvider()
+        provider.validate_config()  # Should not raise
+
+    def test_claude_provider_validate_config_with_passed_key(self, monkeypatch):
+        """Test Claude provider validation with passed API key."""
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        from prompt_evaluator.provider import ClaudeProvider
+        provider = ClaudeProvider(api_key="test-key")
+        provider.validate_config()  # Should not raise
+
+    @patch("prompt_evaluator.provider.Anthropic")
+    def test_claude_provider_validate_config_missing_key(self, mock_anthropic_class, monkeypatch):
+        """Test Claude provider validation fails without API key."""
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        from prompt_evaluator.provider import ClaudeProvider
+
+        # Mock Anthropic client to bypass initialization check, but set api_key to None
+        mock_client = mock_anthropic_class.return_value
+        mock_client.api_key = None
+
+        provider = ClaudeProvider(api_key=None)
+
+        # The validation should check environment which has no key
+        with pytest.raises(ValueError, match="Anthropic API key is required"):
+            provider.validate_config()
+
+    @patch("prompt_evaluator.provider.Anthropic")
+    def test_claude_provider_validate_invalid_base_url(self, mock_anthropic_class, monkeypatch):
+        """Test Claude provider validation fails with invalid base_url format."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        from prompt_evaluator.provider import ClaudeProvider
+
+        # Create provider with invalid base_url
+        provider = ClaudeProvider(base_url="not-a-url")
+
+        with pytest.raises(ValueError, match="Invalid base_url format"):
+            provider.validate_config()
+
+    @patch("prompt_evaluator.provider.Anthropic")
+    def test_claude_provider_validate_valid_base_url(self, mock_anthropic_class, monkeypatch):
+        """Test Claude provider validation succeeds with valid base_url."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        from prompt_evaluator.provider import ClaudeProvider
+
+        # Test http and https URLs
+        for base_url in ["http://localhost:8000", "https://api.example.com"]:
+            provider = ClaudeProvider(base_url=base_url)
+            provider.validate_config()  # Should not raise
+
+    @patch("prompt_evaluator.provider.Anthropic")
+    def test_claude_provider_generate_success(self, mock_anthropic_class, monkeypatch):
+        """Test successful generation with ClaudeProvider."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        from prompt_evaluator.provider import ClaudeProvider
+
+        # Mock Anthropic client response
+        mock_client = mock_anthropic_class.return_value
+        mock_response = mock_client.messages.create.return_value
+        
+        # Mock content blocks
+        mock_content_block = type('obj', (object,), {'text': 'Test response from Claude'})()
+        mock_response.content = [mock_content_block]
+        mock_response.stop_reason = "end_turn"
+        
+        # Mock usage
+        mock_usage = type('obj', (object,), {
+            'input_tokens': 50,
+            'output_tokens': 30
+        })()
+        mock_response.usage = mock_usage
+
+        provider = ClaudeProvider()
+        config = ProviderConfig(model="claude-sonnet-4.5", temperature=0.5)
+
+        result = provider.generate(
+            system_prompt="You are a helpful assistant.",
+            user_prompt="What is Python?",
+            config=config,
+        )
+
+        assert result.text == "Test response from Claude"
+        assert result.model == "claude-sonnet-4.5"
+        assert result.finish_reason == "end_turn"
+        assert result.usage["total_tokens"] == 80  # 50 + 30
+        assert result.usage["prompt_tokens"] == 50
+        assert result.usage["completion_tokens"] == 30
+        assert result.error is None
+        assert result.latency_ms > 0
+
+        # Verify API was called correctly
+        mock_client.messages.create.assert_called_once()
+        call_kwargs = mock_client.messages.create.call_args[1]
+        assert call_kwargs["model"] == "claude-sonnet-4.5"
+        assert call_kwargs["temperature"] == 0.5
+        assert call_kwargs["system"] == "You are a helpful assistant."
+        assert len(call_kwargs["messages"]) == 1
+        assert call_kwargs["messages"][0]["role"] == "user"
+        assert call_kwargs["messages"][0]["content"] == "What is Python?"
+
+    @patch("prompt_evaluator.provider.Anthropic")
+    def test_claude_provider_generate_without_system_prompt(self, mock_anthropic_class, monkeypatch):
+        """Test generation without system prompt."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        from prompt_evaluator.provider import ClaudeProvider
+
+        mock_client = mock_anthropic_class.return_value
+        mock_response = mock_client.messages.create.return_value
+        
+        # Mock content blocks
+        mock_content_block = type('obj', (object,), {'text': 'Test response'})()
+        mock_response.content = [mock_content_block]
+        mock_response.stop_reason = "end_turn"
+        
+        # Mock usage
+        mock_usage = type('obj', (object,), {
+            'input_tokens': 25,
+            'output_tokens': 25
+        })()
+        mock_response.usage = mock_usage
+
+        provider = ClaudeProvider()
+        config = ProviderConfig(model="claude-sonnet-4.5")
+
+        result = provider.generate(
+            system_prompt=None,
+            user_prompt="What is Python?",
+            config=config,
+        )
+
+        assert result.text == "Test response"
+
+        # Verify only user message was sent (no system)
+        call_kwargs = mock_client.messages.create.call_args[1]
+        assert "system" not in call_kwargs
+        assert len(call_kwargs["messages"]) == 1
+        assert call_kwargs["messages"][0]["role"] == "user"
+
+    @patch("prompt_evaluator.provider.Anthropic")
+    def test_claude_provider_generate_multi_turn(self, mock_anthropic_class, monkeypatch):
+        """Test generation with multiple user prompts."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        from prompt_evaluator.provider import ClaudeProvider
+
+        mock_client = mock_anthropic_class.return_value
+        mock_response = mock_client.messages.create.return_value
+        
+        # Mock content blocks
+        mock_content_block = type('obj', (object,), {'text': 'Multi-turn response'})()
+        mock_response.content = [mock_content_block]
+        mock_response.stop_reason = "end_turn"
+        mock_response.usage = None  # Test case with no usage info
+
+        provider = ClaudeProvider()
+        config = ProviderConfig(model="claude-sonnet-4.5")
+
+        result = provider.generate(
+            system_prompt="System",
+            user_prompt=["First", "Second", "Third"],
+            config=config,
+        )
+
+        # Verify all user prompts were sent as separate messages
+        call_kwargs = mock_client.messages.create.call_args[1]
+        assert len(call_kwargs["messages"]) == 3
+        assert call_kwargs["messages"][0]["content"] == "First"
+        assert call_kwargs["messages"][1]["content"] == "Second"
+        assert call_kwargs["messages"][2]["content"] == "Third"
+
+        # Test that None usage is handled
+        assert result.usage["total_tokens"] is None
+
+    @patch("prompt_evaluator.provider.Anthropic")
+    def test_claude_provider_generate_with_error(self, mock_anthropic_class, monkeypatch):
+        """Test that Claude provider returns error result on failure."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        from prompt_evaluator.provider import ClaudeProvider
+
+        mock_client = mock_anthropic_class.return_value
+        mock_client.messages.create.side_effect = Exception("API error")
+
+        provider = ClaudeProvider()
+        config = ProviderConfig(model="claude-sonnet-4.5")
+
+        result = provider.generate(
+            system_prompt=None,
+            user_prompt="Test",
+            config=config,
+        )
+
+        assert result.text == ""
+        assert result.error is not None
+        assert "Unexpected error" in result.error
+        assert result.usage["total_tokens"] is None
+        assert result.latency_ms > 0  # Should still track latency
+
+    @patch("prompt_evaluator.provider.Anthropic")
+    def test_claude_provider_passes_additional_params(self, mock_anthropic_class, monkeypatch):
+        """Test that additional_params are passed through to the API call."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        from prompt_evaluator.provider import ClaudeProvider
+
+        mock_client = mock_anthropic_class.return_value
+        mock_response = mock_client.messages.create.return_value
+        
+        # Mock content blocks
+        mock_content_block = type('obj', (object,), {'text': 'Test response'})()
+        mock_response.content = [mock_content_block]
+        mock_response.stop_reason = "end_turn"
+        
+        # Mock usage
+        mock_usage = type('obj', (object,), {
+            'input_tokens': 25,
+            'output_tokens': 25
+        })()
+        mock_response.usage = mock_usage
+
+        provider = ClaudeProvider()
+
+        # Create config with additional params
+        config = ProviderConfig(
+            model="claude-sonnet-4.5",
+            temperature=0.7,
+            additional_params={"top_p": 0.9, "top_k": 10}
+        )
+
+        result = provider.generate(
+            system_prompt="System",
+            user_prompt="Test",
+            config=config,
+        )
+
+        assert result.text == "Test response"
+
+        # Verify additional_params were passed to the API
+        mock_client.messages.create.assert_called_once()
+        call_kwargs = mock_client.messages.create.call_args[1]
+
+        # Check that additional params were included
+        assert "top_p" in call_kwargs
+        assert call_kwargs["top_p"] == 0.9
+        assert "top_k" in call_kwargs
+        assert call_kwargs["top_k"] == 10
+
+        # Check that standard params are still there
+        assert call_kwargs["model"] == "claude-sonnet-4.5"
+        assert call_kwargs["temperature"] == 0.7
+
+    def test_get_provider_claude(self, monkeypatch):
+        """Test that get_provider returns ClaudeProvider for 'claude'."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        provider = get_provider("claude")
+        from prompt_evaluator.provider import ClaudeProvider
+        assert isinstance(provider, ClaudeProvider)
+
+    def test_get_provider_anthropic(self, monkeypatch):
+        """Test that get_provider returns ClaudeProvider for 'anthropic'."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        provider = get_provider("anthropic")
+        from prompt_evaluator.provider import ClaudeProvider
+        assert isinstance(provider, ClaudeProvider)
+
+    def test_get_provider_claude_case_insensitive(self, monkeypatch):
+        """Test that provider name is case-insensitive."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        provider = get_provider("Claude")
+        from prompt_evaluator.provider import ClaudeProvider
+        assert isinstance(provider, ClaudeProvider)

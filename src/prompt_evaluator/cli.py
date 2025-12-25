@@ -20,6 +20,7 @@ prompt evaluations, managing configurations, and viewing results.
 
 import hashlib
 import json
+import os
 import sys
 import uuid
 from dataclasses import asdict
@@ -249,6 +250,9 @@ def generate(
     input_path: str = typer.Option(
         ..., "--input", "-i", help="Path to input file (use '-' for stdin)"
     ),
+    provider: str = typer.Option(
+        "openai", "--provider", "-p", help="Provider to use (openai, claude, anthropic, mock)"
+    ),
     model: str | None = typer.Option(None, "--model", "-m", help="Model name override"),
     temperature: float | None = typer.Option(
         None, "--temperature", "-t", help="Temperature (0.0-2.0)"
@@ -320,12 +324,24 @@ def generate(
         )
 
         # Create provider
-        provider = get_provider("openai", api_key=api_config.api_key, base_url=api_config.base_url)
+        # Providers handle API key detection internally via environment variables
+        # Only pass api_key for OpenAI to support custom config
+        provider_api_key = api_config.api_key if provider.lower() == "openai" else None
+        
+        try:
+            provider_instance = get_provider(
+                provider, 
+                api_key=provider_api_key, 
+                base_url=api_config.base_url if provider.lower() == "openai" else None
+            )
+        except ValueError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
 
         # Generate completion
         typer.echo("Generating completion...", err=True)
         response_text, metadata = generate_completion(
-            provider=provider,
+            provider=provider_instance,
             system_prompt=system_prompt_content,
             user_prompt=user_prompt_content,
             model=generator_config.model_name,
@@ -407,6 +423,9 @@ def evaluate_single(
     input_path: str = typer.Option(..., "--input", "-i", help="Path to input file"),
     num_samples: int = typer.Option(
         ..., "--num-samples", "-n", help="Number of samples to generate"
+    ),
+    provider: str = typer.Option(
+        "openai", "--provider", "-p", help="Provider to use (openai, claude, anthropic, mock)"
     ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
@@ -536,7 +555,19 @@ def evaluate_single(
         )
 
         # Create provider
-        provider = get_provider("openai", api_key=api_config.api_key, base_url=api_config.base_url)
+        # Providers handle API key detection internally via environment variables
+        # Only pass api_key for OpenAI to support custom config
+        provider_api_key = api_config.api_key if provider.lower() == "openai" else None
+        
+        try:
+            provider_instance = get_provider(
+                provider, 
+                api_key=provider_api_key, 
+                base_url=api_config.base_url if provider.lower() == "openai" else None
+            )
+        except ValueError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
 
         # Create run metadata
         run_id = str(uuid.uuid4())
@@ -565,7 +596,7 @@ def evaluate_single(
             try:
                 # Generate completion
                 response_text, metadata = generate_completion(
-                    provider=provider,
+                    provider=provider_instance,
                     system_prompt=system_prompt_content,
                     user_prompt=user_prompt_content,
                     model=generator_config.model_name,
@@ -576,7 +607,7 @@ def evaluate_single(
 
                 # Judge the output
                 judge_result = judge_completion(
-                    provider=provider,
+                    provider=provider_instance,
                     input_text=user_prompt_content,
                     generator_output=response_text,
                     judge_config=judge_config,
@@ -801,6 +832,9 @@ def evaluate_dataset(
     num_samples: int | None = typer.Option(
         None, "--num-samples", "-n", help="Number of samples to generate per test case (default: 5)"
     ),
+    provider: str = typer.Option(
+        "openai", "--provider", "-p", help="Provider to use (openai, claude, anthropic, mock)"
+    ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
     ),
@@ -985,7 +1019,19 @@ def evaluate_dataset(
         )
 
         # Create provider
-        provider = get_provider("openai", api_key=api_config.api_key, base_url=api_config.base_url)
+        # Providers handle API key detection internally via environment variables
+        # Only pass api_key for OpenAI to support custom config
+        provider_api_key = api_config.api_key if provider.lower() == "openai" else None
+        
+        try:
+            provider_instance = get_provider(
+                provider, 
+                api_key=provider_api_key, 
+                base_url=api_config.base_url if provider.lower() == "openai" else None
+            )
+        except ValueError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
 
         # Prepare output directory
         output_dir_path = Path(output_dir)
@@ -1021,7 +1067,7 @@ def evaluate_dataset(
         from prompt_evaluator.dataset_evaluation import evaluate_dataset as run_dataset_evaluation
 
         evaluation_run = run_dataset_evaluation(
-            provider=provider,
+            provider=provider_instance,
             test_cases=test_cases,
             dataset_metadata=dataset_metadata,
             system_prompt=system_prompt_content,

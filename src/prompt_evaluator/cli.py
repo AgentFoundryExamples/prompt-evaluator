@@ -444,48 +444,32 @@ def generate(
 
         # Build GeneratorConfig with proper precedence
         # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+        app_gen_config = app_config.defaults.generator if app_config else None
 
-        # Start with hardcoded defaults
-        base_model = "gpt-5.1"
-        base_temp = 0.7
-        base_max_tokens = 1024
-
-        # Layer app config defaults if available (lower precedence)
-        if app_config is not None:
-            base_model = app_config.defaults.generator.model
-            base_temp = app_config.defaults.generator.temperature
-            base_max_tokens = app_config.defaults.generator.max_completion_tokens
-
-        # Layer API config (from env vars), which has higher precedence than app config
-        # api_config.model_name comes from OPENAI_MODEL env var or defaults
-        if api_config.model_name:
-            base_model = api_config.model_name
-
-        base_config = GeneratorConfig(
-            model_name=base_model,
-            temperature=base_temp,
-            max_completion_tokens=base_max_tokens
+        final_model_name = (
+            model
+            or api_config.model_name
+            or (app_gen_config.model if app_gen_config else None)
+            or "gpt-5.1"
+        )
+        final_temperature = (
+            temperature
+            if temperature is not None
+            else (app_gen_config.temperature if app_gen_config else None)
+            if (app_gen_config.temperature if app_gen_config else None) is not None
+            else 0.7
+        )
+        final_max_tokens = (
+            max_completion_tokens
+            or (app_gen_config.max_completion_tokens if app_gen_config else None)
+            or 1024
         )
 
-        # Create overrides dict, filtering out None values
-        cli_overrides: dict[str, Any] = {}
-        if model is not None:
-            cli_overrides["model_name"] = model
-        if temperature is not None:
-            cli_overrides["temperature"] = temperature
-        if max_completion_tokens is not None:
-            cli_overrides["max_completion_tokens"] = max_completion_tokens
-        if seed is not None:
-            cli_overrides["seed"] = seed
-
-        # Apply CLI overrides to base config (highest precedence)
         generator_config = GeneratorConfig(
-            model_name=cli_overrides.get("model_name", base_config.model_name),
-            temperature=cli_overrides.get("temperature", base_config.temperature),
-            max_completion_tokens=cli_overrides.get(
-                "max_completion_tokens", base_config.max_completion_tokens
-            ),
-            seed=cli_overrides.get("seed", base_config.seed),
+            model_name=final_model_name,
+            temperature=final_temperature,
+            max_completion_tokens=final_max_tokens,
+            seed=seed,
         )
 
         # Create provider
@@ -686,12 +670,13 @@ def evaluate_single(
         user_prompt_content = input_file_path.read_text(encoding="utf-8")
 
         # Determine provider with proper precedence: CLI flag > app config > hardcoded default
-        if provider is None and app_config is not None:
-            provider = app_config.defaults.generator.provider
-            typer.echo(f"Using provider from config: {provider}", err=True)
-        elif provider is None:
-            provider = "openai"
-            typer.echo(f"Using default provider: {provider}", err=True)
+        if provider is None:
+            if app_config is not None and app_config.defaults.generator.provider:
+                provider = app_config.defaults.generator.provider
+                typer.echo(f"Using provider from config: {provider}", err=True)
+            else:
+                provider = "openai"
+                typer.echo(f"Using default provider: {provider}", err=True)
 
         # Determine output directory with proper precedence
         if output_dir is None and app_config is not None:
@@ -728,64 +713,46 @@ def evaluate_single(
 
         # Build GeneratorConfig with proper precedence
         # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+        app_gen_config = app_config.defaults.generator if app_config else None
 
-        # Start with hardcoded defaults
-        base_gen_model = "gpt-5.1"
-        base_gen_temp = 0.7
-        base_gen_max_tokens = 1024
-
-        # Layer app config defaults if available (lower precedence)
-        if app_config is not None:
-            base_gen_model = app_config.defaults.generator.model
-            base_gen_temp = app_config.defaults.generator.temperature
-            base_gen_max_tokens = app_config.defaults.generator.max_completion_tokens
-
-        # Layer API config (from env vars), which has higher precedence than app config
-        if api_config.model_name:
-            base_gen_model = api_config.model_name
-
-        base_gen_config = GeneratorConfig(
-            model_name=base_gen_model,
-            temperature=base_gen_temp,
-            max_completion_tokens=base_gen_max_tokens
+        final_model_name = (
+            generator_model
+            or api_config.model_name
+            or (app_gen_config.model if app_gen_config else None)
+            or "gpt-5.1"
+        )
+        final_temperature = (
+            temperature
+            if temperature is not None
+            else (app_gen_config.temperature if app_gen_config else None)
+            if (app_gen_config.temperature if app_gen_config else None) is not None
+            else 0.7
+        )
+        final_max_tokens = (
+            max_completion_tokens
+            or (app_gen_config.max_completion_tokens if app_gen_config else None)
+            or 1024
         )
 
-        cli_overrides: dict[str, Any] = {}
-        if generator_model is not None:
-            cli_overrides["model_name"] = generator_model
-        if temperature is not None:
-            cli_overrides["temperature"] = temperature
-        if max_completion_tokens is not None:
-            cli_overrides["max_completion_tokens"] = max_completion_tokens
-        if seed is not None:
-            cli_overrides["seed"] = seed
-
         generator_config = GeneratorConfig(
-            model_name=cli_overrides.get("model_name", base_gen_config.model_name),
-            temperature=cli_overrides.get("temperature", base_gen_config.temperature),
-            max_completion_tokens=cli_overrides.get(
-                "max_completion_tokens", base_gen_config.max_completion_tokens
-            ),
-            seed=cli_overrides.get("seed", base_gen_config.seed),
+            model_name=final_model_name,
+            temperature=final_temperature,
+            max_completion_tokens=final_max_tokens,
+            seed=seed,
         )
 
         # Build JudgeConfig with proper precedence
-        # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+        # Precedence: CLI flags > app config > hardcoded defaults
+        app_judge_config = app_config.defaults.judge if app_config else None
 
-        # Start with hardcoded default
-        base_judge_model = "gpt-5.1"
+        final_judge_model = (
+            judge_model
+            or (app_judge_config.model if app_judge_config else None)
+            or "gpt-5.1"
+        )
 
-        # Layer app config if available (lower precedence)
-        if app_config is not None:
-            base_judge_model = app_config.defaults.judge.model
-
-        # Layer API config (from env vars), which has higher precedence than app config
-        if api_config.model_name:
-            base_judge_model = api_config.model_name
-
-        # CLI flag has highest precedence
         judge_config = JudgeConfig(
-            model_name=judge_model if judge_model is not None else base_judge_model,
+            model_name=final_judge_model,
             temperature=0.0,  # Use deterministic judge
         )
 
@@ -1224,12 +1191,13 @@ def evaluate_dataset(
         system_prompt_content = system_prompt_path.read_text(encoding="utf-8")
 
         # Determine provider with proper precedence: CLI flag > app config > hardcoded default
-        if provider is None and app_config is not None:
-            provider = app_config.defaults.generator.provider
-            typer.echo(f"Using provider from config: {provider}", err=True)
-        elif provider is None:
-            provider = "openai"
-            typer.echo(f"Using default provider: {provider}", err=True)
+        if provider is None:
+            if app_config is not None and app_config.defaults.generator.provider:
+                provider = app_config.defaults.generator.provider
+                typer.echo(f"Using provider from config: {provider}", err=True)
+            else:
+                provider = "openai"
+                typer.echo(f"Using default provider: {provider}", err=True)
 
         # Determine output directory with proper precedence
         if output_dir is None and app_config is not None:
@@ -1267,64 +1235,46 @@ def evaluate_dataset(
 
         # Build GeneratorConfig with proper precedence
         # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+        app_gen_config = app_config.defaults.generator if app_config else None
 
-        # Start with hardcoded defaults
-        base_gen_model = "gpt-5.1"
-        base_gen_temp = 0.7
-        base_gen_max_tokens = 1024
-
-        # Layer app config defaults if available (lower precedence)
-        if app_config is not None:
-            base_gen_model = app_config.defaults.generator.model
-            base_gen_temp = app_config.defaults.generator.temperature
-            base_gen_max_tokens = app_config.defaults.generator.max_completion_tokens
-
-        # Layer API config (from env vars), which has higher precedence than app config
-        if api_config.model_name:
-            base_gen_model = api_config.model_name
-
-        base_gen_config = GeneratorConfig(
-            model_name=base_gen_model,
-            temperature=base_gen_temp,
-            max_completion_tokens=base_gen_max_tokens
+        final_model_name = (
+            generator_model
+            or api_config.model_name
+            or (app_gen_config.model if app_gen_config else None)
+            or "gpt-5.1"
+        )
+        final_temperature = (
+            temperature
+            if temperature is not None
+            else (app_gen_config.temperature if app_gen_config else None)
+            if (app_gen_config.temperature if app_gen_config else None) is not None
+            else 0.7
+        )
+        final_max_tokens = (
+            max_completion_tokens
+            or (app_gen_config.max_completion_tokens if app_gen_config else None)
+            or 1024
         )
 
-        cli_overrides: dict[str, Any] = {}
-        if generator_model is not None:
-            cli_overrides["model_name"] = generator_model
-        if temperature is not None:
-            cli_overrides["temperature"] = temperature
-        if max_completion_tokens is not None:
-            cli_overrides["max_completion_tokens"] = max_completion_tokens
-        if seed is not None:
-            cli_overrides["seed"] = seed
-
         generator_config = GeneratorConfig(
-            model_name=cli_overrides.get("model_name", base_gen_config.model_name),
-            temperature=cli_overrides.get("temperature", base_gen_config.temperature),
-            max_completion_tokens=cli_overrides.get(
-                "max_completion_tokens", base_gen_config.max_completion_tokens
-            ),
-            seed=cli_overrides.get("seed", base_gen_config.seed),
+            model_name=final_model_name,
+            temperature=final_temperature,
+            max_completion_tokens=final_max_tokens,
+            seed=seed,
         )
 
         # Build JudgeConfig with proper precedence
-        # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+        # Precedence: CLI flags > app config > hardcoded defaults
+        app_judge_config = app_config.defaults.judge if app_config else None
 
-        # Start with hardcoded default
-        base_judge_model = "gpt-5.1"
+        final_judge_model = (
+            judge_model
+            or (app_judge_config.model if app_judge_config else None)
+            or "gpt-5.1"
+        )
 
-        # Layer app config if available (lower precedence)
-        if app_config is not None:
-            base_judge_model = app_config.defaults.judge.model
-
-        # Layer API config (from env vars), which has higher precedence than app config
-        if api_config.model_name:
-            base_judge_model = api_config.model_name
-
-        # CLI flag has highest precedence
         judge_config = JudgeConfig(
-            model_name=judge_model if judge_model is not None else base_judge_model,
+            model_name=final_judge_model,
             temperature=0.0,  # Use deterministic judge
         )
 

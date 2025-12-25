@@ -219,6 +219,10 @@ If no configuration file is found, the tool will use defaults and CLI arguments 
 
 The `prompt_evaluator.yaml` file defines defaults, shortcuts, and settings for the evaluation tool. Below is a complete example with all supported fields:
 
+**Note on Model Names:** Model names in this documentation (e.g., `gpt-5.1`, `claude-sonnet-4.5`) are used as placeholders for illustration. Always refer to `LLMs.md` and official provider documentation for actual available model names. For example:
+- OpenAI: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`
+- Anthropic: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`
+
 **prompt_evaluator.yaml:**
 ```yaml
 # Default settings for generators, judges, and runs
@@ -320,7 +324,10 @@ rubric_paths:
 
 **Configuration Tips:**
 
-1. **Use provider-specific models**: OpenAI uses `gpt-5.1`, Anthropic uses `claude-sonnet-4.5`
+1. **Use provider-specific models**: Check `LLMs.md` and official docs for current model names
+   - OpenAI: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo` (model names change; verify with OpenAI docs)
+   - Anthropic: `claude-3-opus-20240229`, `claude-3-sonnet-20240229` (verify with Anthropic docs)
+   - Model names in this documentation (e.g., `gpt-5.1`, `claude-sonnet-4.5`) are placeholders
 2. **Keep judge temperature at 0.0**: Ensures consistent, deterministic scoring
 3. **Use mock provider for testing**: Set `provider: mock` to avoid API costs during development
 4. **Organize prompts by version**: Use descriptive keys like `v1.0-baseline`, `v2.0-candidate`
@@ -389,13 +396,13 @@ prompt-evaluator generate \
   --input examples/input.txt \
   --model gpt-4
 
-# Example 2: Environment variable overrides config file
-# Config file: defaults.generator.provider = "openai"
-# Environment: PROVIDER=claude
-# CLI: (no provider flag)
-# Result: Uses claude (environment wins over config)
+# Example 2: Environment variable overrides config file model
+# Config file: defaults.generator.model = "gpt-5.1"
+# Environment: OPENAI_MODEL=gpt-4
+# CLI: (no model flag)
+# Result: Uses gpt-4 (environment wins over config for this setting)
 
-export PROVIDER=claude
+export OPENAI_MODEL=gpt-4
 prompt-evaluator generate \
   --system-prompt default_system \
   --input examples/input.txt
@@ -411,10 +418,10 @@ prompt-evaluator generate \
 
 # Example 4: Multiple overrides
 # Hardcoded: provider=openai, model=gpt-5.1, temperature=0.7
-# Config: provider=claude, temperature=0.5
-# Environment: OPENAI_API_KEY=sk-...
+# Config: provider=claude, model=claude-sonnet-4.5, temperature=0.5
+# Environment: ANTHROPIC_API_KEY=sk-ant-...
 # CLI: --temperature 0.3
-# Result: provider=claude (config), model=gpt-5.1 (hardcoded), temperature=0.3 (CLI)
+# Result: provider=claude (config), model=claude-sonnet-4.5 (config), temperature=0.3 (CLI)
 
 prompt-evaluator generate \
   --system-prompt default_system \
@@ -436,8 +443,10 @@ defaults:
     provider: claude  # Used if no CLI flag
 
 # Priority 3: Environment variable (provider-specific)
-OPENAI_API_KEY=sk-...      # Implies openai provider
-ANTHROPIC_API_KEY=sk-ant-... # Implies anthropic provider
+# If no provider is set via CLI or config, the presence of a provider-specific
+# API key can act as a fallback to select the provider.
+OPENAI_API_KEY=sk-...      # Implies 'openai' provider if not otherwise specified
+ANTHROPIC_API_KEY=sk-ant-... # Implies 'anthropic' provider if not otherwise specified
 
 # Priority 4: Hardcoded default
 # Uses openai if no other configuration exists
@@ -562,15 +571,19 @@ The provider abstraction is defined by the `LLMProvider` abstract base class, wh
 The tool currently supports three providers out of the box:
 
 1. **OpenAI Provider** (`openai`) - Default provider
-   - Uses OpenAI's Responses API (recommended for GPT-5+ models)
-   - Supports models: `gpt-5.1`, `gpt-4`, and other OpenAI models
+   - Uses OpenAI's Responses API (recommended for GPT-4 and newer models)
+   - Supports models: Check OpenAI's API documentation for current model names
+     - Examples: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`
+     - Note: `gpt-5.1` used in this documentation is a placeholder; use actual available models
    - Required environment variable: `OPENAI_API_KEY`
    - Optional environment variable: `OPENAI_BASE_URL` (for proxies or custom endpoints)
    - Note: Follows OpenAI's latest API patterns, not legacy Completions API
 
 2. **Anthropic Claude Provider** (`claude` or `anthropic`)
    - Uses Anthropic's Messages API (API version `2023-06-01` or newer)
-   - Supports models: `claude-sonnet-4.5`, `claude-opus-4`, and newer Claude models
+   - Supports models: Check Anthropic's API documentation for current model names
+     - Examples: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`
+     - Note: `claude-sonnet-4.5`, `claude-opus-4` used in this documentation are placeholders
    - Required environment variable: `ANTHROPIC_API_KEY`
    - Optional environment variable: `ANTHROPIC_BASE_URL` (for proxies or custom endpoints)
    - Follows Anthropic's recommended Messages API, not legacy Text Completions API
@@ -587,22 +600,22 @@ Each provider requires specific environment variables for authentication:
 
 **OpenAI:**
 ```bash
-# Required
+# Required for authentication
 export OPENAI_API_KEY="sk-your-openai-api-key-here"
 
-# Optional
+# Optional configuration overrides
 export OPENAI_BASE_URL="https://api.openai.com/v1"  # Custom endpoint
-export OPENAI_MODEL="gpt-5.1"                        # Default model
+export OPENAI_MODEL="gpt-4"                          # Override default model
 ```
 
 **Anthropic Claude:**
 ```bash
-# Required
+# Required for authentication
 export ANTHROPIC_API_KEY="sk-ant-your-anthropic-api-key-here"
 
-# Optional
+# Optional configuration overrides
 export ANTHROPIC_BASE_URL="https://api.anthropic.com"  # Custom endpoint
-export CLAUDE_MODEL="claude-sonnet-4.5"                 # Default model
+export CLAUDE_MODEL="claude-3-sonnet-20240229"         # Override default model
 ```
 
 **Mock Provider:**
@@ -610,6 +623,14 @@ export CLAUDE_MODEL="claude-sonnet-4.5"                 # Default model
 # No environment variables required
 # Works offline without any configuration
 ```
+
+**Environment Variable Types:**
+- **Authentication variables** (required): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
+  - These are needed to authenticate with the provider's API
+  - Provider selection can be inferred from which key is present
+- **Configuration variables** (optional): `OPENAI_MODEL`, `CLAUDE_MODEL`, `OPENAI_BASE_URL`, etc.
+  - These override default configuration values
+  - They follow the precedence rules: CLI flags > env vars > config file > hardcoded defaults
 
 See `.env.example` for a complete template of all supported environment variables.
 
@@ -662,6 +683,12 @@ print(result.latency_ms)  # Response latency in milliseconds
 #### How to Add a New Provider
 
 To add support for a new LLM provider (e.g., Google Gemini, Hugging Face, etc.), follow these steps:
+
+**Note:** The examples below use `MyCustomProvider` as a conceptual guide. This is not actual code in the repository but a template showing the pattern to follow when implementing a new provider. The actual provider implementations (OpenAI, Claude, Mock) can be found in `src/prompt_evaluator/provider.py`.
+
+**Important:** Model names used in examples (e.g., `gpt-5.1`, `claude-sonnet-4.5`) are placeholders. Always refer to `LLMs.md` and official provider documentation for current model names. For example:
+- OpenAI: Use `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo` (check OpenAI's API docs for latest)
+- Anthropic: Use `claude-3-opus-20240229`, `claude-3-sonnet-20240229` (check Anthropic's API docs for latest)
 
 1. **Implement the `LLMProvider` interface** in `src/prompt_evaluator/provider.py`:
 
@@ -738,6 +765,7 @@ def get_provider(
 ) -> LLMProvider:
     """Factory function to get a provider instance by name."""
     provider_name_lower = provider_name.lower()
+    provider: LLMProvider | None = None
     
     # Add your provider to the registry
     if provider_name_lower == "mycustom":
@@ -745,17 +773,17 @@ def get_provider(
     elif provider_name_lower == "openai":
         provider = OpenAIProvider(api_key=api_key, base_url=base_url)
     # ... other providers ...
+    
+    if provider:
+        if validate:
+            provider.validate_config()
+        return provider
     else:
         supported = ["openai", "claude", "anthropic", "mock", "mycustom"]  # Add yours here
         raise ValueError(
             f"Unsupported provider: {provider_name}. "
             f"Supported providers: {supported}"
         )
-    
-    if validate:
-        provider.validate_config()
-    
-    return provider
 ```
 
 3. **Add environment variable documentation** to `.env.example`:

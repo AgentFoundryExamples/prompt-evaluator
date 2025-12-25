@@ -302,6 +302,10 @@
     },
     {
       "type": "file",
+      "name": "LLMs.md"
+    },
+    {
+      "type": "file",
       "name": "pyproject.toml"
     },
     {

@@ -20,7 +20,6 @@
           "datetime.timezone",
           "hashlib",
           "json",
-          "os",
           "pathlib.Path",
           "sys",
           "typing.Any",
@@ -57,12 +56,14 @@
           "os",
           "pathlib.Path",
           "tomllib",
-          "typing.Any"
+          "typing.Any",
+          "warnings"
         ],
         "third-party": [
           "pydantic.BaseModel",
           "pydantic.Field",
           "pydantic.ValidationError",
+          "pydantic.field_validator",
           "tomli",
           "yaml"
         ]
@@ -451,6 +452,10 @@
   ],
   "edges": [
     {
+      "source": "src/prompt_evaluator/__init__.py",
+      "target": "src/prompt_evaluator/config.py"
+    },
+    {
       "source": "src/prompt_evaluator/cli.py",
       "target": "src/prompt_evaluator/config.py"
     },
@@ -674,7 +679,8 @@
       "typing.Any",
       "unittest.mock.MagicMock",
       "unittest.mock.patch",
-      "uuid"
+      "uuid",
+      "warnings"
     ],
     "third-party": [
       "anthropic.Anthropic",
@@ -692,7 +698,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 26,
+    "stdlib_count": 27,
     "third-party_count": 14
   }
 }

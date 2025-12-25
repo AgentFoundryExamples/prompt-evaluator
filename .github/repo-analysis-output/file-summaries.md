@@ -11,8 +11,8 @@ Total files: 29
 **Role:** module-init  
 **Role Justification:** module initialization file '__init__'  
 **Summary:** Python module initialization (role: module-init)  
-**Size:** 0.91 KB  
-**LOC:** 12  
+**Size:** 1.27 KB  
+**LOC:** 26  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/cli.py
@@ -20,8 +20,8 @@ Total files: 29
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 62.04 KB  
-**LOC:** 1229  
+**Size:** 69.61 KB  
+**LOC:** 1358  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/comparison.py
@@ -38,8 +38,8 @@ Total files: 29
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 21.74 KB  
-**LOC:** 433  
+**Size:** 31.98 KB  
+**LOC:** 671  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/dataset_evaluation.py
@@ -155,8 +155,8 @@ Total files: 29
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 12.10 KB  
-**LOC:** 234  
+**Size:** 28.79 KB  
+**LOC:** 599  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_dataset_evaluation.py

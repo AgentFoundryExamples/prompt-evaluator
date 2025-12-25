@@ -318,6 +318,10 @@
     },
     {
       "type": "file",
+      "name": "prompt_evaluator.yaml"
+    },
+    {
+      "type": "file",
       "name": "pyproject.toml"
     },
     {

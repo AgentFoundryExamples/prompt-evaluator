@@ -116,8 +116,10 @@
         "stdlib": [
           "abc.ABC",
           "abc.abstractmethod",
+          "dataclasses.dataclass",
           "json",
           "logging",
+          "os",
           "time",
           "typing.Any"
         ],
@@ -351,6 +353,21 @@
       }
     },
     {
+      "id": "tests/test_mock_provider_integration.py",
+      "path": "tests/test_mock_provider_integration.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "concurrent.futures",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "pytest",
+          "typer.testing.CliRunner"
+        ]
+      }
+    },
+    {
       "id": "tests/test_prompt_version_metadata.py",
       "path": "tests/test_prompt_version_metadata.py",
       "type": "file",
@@ -366,6 +383,20 @@
         "third-party": [
           "pytest",
           "typer.testing.CliRunner"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_provider_abstraction.py",
+      "path": "tests/test_provider_abstraction.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "threading",
+          "unittest.mock.patch"
+        ],
+        "third-party": [
+          "pytest"
         ]
       }
     },
@@ -561,6 +592,22 @@
       "target": "src/prompt_evaluator/provider.py"
     },
     {
+      "source": "tests/test_mock_provider_integration.py",
+      "target": "src/prompt_evaluator/cli.py"
+    },
+    {
+      "source": "tests/test_mock_provider_integration.py",
+      "target": "src/prompt_evaluator/dataset_evaluation.py"
+    },
+    {
+      "source": "tests/test_mock_provider_integration.py",
+      "target": "src/prompt_evaluator/models.py"
+    },
+    {
+      "source": "tests/test_mock_provider_integration.py",
+      "target": "src/prompt_evaluator/provider.py"
+    },
+    {
       "source": "tests/test_prompt_version_metadata.py",
       "target": "src/prompt_evaluator/cli.py"
     },
@@ -570,6 +617,10 @@
     },
     {
       "source": "tests/test_prompt_version_metadata.py",
+      "target": "src/prompt_evaluator/provider.py"
+    },
+    {
+      "source": "tests/test_provider_abstraction.py",
       "target": "src/prompt_evaluator/provider.py"
     },
     {
@@ -599,6 +650,7 @@
       "abc.abstractmethod",
       "collections.Counter",
       "collections.abc.Callable",
+      "concurrent.futures",
       "dataclasses.asdict",
       "dataclasses.dataclass",
       "dataclasses.field",
@@ -613,6 +665,7 @@
       "pathlib.Path",
       "re",
       "sys",
+      "threading",
       "time",
       "tomllib",
       "typing.Any",
@@ -634,7 +687,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 24,
+    "stdlib_count": 26,
     "third-party_count": 12
   }
 }

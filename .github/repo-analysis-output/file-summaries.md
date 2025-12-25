@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 27
+Total files: 29
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,8 @@ Total files: 27
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 60.43 KB  
-**LOC:** 1196  
+**Size:** 60.18 KB  
+**LOC:** 1192  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/comparison.py
@@ -47,7 +47,7 @@ Total files: 27
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 16.12 KB  
+**Size:** 16.11 KB  
 **LOC:** 340  
 **TODOs/FIXMEs:** 0  
 
@@ -65,8 +65,8 @@ Total files: 27
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 24.54 KB  
-**LOC:** 500  
+**Size:** 34.99 KB  
+**LOC:** 731  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/reporting/__init__.py
@@ -213,6 +213,15 @@ Total files: 27
 **LOC:** 1111  
 **TODOs/FIXMEs:** 0  
 
+## tests/test_mock_provider_integration.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 14.39 KB  
+**LOC:** 307  
+**TODOs/FIXMEs:** 0  
+
 ## tests/test_prompt_version_metadata.py
 **Language:** Python  
 **Role:** test  
@@ -220,6 +229,15 @@ Total files: 27
 **Summary:** Python test file (role: test)  
 **Size:** 15.02 KB  
 **LOC:** 284  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_provider_abstraction.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 21.55 KB  
+**LOC:** 415  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_rubric_cli.py

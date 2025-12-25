@@ -276,7 +276,15 @@
         },
         {
           "type": "file",
+          "name": "test_mock_provider_integration.py"
+        },
+        {
+          "type": "file",
           "name": "test_prompt_version_metadata.py"
+        },
+        {
+          "type": "file",
+          "name": "test_provider_abstraction.py"
         },
         {
           "type": "file",

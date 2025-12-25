@@ -80,9 +80,25 @@ def resolve_prompt_path(
 
     Raises:
         FileNotFoundError: If the prompt file doesn't exist
-        ValueError: If prompt_input is invalid
+        ValueError: If prompt_input is empty or invalid
     """
-    # Try to resolve as a template key first if config available
+    # Validate input
+    if not prompt_input or not prompt_input.strip():
+        raise ValueError("Prompt input cannot be empty")
+
+    # First, check if the input is a valid file path (prioritize files over template keys)
+    prompt_path = Path(prompt_input)
+
+    # Try as absolute path
+    if prompt_path.is_absolute() and prompt_path.exists():
+        return prompt_path.resolve()
+
+    # Try as relative path from current directory
+    cwd_path = Path.cwd() / prompt_path
+    if cwd_path.exists():
+        return cwd_path.resolve()
+
+    # If not a file, try to resolve as a template key if config is available
     if app_config is not None and prompt_input in app_config.prompt_templates:
         try:
             return app_config.get_prompt_template_path(prompt_input)
@@ -90,26 +106,16 @@ def resolve_prompt_path(
             # Template key found but file doesn't exist - let it raise
             raise
 
-    # Treat as a file path (absolute or relative)
-    prompt_path = Path(prompt_input)
-
-    # Resolve to absolute path
-    if not prompt_path.is_absolute():
-        prompt_path = Path.cwd() / prompt_path
-
-    # Check if path exists
-    if not prompt_path.exists():
-        # Provide helpful error message
-        if app_config is not None and app_config.prompt_templates:
-            available = ', '.join(sorted(app_config.prompt_templates.keys()))
-            raise FileNotFoundError(
-                f"Prompt file not found: {prompt_path}. "
-                f"Available template keys: {available}"
-            )
-        else:
-            raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
-
-    return prompt_path
+    # If we are here, it's not an existing file and not a valid template key
+    # Provide helpful error message
+    if app_config is not None and app_config.prompt_templates:
+        available = ', '.join(sorted(app_config.prompt_templates.keys()))
+        raise FileNotFoundError(
+            f"Prompt file not found: '{prompt_input}' is not a valid file path and not a "
+            f"known template key. Available template keys: {available}"
+        )
+    else:
+        raise FileNotFoundError(f"Prompt file not found: {prompt_input}")
 
 
 def resolve_dataset_path(
@@ -130,9 +136,25 @@ def resolve_dataset_path(
 
     Raises:
         FileNotFoundError: If the dataset file doesn't exist
-        ValueError: If dataset_input is invalid
+        ValueError: If dataset_input is empty or invalid
     """
-    # Try to resolve as a dataset key first if config available
+    # Validate input
+    if not dataset_input or not dataset_input.strip():
+        raise ValueError("Dataset input cannot be empty")
+
+    # First, check if the input is a valid file path (prioritize files over dataset keys)
+    dataset_path = Path(dataset_input)
+
+    # Try as absolute path
+    if dataset_path.is_absolute() and dataset_path.exists():
+        return dataset_path.resolve()
+
+    # Try as relative path from current directory
+    cwd_path = Path.cwd() / dataset_path
+    if cwd_path.exists():
+        return cwd_path.resolve()
+
+    # If not a file, try to resolve as a dataset key if config is available
     if app_config is not None and dataset_input in app_config.dataset_paths:
         try:
             return app_config.get_dataset_path(dataset_input)
@@ -140,26 +162,16 @@ def resolve_dataset_path(
             # Dataset key found but file doesn't exist - let it raise
             raise
 
-    # Treat as a file path (absolute or relative)
-    dataset_path = Path(dataset_input)
-
-    # Resolve to absolute path
-    if not dataset_path.is_absolute():
-        dataset_path = Path.cwd() / dataset_path
-
-    # Check if path exists
-    if not dataset_path.exists():
-        # Provide helpful error message
-        if app_config is not None and app_config.dataset_paths:
-            available = ', '.join(sorted(app_config.dataset_paths.keys()))
-            raise FileNotFoundError(
-                f"Dataset file not found: {dataset_path}. "
-                f"Available dataset keys: {available}"
-            )
-        else:
-            raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
-
-    return dataset_path
+    # If we are here, it's not an existing file and not a valid dataset key
+    # Provide helpful error message
+    if app_config is not None and app_config.dataset_paths:
+        available = ', '.join(sorted(app_config.dataset_paths.keys()))
+        raise FileNotFoundError(
+            f"Dataset file not found: '{dataset_input}' is not a valid file path and not a "
+            f"known dataset key. Available dataset keys: {available}"
+        )
+    else:
+        raise FileNotFoundError(f"Dataset file not found: {dataset_input}")
 
 
 def compute_rubric_metadata(rubric: Rubric | None, rubric_path: Path | None) -> dict[str, Any]:
@@ -409,22 +421,29 @@ def generate(
                 raise typer.Exit(1)
             user_prompt_content = input_file_path.read_text(encoding="utf-8")
 
-        # Build GeneratorConfig with CLI overrides
-        # Precedence: CLI > API config > app config defaults > hardcoded defaults
-        # Start with defaults from app config if available
+        # Build GeneratorConfig with proper precedence
+        # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+
+        # Start with hardcoded defaults
+        base_model = "gpt-5.1"
+        base_temp = 0.7
+        base_max_tokens = 1024
+
+        # Layer app config defaults if available (lower precedence)
         if app_config is not None:
-            default_model = app_config.defaults.generator.model
-            default_temp = app_config.defaults.generator.temperature
-            default_max_tokens = app_config.defaults.generator.max_completion_tokens
-        else:
-            default_model = api_config.model_name
-            default_temp = 0.7
-            default_max_tokens = 1024
+            base_model = app_config.defaults.generator.model
+            base_temp = app_config.defaults.generator.temperature
+            base_max_tokens = app_config.defaults.generator.max_completion_tokens
+
+        # Layer API config (from env vars), which has higher precedence than app config
+        # api_config.model_name comes from OPENAI_MODEL env var or defaults
+        if api_config.model_name:
+            base_model = api_config.model_name
 
         base_config = GeneratorConfig(
-            model_name=default_model,
-            temperature=default_temp,
-            max_completion_tokens=default_max_tokens
+            model_name=base_model,
+            temperature=base_temp,
+            max_completion_tokens=base_max_tokens
         )
 
         # Create overrides dict, filtering out None values
@@ -438,7 +457,7 @@ def generate(
         if seed is not None:
             cli_overrides["seed"] = seed
 
-        # Apply overrides to base config
+        # Apply CLI overrides to base config (highest precedence)
         generator_config = GeneratorConfig(
             model_name=cli_overrides.get("model_name", base_config.model_name),
             temperature=cli_overrides.get("temperature", base_config.temperature),
@@ -1135,20 +1154,27 @@ def evaluate_dataset(
             raise typer.Exit(1)
 
         # Build GeneratorConfig with proper precedence
-        # Precedence: CLI > API config > app config defaults > hardcoded defaults
+        # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
+
+        # Start with hardcoded defaults
+        base_gen_model = "gpt-5.1"
+        base_gen_temp = 0.7
+        base_gen_max_tokens = 1024
+
+        # Layer app config defaults if available (lower precedence)
         if app_config is not None:
-            default_gen_model = app_config.defaults.generator.model
-            default_gen_temp = app_config.defaults.generator.temperature
-            default_gen_max_tokens = app_config.defaults.generator.max_completion_tokens
-        else:
-            default_gen_model = api_config.model_name
-            default_gen_temp = 0.7
-            default_gen_max_tokens = 1024
+            base_gen_model = app_config.defaults.generator.model
+            base_gen_temp = app_config.defaults.generator.temperature
+            base_gen_max_tokens = app_config.defaults.generator.max_completion_tokens
+
+        # Layer API config (from env vars), which has higher precedence than app config
+        if api_config.model_name:
+            base_gen_model = api_config.model_name
 
         base_gen_config = GeneratorConfig(
-            model_name=default_gen_model,
-            temperature=default_gen_temp,
-            max_completion_tokens=default_gen_max_tokens
+            model_name=base_gen_model,
+            temperature=base_gen_temp,
+            max_completion_tokens=base_gen_max_tokens
         )
 
         cli_overrides: dict[str, Any] = {}
@@ -1171,13 +1197,22 @@ def evaluate_dataset(
         )
 
         # Build JudgeConfig with proper precedence
-        if app_config is not None:
-            default_judge_model = app_config.defaults.judge.model
-        else:
-            default_judge_model = api_config.model_name
+        # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
 
+        # Start with hardcoded default
+        base_judge_model = "gpt-5.1"
+
+        # Layer app config if available (lower precedence)
+        if app_config is not None:
+            base_judge_model = app_config.defaults.judge.model
+
+        # Layer API config (from env vars), which has higher precedence than app config
+        if api_config.model_name:
+            base_judge_model = api_config.model_name
+
+        # CLI flag has highest precedence
         judge_config = JudgeConfig(
-            model_name=judge_model if judge_model is not None else default_judge_model,
+            model_name=judge_model if judge_model is not None else base_judge_model,
             temperature=0.0,  # Use deterministic judge
         )
 

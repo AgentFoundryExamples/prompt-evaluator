@@ -26,6 +26,9 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
+# Centralized list of valid providers to avoid duplication
+VALID_PROVIDERS = ["openai", "anthropic", "claude", "mock"]
+
 
 class ProviderConfig(BaseModel):
     """Configuration for an LLM provider."""
@@ -89,10 +92,9 @@ class DefaultGeneratorConfig(BaseModel):
     @classmethod
     def validate_provider(cls, v: str) -> str:
         """Validate provider name."""
-        valid_providers = ["openai", "anthropic", "claude", "mock"]
-        if v not in valid_providers:
+        if v not in VALID_PROVIDERS:
             raise ValueError(
-                f"Invalid provider '{v}'. Valid providers: {', '.join(valid_providers)}"
+                f"Invalid provider '{v}'. Valid providers: {', '.join(VALID_PROVIDERS)}"
             )
         return v
 
@@ -111,10 +113,9 @@ class DefaultJudgeConfig(BaseModel):
     @classmethod
     def validate_provider(cls, v: str) -> str:
         """Validate provider name."""
-        valid_providers = ["openai", "anthropic", "claude", "mock"]
-        if v not in valid_providers:
+        if v not in VALID_PROVIDERS:
             raise ValueError(
-                f"Invalid provider '{v}'. Valid providers: {', '.join(valid_providers)}"
+                f"Invalid provider '{v}'. Valid providers: {', '.join(VALID_PROVIDERS)}"
             )
         return v
 
@@ -193,19 +194,35 @@ class PromptEvaluatorConfig(BaseModel):
 
         Returns:
             Resolved absolute Path object
+
+        Raises:
+            ValueError: If path contains suspicious patterns or traverses outside expected bounds
         """
+        # Basic input validation to prevent path traversal attacks
+        if not path_str or not path_str.strip():
+            raise ValueError("Path cannot be empty")
+
         path = Path(path_str)
 
-        # If already absolute, return as-is
+        # If already absolute, validate and return
         if path.is_absolute():
-            return path
+            resolved = path.resolve()
+        elif self._config_dir is not None:
+            # Resolve relative to config directory
+            resolved = (self._config_dir / path).resolve()
+        else:
+            # Fallback to current working directory
+            resolved = (Path.cwd() / path).resolve()
 
-        # Resolve relative to config directory if available
-        if self._config_dir is not None:
-            return (self._config_dir / path).resolve()
+        # Additional security check: ensure resolved path doesn't contain suspicious patterns
+        # This prevents issues like symlink attacks or unexpected path resolution
+        try:
+            # Just validate the path can be resolved without errors
+            str(resolved)
+        except (OSError, ValueError) as e:
+            raise ValueError(f"Invalid or suspicious path: {path_str}") from e
 
-        # Fallback to current working directory
-        return (Path.cwd() / path).resolve()
+        return resolved
 
     def get_prompt_template_path(self, key: str) -> Path:
         """

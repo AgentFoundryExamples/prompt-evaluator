@@ -1065,3 +1065,280 @@ flags: []
         # Should NOT show config messages since CLI flags were provided
         assert "Using provider from config:" not in result.stdout
         assert "Using output directory from config:" not in result.stdout
+
+
+class TestABTestingEvaluateSingle:
+    """Tests for A/B testing mode in evaluate-single command."""
+
+    @patch("prompt_evaluator.cli.judge_completion")
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_evaluate_single_ab_test_doubles_samples(
+        self, mock_generate, mock_judge, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that A/B testing mode doubles the number of samples."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Mock generate and judge responses
+        mock_generate.return_value = ("Generated response", {"tokens_used": 10, "latency_ms": 100.0})
+        mock_judge.return_value = {
+            "status": "completed",
+            "judge_score": 4.5,
+            "judge_rationale": "Good response",
+            "judge_raw_response": '{"score": 4.5, "rationale": "Good"}',
+            "judge_metrics": {"quality": {"score": 4.5, "rationale": "Good"}},
+            "judge_flags": {},
+        }
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "2",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--ab-test-system-prompt",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # With --num-samples=2 and A/B testing, should generate 4 total samples
+        # (2 for with_prompt, 2 for no_prompt)
+        assert mock_generate.call_count == 4
+        assert mock_judge.call_count == 4
+
+    @patch("prompt_evaluator.cli.judge_completion")
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_evaluate_single_ab_test_tags_variants(
+        self, mock_generate, mock_judge, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that A/B testing properly tags samples with variant metadata."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Response", {"tokens_used": 10, "latency_ms": 100.0})
+        mock_judge.return_value = {
+            "status": "completed",
+            "judge_score": 4.0,
+            "judge_rationale": "Good",
+            "judge_raw_response": "{}",
+            "judge_metrics": {},
+            "judge_flags": {},
+        }
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "1",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--ab-test-system-prompt",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Load the saved evaluation file
+        run_dirs = list(temp_prompts["output_dir"].iterdir())
+        assert len(run_dirs) == 1
+        eval_file = run_dirs[0] / "evaluate-single.json"
+        assert eval_file.exists()
+
+        eval_data = json.loads(eval_file.read_text())
+
+        # Check that we have 2 samples with proper variant tags
+        assert len(eval_data["samples"]) == 2
+        variants = [s["ab_variant"] for s in eval_data["samples"]]
+        assert "with_prompt" in variants
+        assert "no_prompt" in variants
+
+    @patch("prompt_evaluator.cli.judge_completion")
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_evaluate_single_ab_test_shows_warning(
+        self, mock_generate, mock_judge, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that A/B testing shows warning about doubled API calls."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Response", {"tokens_used": 10, "latency_ms": 100.0})
+        mock_judge.return_value = {
+            "status": "completed",
+            "judge_score": 4.0,
+            "judge_rationale": "Good",
+            "judge_raw_response": "{}",
+            "judge_metrics": {},
+            "judge_flags": {},
+        }
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "2",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--ab-test-system-prompt",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Check for warning message
+        assert "WARNING" in result.stdout or "warning" in result.stdout.lower()
+        assert "DOUBLE" in result.stdout or "double" in result.stdout.lower()
+
+    @patch("prompt_evaluator.cli.judge_completion")
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_evaluate_single_ab_test_variant_statistics(
+        self, mock_generate, mock_judge, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that A/B testing computes and displays variant statistics."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Response", {"tokens_used": 10, "latency_ms": 100.0})
+
+        # Different scores for different variants to verify statistics
+        mock_judge.side_effect = [
+            {  # with_prompt sample 1
+                "status": "completed",
+                "judge_score": 5.0,
+                "judge_rationale": "Excellent",
+                "judge_raw_response": "{}",
+                "judge_metrics": {},
+                "judge_flags": {},
+            },
+            {  # with_prompt sample 2
+                "status": "completed",
+                "judge_score": 4.5,
+                "judge_rationale": "Very good",
+                "judge_raw_response": "{}",
+                "judge_metrics": {},
+                "judge_flags": {},
+            },
+            {  # no_prompt sample 1
+                "status": "completed",
+                "judge_score": 3.0,
+                "judge_rationale": "Okay",
+                "judge_raw_response": "{}",
+                "judge_metrics": {},
+                "judge_flags": {},
+            },
+            {  # no_prompt sample 2
+                "status": "completed",
+                "judge_score": 3.5,
+                "judge_rationale": "Fair",
+                "judge_raw_response": "{}",
+                "judge_metrics": {},
+                "judge_flags": {},
+            },
+        ]
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "2",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--ab-test-system-prompt",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Load the saved evaluation file
+        run_dirs = list(temp_prompts["output_dir"].iterdir())
+        eval_file = run_dirs[0] / "evaluate-single.json"
+        eval_data = json.loads(eval_file.read_text())
+
+        # Check that variant statistics are computed
+        assert "variant_stats" in eval_data
+        assert "with_prompt" in eval_data["variant_stats"]
+        assert "no_prompt" in eval_data["variant_stats"]
+
+        # Verify statistics for each variant
+        with_prompt_stats = eval_data["variant_stats"]["with_prompt"]
+        no_prompt_stats = eval_data["variant_stats"]["no_prompt"]
+
+        # with_prompt should have higher mean score (5.0 + 4.5) / 2 = 4.75
+        assert with_prompt_stats["mean_score"] == 4.75
+        assert with_prompt_stats["num_successful"] == 2
+
+        # no_prompt should have lower mean score (3.0 + 3.5) / 2 = 3.25
+        assert no_prompt_stats["mean_score"] == 3.25
+        assert no_prompt_stats["num_successful"] == 2
+
+    @patch("prompt_evaluator.cli.judge_completion")
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_evaluate_single_without_ab_test_single_execution(
+        self, mock_generate, mock_judge, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that without A/B mode, only single execution happens."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Response", {"tokens_used": 10, "latency_ms": 100.0})
+        mock_judge.return_value = {
+            "status": "completed",
+            "judge_score": 4.0,
+            "judge_rationale": "Good",
+            "judge_raw_response": "{}",
+            "judge_metrics": {},
+            "judge_flags": {},
+        }
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "evaluate-single",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--num-samples",
+                "2",
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                # No --ab-test-system-prompt flag
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Without A/B testing, should only generate 2 samples (not 4)
+        assert mock_generate.call_count == 2
+        assert mock_judge.call_count == 2
+
+        # Load the saved evaluation file
+        run_dirs = list(temp_prompts["output_dir"].iterdir())
+        eval_file = run_dirs[0] / "evaluate-single.json"
+        eval_data = json.loads(eval_file.read_text())
+
+        # Should only have 2 samples
+        assert len(eval_data["samples"]) == 2
+
+        # Should NOT have variant_stats
+        assert "variant_stats" not in eval_data or not eval_data.get("variant_stats")
+
+        # Samples should not have ab_variant tags (or should be None)
+        for sample in eval_data["samples"]:
+            assert sample.get("ab_variant") is None

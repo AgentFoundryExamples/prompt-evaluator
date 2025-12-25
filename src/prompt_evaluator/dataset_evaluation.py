@@ -210,6 +210,7 @@ def evaluate_dataset(
     prompt_version_id: str | None = None,
     prompt_hash: str | None = None,
     run_notes: str | None = None,
+    ab_test_system_prompt: bool = False,
 ) -> DatasetEvaluationRun:
     """
     Evaluate a dataset of test cases with multiple samples per case.
@@ -228,7 +229,7 @@ def evaluate_dataset(
         dataset_metadata: Metadata about the dataset (path, hash, count)
         system_prompt: System prompt for the generator
         system_prompt_path: Path to the system prompt file
-        num_samples_per_case: Number of samples to generate per test case
+        num_samples_per_case: Number of samples to generate per test case (per variant if A/B testing)
         generator_config: Configuration for the generator model
         judge_config: Configuration for the judge model
         judge_system_prompt: System prompt for the judge
@@ -239,6 +240,7 @@ def evaluate_dataset(
         prompt_version_id: Version identifier for the prompt
         prompt_hash: SHA-256 hash of the system prompt file
         run_notes: Optional notes about this run
+        ab_test_system_prompt: If True, run A/B test with and without system prompt
 
     Returns:
         DatasetEvaluationRun object with complete results
@@ -278,6 +280,9 @@ def evaluate_dataset(
 
         tc_timestamp_start = datetime.now(timezone.utc)
 
+        # Determine total samples for this test case
+        total_samples = num_samples_per_case * 2 if ab_test_system_prompt else num_samples_per_case
+
         # Initialize test case result
         test_case_result = TestCaseResult(
             test_case_id=test_case.id,
@@ -289,7 +294,7 @@ def evaluate_dataset(
                 "reference": test_case.reference,
                 **test_case.metadata,
             },
-            num_samples=num_samples_per_case,
+            num_samples=total_samples,
             timestamp_start=tc_timestamp_start,
         )
 
@@ -297,85 +302,104 @@ def evaluate_dataset(
         samples: list[Sample] = []
         num_successful = 0
 
-        for sample_idx in range(num_samples_per_case):
-            sample_id = f"{run_id}-{test_case.id}-sample-{sample_idx + 1}"
+        # Determine variants to run
+        variants = []
+        if ab_test_system_prompt:
+            variants = [
+                ("with_prompt", system_prompt),
+                ("no_prompt", ""),
+            ]
+        else:
+            variants = [(None, system_prompt)]
 
-            try:
-                # Generate completion
-                response_text, metadata = generate_completion(
-                    provider=provider,
-                    system_prompt=system_prompt,
-                    user_prompt=test_case.input,
-                    model=generator_config.model_name,
-                    temperature=generator_config.temperature,
-                    max_completion_tokens=generator_config.max_completion_tokens,
-                    seed=generator_config.seed,
-                )
+        # Generate samples for each variant
+        for variant_name, variant_system_prompt in variants:
+            for sample_idx in range(num_samples_per_case):
+                if variant_name:
+                    sample_id = f"{run_id}-{test_case.id}-{variant_name}-sample-{sample_idx + 1}"
+                else:
+                    sample_id = f"{run_id}-{test_case.id}-sample-{sample_idx + 1}"
 
-                # Judge the output
                 try:
-                    judge_result = judge_completion(
+                    # Generate completion with varied seed per sample
+                    current_seed = generator_config.seed + sample_idx if generator_config.seed is not None else None
+                    response_text, metadata = generate_completion(
                         provider=provider,
-                        input_text=test_case.input,
-                        generator_output=response_text,
-                        judge_config=judge_config,
-                        judge_system_prompt=judge_system_prompt,
-                        task_description=test_case.task,
-                        rubric=rubric,
+                        system_prompt=variant_system_prompt,
+                        user_prompt=test_case.input,
+                        model=generator_config.model_name,
+                        temperature=generator_config.temperature,
+                        max_completion_tokens=generator_config.max_completion_tokens,
+                        seed=current_seed,
                     )
 
-                    # Create sample with judge results
-                    sample = Sample(
-                        sample_id=sample_id,
-                        input_text=test_case.input,
-                        generator_output=response_text,
-                        judge_score=judge_result.get("judge_score"),
-                        judge_rationale=judge_result.get("judge_rationale"),
-                        judge_raw_response=judge_result.get("judge_raw_response"),
-                        status=judge_result["status"],
-                        task_description=test_case.task,
-                        judge_metrics=judge_result.get("judge_metrics", {}),
-                        judge_flags=judge_result.get("judge_flags", {}),
-                        judge_overall_comment=judge_result.get("judge_overall_comment"),
-                    )
+                    # Judge the output
+                    try:
+                        judge_result = judge_completion(
+                            provider=provider,
+                            input_text=test_case.input,
+                            generator_output=response_text,
+                            judge_config=judge_config,
+                            judge_system_prompt=judge_system_prompt,
+                            task_description=test_case.task,
+                            rubric=rubric,
+                        )
 
-                    samples.append(sample)
+                        # Create sample with judge results
+                        sample = Sample(
+                            sample_id=sample_id,
+                            input_text=test_case.input,
+                            generator_output=response_text,
+                            judge_score=judge_result.get("judge_score"),
+                            judge_rationale=judge_result.get("judge_rationale"),
+                            judge_raw_response=judge_result.get("judge_raw_response"),
+                            status=judge_result["status"],
+                            task_description=test_case.task,
+                            judge_metrics=judge_result.get("judge_metrics", {}),
+                            judge_flags=judge_result.get("judge_flags", {}),
+                            judge_overall_comment=judge_result.get("judge_overall_comment"),
+                            ab_variant=variant_name,
+                        )
 
-                    if sample.status == "completed":
-                        num_successful += 1
+                        samples.append(sample)
+
+                        if sample.status == "completed":
+                            num_successful += 1
+
+                    except Exception as e:
+                        # Judge failed, but we have the generation
+                        sample = Sample(
+                            sample_id=sample_id,
+                            input_text=test_case.input,
+                            generator_output=response_text,
+                            status="judge_error",
+                            task_description=test_case.task,
+                            judge_raw_response=str(e),
+                            ab_variant=variant_name,
+                        )
+                        samples.append(sample)
+
+                        if progress_callback:
+                            progress_callback(
+                                f"  Judge error in sample {sample_idx + 1}: {e}", err=True
+                            )
 
                 except Exception as e:
-                    # Judge failed, but we have the generation
+                    # Generation failed
                     sample = Sample(
                         sample_id=sample_id,
                         input_text=test_case.input,
-                        generator_output=response_text,
-                        status="judge_error",
+                        generator_output="",
+                        status="generation_error",
                         task_description=test_case.task,
-                        judge_raw_response=str(e),
+                        ab_variant=variant_name,
                     )
                     samples.append(sample)
 
                     if progress_callback:
                         progress_callback(
-                            f"  Judge error in sample {sample_idx + 1}: {e}", err=True
+                            f"  Generation error in sample {sample_idx + 1}: {e}", err=True
                         )
-
-            except Exception as e:
-                # Generation failed
-                sample = Sample(
-                    sample_id=sample_id,
-                    input_text=test_case.input,
-                    generator_output="",
-                    status="generation_error",
-                    task_description=test_case.task,
-                )
-                samples.append(sample)
-
-                if progress_callback:
-                    progress_callback(
-                        f"  Generation error in sample {sample_idx + 1}: {e}", err=True
-                    )
 
         # Store samples in test case result
         test_case_result.samples = samples

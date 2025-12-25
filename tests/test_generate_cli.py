@@ -549,3 +549,233 @@ prompt_templates:
         assert result.exit_code == 0
         # Check that mock provider was used and template was resolved
         assert "Mock response" in result.stdout
+
+
+class TestABTestingGenerate:
+    """Tests for A/B testing mode in generate command."""
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_ab_test_creates_two_variants(
+        self, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that A/B testing mode creates two variants (with_prompt and no_prompt)."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Mock responses for both variants
+        mock_generate.side_effect = [
+            ("Response with prompt", {"tokens_used": 10, "latency_ms": 100.0}),
+            ("Response without prompt", {"tokens_used": 8, "latency_ms": 80.0}),
+        ]
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--ab-test-system-prompt",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Should have called generate_completion twice
+        assert mock_generate.call_count == 2
+
+        # Check that both variants are in the output
+        assert "with_prompt" in result.stdout or "with_prompt" in result.stderr
+        assert "no_prompt" in result.stdout or "no_prompt" in result.stderr
+
+        # Find the run directory
+        run_dirs = list(temp_prompts["output_dir"].iterdir())
+        assert len(run_dirs) == 1
+        run_dir = run_dirs[0]
+
+        # Check that we have separate output files for each variant
+        output_with_prompt = run_dir / "output_with_prompt.txt"
+        output_no_prompt = run_dir / "output_no_prompt.txt"
+
+        assert output_with_prompt.exists()
+        assert output_no_prompt.exists()
+
+        assert output_with_prompt.read_text() == "Response with prompt"
+        assert output_no_prompt.read_text() == "Response without prompt"
+
+        # Check metadata files
+        metadata_with_prompt = run_dir / "metadata_with_prompt.json"
+        metadata_no_prompt = run_dir / "metadata_no_prompt.json"
+
+        assert metadata_with_prompt.exists()
+        assert metadata_no_prompt.exists()
+
+        metadata_with = json.loads(metadata_with_prompt.read_text())
+        metadata_no = json.loads(metadata_no_prompt.read_text())
+
+        assert metadata_with["ab_variant"] == "with_prompt"
+        assert metadata_no["ab_variant"] == "no_prompt"
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_ab_test_shows_warning(
+        self, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that A/B testing mode shows warning about doubled API calls."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.side_effect = [
+            ("Response 1", {"tokens_used": 10, "latency_ms": 100.0}),
+            ("Response 2", {"tokens_used": 8, "latency_ms": 80.0}),
+        ]
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--ab-test-system-prompt",
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Check warning message about doubled API calls (output is mixed in stdout)
+        assert "WARNING" in result.stdout or "warning" in result.stdout.lower()
+        assert "DOUBLE" in result.stdout or "double" in result.stdout.lower()
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_ab_test_calls_with_empty_system_prompt(
+        self, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that A/B testing passes empty string as system prompt for no_prompt variant."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.side_effect = [
+            ("Response 1", {"tokens_used": 10, "latency_ms": 100.0}),
+            ("Response 2", {"tokens_used": 8, "latency_ms": 80.0}),
+        ]
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--ab-test-system-prompt",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert mock_generate.call_count == 2
+
+        # Check that first call has system prompt content
+        first_call_system_prompt = mock_generate.call_args_list[0][1]["system_prompt"]
+        assert first_call_system_prompt == "You are a helpful assistant."
+
+        # Check that second call has empty system prompt
+        second_call_system_prompt = mock_generate.call_args_list[1][1]["system_prompt"]
+        assert second_call_system_prompt == ""
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_without_ab_test_single_output(
+        self, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that disabling A/B mode produces single output."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        mock_generate.return_value = ("Single response", {"tokens_used": 10, "latency_ms": 100.0})
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                # No --ab-test-system-prompt flag
+            ],
+        )
+
+        assert result.exit_code == 0
+
+        # Should have called generate_completion only once
+        assert mock_generate.call_count == 1
+
+        # Find the run directory
+        run_dirs = list(temp_prompts["output_dir"].iterdir())
+        assert len(run_dirs) == 1
+        run_dir = run_dirs[0]
+
+        # Check that we have only single output file
+        output_file = run_dir / "output.txt"
+        assert output_file.exists()
+
+        # Variant-specific files should NOT exist
+        assert not (run_dir / "output_with_prompt.txt").exists()
+        assert not (run_dir / "output_no_prompt.txt").exists()
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_ab_test_partial_failure_handling(
+        self, mock_generate, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test that A/B mode handles partial failures gracefully."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # First variant succeeds, second fails
+        mock_generate.side_effect = [
+            ("Response with prompt", {"tokens_used": 10, "latency_ms": 100.0}),
+            Exception("API error"),
+        ]
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--ab-test-system-prompt",
+            ],
+        )
+
+        # Should still exit successfully (partial success)
+        assert result.exit_code == 0
+        assert mock_generate.call_count == 2
+
+        # Find the run directory
+        run_dirs = list(temp_prompts["output_dir"].iterdir())
+        assert len(run_dirs) == 1
+        run_dir = run_dirs[0]
+
+        # First variant should have output
+        output_with_prompt = run_dir / "output_with_prompt.txt"
+        assert output_with_prompt.exists()
+
+        # Second variant should have empty output (due to error)
+        output_no_prompt = run_dir / "output_no_prompt.txt"
+        assert output_no_prompt.exists()
+        assert output_no_prompt.read_text() == ""
+
+        # Check metadata for error status
+        metadata_no_prompt = run_dir / "metadata_no_prompt.json"
+        assert metadata_no_prompt.exists()
+        metadata = json.loads(metadata_no_prompt.read_text())
+        assert metadata["status"] == "generation_error"
+        assert "error" in metadata

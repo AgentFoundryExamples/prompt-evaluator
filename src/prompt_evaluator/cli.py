@@ -324,16 +324,16 @@ def generate(
         )
 
         # Create provider
-        # Try to get API key based on provider type
-        provider_api_key = None
-        if provider.lower() == "openai":
-            provider_api_key = api_config.api_key
-        elif provider.lower() in ("claude", "anthropic"):
-            # For Claude/Anthropic, check ANTHROPIC_API_KEY env var
-            provider_api_key = os.environ.get("ANTHROPIC_API_KEY")
+        # Providers handle API key detection internally via environment variables
+        # Only pass api_key for OpenAI to support custom config
+        provider_api_key = api_config.api_key if provider.lower() == "openai" else None
         
         try:
-            provider_instance = get_provider(provider, api_key=provider_api_key, base_url=api_config.base_url)
+            provider_instance = get_provider(
+                provider, 
+                api_key=provider_api_key, 
+                base_url=api_config.base_url if provider.lower() == "openai" else None
+            )
         except ValueError as e:
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
@@ -555,16 +555,16 @@ def evaluate_single(
         )
 
         # Create provider
-        # Try to get API key based on provider type
-        provider_api_key = None
-        if provider.lower() == "openai":
-            provider_api_key = api_config.api_key
-        elif provider.lower() in ("claude", "anthropic"):
-            # For Claude/Anthropic, check ANTHROPIC_API_KEY env var
-            provider_api_key = os.environ.get("ANTHROPIC_API_KEY")
+        # Providers handle API key detection internally via environment variables
+        # Only pass api_key for OpenAI to support custom config
+        provider_api_key = api_config.api_key if provider.lower() == "openai" else None
         
         try:
-            provider_instance = get_provider(provider, api_key=provider_api_key, base_url=api_config.base_url)
+            provider_instance = get_provider(
+                provider, 
+                api_key=provider_api_key, 
+                base_url=api_config.base_url if provider.lower() == "openai" else None
+            )
         except ValueError as e:
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
@@ -1019,16 +1019,16 @@ def evaluate_dataset(
         )
 
         # Create provider
-        # Try to get API key based on provider type
-        provider_api_key = None
-        if provider.lower() == "openai":
-            provider_api_key = api_config.api_key
-        elif provider.lower() in ("claude", "anthropic"):
-            # For Claude/Anthropic, check ANTHROPIC_API_KEY env var
-            provider_api_key = os.environ.get("ANTHROPIC_API_KEY")
+        # Providers handle API key detection internally via environment variables
+        # Only pass api_key for OpenAI to support custom config
+        provider_api_key = api_config.api_key if provider.lower() == "openai" else None
         
         try:
-            provider_instance = get_provider(provider, api_key=provider_api_key, base_url=api_config.base_url)
+            provider_instance = get_provider(
+                provider, 
+                api_key=provider_api_key, 
+                base_url=api_config.base_url if provider.lower() == "openai" else None
+            )
         except ValueError as e:
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)

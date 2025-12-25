@@ -197,9 +197,14 @@ class OpenAIProvider(BaseProvider, LLMProvider):
         Note: The convenience wrapper generate_completion() converts errors to
         exceptions for backward compatibility with existing code.
 
+        Multi-turn handling: OpenAI Responses API concatenates multiple user prompts
+        with newlines into a single input field. This differs from chat-based APIs
+        that maintain separate message history.
+
         Args:
             system_prompt: Optional system prompt to set context (maps to instructions)
-            user_prompt: User prompt (string) or list of user prompts for multi-turn
+            user_prompt: User prompt (string) or list of user prompts for multi-turn.
+                        If list, prompts are concatenated with newlines.
             config: Provider configuration including model, temperature, etc.
 
         Returns:
@@ -245,26 +250,33 @@ class OpenAIProvider(BaseProvider, LLMProvider):
 
             # Extract response text from output
             response_text = ""
-            if hasattr(response, "output") and response.output:
-                if isinstance(response.output, list) and len(response.output) > 0:
-                    # Handle list of output items
-                    output_item = response.output[0]
-                    if hasattr(output_item, "content"):
-                        if isinstance(output_item.content, list) and len(output_item.content) > 0:
-                            content_item = output_item.content[0]
-                            # Handle both dict and object with attributes
+            if output_list := getattr(response, "output", None):
+                if isinstance(output_list, list) and output_list:
+                    output_item = output_list[0]
+                    if content_list := getattr(output_item, "content", None):
+                        if isinstance(content_list, list) and content_list:
+                            content_item = content_list[0]
                             if isinstance(content_item, dict):
                                 response_text = content_item.get("text", "")
-                            elif hasattr(content_item, "text"):
-                                response_text = content_item.text
                             else:
-                                response_text = str(content_item)
-                        elif isinstance(output_item.content, str):
-                            response_text = output_item.content
-                elif hasattr(response.output, "content"):
-                    response_text = response.output.content
-                elif isinstance(response.output, str):
-                    response_text = response.output
+                                response_text = getattr(content_item, "text", "")
+                        elif isinstance(content_list, str):
+                            response_text = content_list
+                        else:
+                            logger.warning(
+                                "Unexpected output.content type: %s",
+                                type(content_list).__name__
+                            )
+                    else:
+                        logger.warning("output[0] missing content attribute")
+                elif hasattr(output_list, "content"):
+                    response_text = output_list.content
+                elif isinstance(output_list, str):
+                    response_text = output_list
+                else:
+                    logger.warning("Unexpected output type: %s", type(output_list).__name__)
+            else:
+                logger.warning("Response missing output attribute")
 
             # Extract usage metadata
             tokens_used = None
@@ -427,9 +439,14 @@ class ClaudeProvider(BaseProvider, LLMProvider):
         and returned in ProviderResult.error rather than being raised. This allows
         callers to handle errors uniformly through the result object.
 
+        Multi-turn handling: Anthropic Messages API sends multiple user prompts as
+        separate messages in the messages array. This differs from OpenAI Responses API
+        which concatenates prompts into a single input field.
+
         Args:
             system_prompt: Optional system prompt to set context
-            user_prompt: User prompt (string) or list of user prompts for multi-turn
+            user_prompt: User prompt (string) or list of user prompts for multi-turn.
+                        If list, each prompt becomes a separate message.
             config: Provider configuration including model, temperature, etc.
 
         Returns:
@@ -516,8 +533,14 @@ class ClaudeProvider(BaseProvider, LLMProvider):
             
             # Extract more specific error information if available
             error_msg = f"Anthropic API error: {str(e)}"
-            if hasattr(e, "status_code"):
-                error_msg = f"Anthropic API error (status {e.status_code}): {str(e)}"
+            if body := getattr(e, "body", None):
+                if isinstance(body, dict):
+                    error_type = body.get("error", {}).get("type")
+                    error_message = body.get("error", {}).get("message")
+                    if error_type and error_message:
+                        error_msg = f"Anthropic API error: [{error_type}] {error_message}"
+            elif status_code := getattr(e, "status_code", None):
+                error_msg = f"Anthropic API error (status {status_code}): {str(e)}"
             
             return ProviderResult(
                 text="",

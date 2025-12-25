@@ -566,6 +566,14 @@ def generate(
                     "error": str(e),
                 })
 
+        # Validate that at least one variant succeeded
+        if not any(r["status"] == "completed" for r in results):
+            typer.echo(
+                "\nError: All variants failed. No outputs generated.",
+                err=True,
+            )
+            raise typer.Exit(1)
+
         # Write outputs for each variant
         for idx, result in enumerate(results):
             variant = result["variant"]
@@ -940,7 +948,8 @@ def evaluate_single(
                     typer.echo(f"  Sample {sample_idx}/{num_samples}...", err=True)
 
                 try:
-                    # Generate completion
+                    # Generate completion with varied seed per sample
+                    current_seed = generator_config.seed + i if generator_config.seed is not None else None
                     response_text, metadata = generate_completion(
                         provider=provider_instance,
                         system_prompt=variant_system_prompt,
@@ -948,7 +957,7 @@ def evaluate_single(
                         model=generator_config.model_name,
                         temperature=generator_config.temperature,
                         max_completion_tokens=generator_config.max_completion_tokens,
-                        seed=generator_config.seed,
+                        seed=current_seed,
                     )
 
                     # Judge the output
@@ -1092,6 +1101,8 @@ def evaluate_single(
             typer.echo("\nA/B Test Results:", err=True)
             for variant_name in ["with_prompt", "no_prompt"]:
                 v_stats = variant_stats.get(variant_name, {})
+                if not v_stats:
+                    continue
                 typer.echo(f"\n  Variant: {variant_name}", err=True)
                 typer.echo(f"    Successful: {v_stats.get('num_successful', 0)}", err=True)
                 typer.echo(f"    Failed: {v_stats.get('num_failed', 0)}", err=True)

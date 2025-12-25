@@ -321,7 +321,8 @@ def evaluate_dataset(
                     sample_id = f"{run_id}-{test_case.id}-sample-{sample_idx + 1}"
 
                 try:
-                    # Generate completion
+                    # Generate completion with varied seed per sample
+                    current_seed = generator_config.seed + sample_idx if generator_config.seed is not None else None
                     response_text, metadata = generate_completion(
                         provider=provider,
                         system_prompt=variant_system_prompt,
@@ -329,7 +330,7 @@ def evaluate_dataset(
                         model=generator_config.model_name,
                         temperature=generator_config.temperature,
                         max_completion_tokens=generator_config.max_completion_tokens,
-                        seed=generator_config.seed,
+                        seed=current_seed,
                     )
 
                     # Judge the output

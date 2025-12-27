@@ -597,7 +597,10 @@ def generate(
                         schema_validation_status = "valid"
                         typer.echo(f"  ✓ Output validated against JSON schema{variant_label}", err=True)
                     else:
-                        schema_validation_status = "invalid_json" if "Invalid JSON" in error_msg else "schema_mismatch"
+                        if parsed_json is None:
+                            schema_validation_status = "invalid_json"
+                        else:
+                            schema_validation_status = "schema_mismatch"
                         schema_validation_error = error_msg
                         typer.echo(
                             f"  ✗ Schema validation failed{variant_label}: {error_msg}",
@@ -833,11 +836,6 @@ def evaluate_single(
         False,
         "--ab-test-system-prompt",
         help="Run A/B test: evaluate with and without system prompt. Doubles API calls.",
-    ),
-    json_schema: str | None = typer.Option(
-        None,
-        "--json-schema",
-        help="Path to JSON schema file for validating generator outputs. Uses config default if not provided.",
     ),
 ) -> None:
     """

@@ -106,7 +106,12 @@ def get_validator(schema: dict[str, Any], schema_path: Path | None = None) -> Dr
     try:
         Draft7Validator.check_schema(schema)
     except Exception as e:
-        raise ValueError(f"Invalid JSON schema: {str(e)}") from e
+        # Preserve the original exception type and message for better diagnostics
+        error_type = type(e).__name__
+        raise ValueError(
+            f"Invalid JSON schema: {error_type}: {str(e)}\n"
+            f"Schema validation failed. Please check your schema definition."
+        ) from e
 
     # Create and cache validator
     validator = Draft7Validator(schema)

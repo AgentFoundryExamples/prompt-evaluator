@@ -516,20 +516,33 @@ class ClaudeProvider(BaseProvider, LLMProvider):
             # Add system prompt if provided
             # If JSON schema is specified, add JSON formatting instructions
             if system_prompt and config.json_schema:
+                # Sanitize schema for embedding in prompt - use compact JSON and truncate if needed
+                schema_str = json.dumps(config.json_schema, separators=(',', ':'))
+                # Truncate very large schemas to prevent prompt injection risks
+                max_schema_length = 10000
+                if len(schema_str) > max_schema_length:
+                    schema_str = schema_str[:max_schema_length] + "...[truncated]"
+                
                 enhanced_system_prompt = (
                     f"{system_prompt}\n\n"
                     "IMPORTANT: You must respond with valid JSON that conforms to the provided schema. "
                     "Do not include any text before or after the JSON object.\n"
-                    f"Schema: {json.dumps(config.json_schema)}"
+                    f"Schema: {schema_str}"
                 )
                 params["system"] = enhanced_system_prompt
             elif system_prompt:
                 params["system"] = system_prompt
             elif config.json_schema:
+                # Sanitize schema for embedding in prompt
+                schema_str = json.dumps(config.json_schema, separators=(',', ':'))
+                max_schema_length = 10000
+                if len(schema_str) > max_schema_length:
+                    schema_str = schema_str[:max_schema_length] + "...[truncated]"
+                
                 params["system"] = (
                     "You must respond with valid JSON that conforms to the provided schema. "
                     "Do not include any text before or after the JSON object.\n"
-                    f"Schema: {json.dumps(config.json_schema)}"
+                    f"Schema: {schema_str}"
                 )
 
             # Add top_p if provided
@@ -724,16 +737,18 @@ class LocalMockProvider(LLMProvider):
         if config.json_schema:
             # Generate a mock JSON that attempts to conform to the schema structure
             mock_json = {}
-            
-            # If schema has properties, try to populate them
-            if "properties" in config.json_schema:
-                for prop_name, prop_spec in config.json_schema["properties"].items():
+            properties = config.json_schema.get("properties", {})
+            required = config.json_schema.get("required", [])
+
+            # Ensure all required properties are present
+            for prop_name in required:
+                if prop_name in properties:
+                    prop_spec = properties[prop_name]
                     prop_type = prop_spec.get("type", "string")
                     
                     if prop_type == "string":
                         mock_json[prop_name] = f"Mock {prop_name}: {prompt_text[:30]}"
                     elif prop_type == "number" or prop_type == "integer":
-                        # Use a default number or extract from spec
                         minimum = prop_spec.get("minimum", 0)
                         maximum = prop_spec.get("maximum", 100)
                         mock_json[prop_name] = (minimum + maximum) / 2
@@ -745,8 +760,9 @@ class LocalMockProvider(LLMProvider):
                         mock_json[prop_name] = {"mock_key": "mock_value"}
                     else:
                         mock_json[prop_name] = f"mock_{prop_name}"
-            else:
-                # Fallback if no properties specified
+            
+            if not mock_json:
+                # Fallback if no required properties with specs
                 mock_json = {
                     "mock_response": f"Mock JSON response to: {prompt_text[:50]}",
                     "prompt_length": len(prompt_text),

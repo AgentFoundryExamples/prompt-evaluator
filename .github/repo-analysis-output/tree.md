@@ -57,9 +57,11 @@
   ├── __init__.py
   ├── test_aggregation.py
   ├── test_basic.py
+  ├── test_compare_prompts_cli.py
   ├── test_compare_report.py
   ├── test_compare_runs_cli.py
   ├── test_comparison.py
+  ├── test_comparison_wlt.py
   ├── test_config_manager.py
   ├── test_config_models.py
   ├── test_dataset_evaluation.py

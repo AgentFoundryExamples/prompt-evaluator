@@ -8,8 +8,8 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 32
-- **Intra-repo dependencies**: 55
+- **Total files**: 34
+- **Intra-repo dependencies**: 57
 - **External stdlib dependencies**: 28
 - **External third-party dependencies**: 16
 
@@ -65,13 +65,13 @@ Total: 16 unique packages
 ## Most Depended Upon Files (Intra-Repo)
 
 - `src/prompt_evaluator/models.py` (15 dependents)
+- `src/prompt_evaluator/cli.py` (10 dependents)
 - `src/prompt_evaluator/config.py` (9 dependents)
-- `src/prompt_evaluator/cli.py` (9 dependents)
 - `src/prompt_evaluator/provider.py` (7 dependents)
 - `src/prompt_evaluator/dataset_evaluation.py` (4 dependents)
+- `src/prompt_evaluator/comparison.py` (3 dependents)
 - `src/prompt_evaluator/reporting/run_report.py` (3 dependents)
 - `src/prompt_evaluator/__init__.py` (2 dependents)
-- `src/prompt_evaluator/comparison.py` (2 dependents)
 - `src/prompt_evaluator/reporting/compare_report.py` (2 dependents)
 - `src/prompt_evaluator/schema_validation.py` (1 dependents)
 

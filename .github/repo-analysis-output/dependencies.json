@@ -39,6 +39,7 @@
           "datetime.datetime",
           "datetime.timezone",
           "json",
+          "logging",
           "pathlib.Path",
           "typing.Any"
         ],
@@ -226,6 +227,22 @@
       }
     },
     {
+      "id": "tests/test_compare_prompts_cli.py",
+      "path": "tests/test_compare_prompts_cli.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json",
+          "pathlib.Path"
+        ],
+        "third-party": [
+          "pytest",
+          "typer.testing.CliRunner",
+          "yaml"
+        ]
+      }
+    },
+    {
       "id": "tests/test_compare_report.py",
       "path": "tests/test_compare_report.py",
       "type": "file",
@@ -261,6 +278,20 @@
       "external_dependencies": {
         "stdlib": [
           "json"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_comparison_wlt.py",
+      "path": "tests/test_comparison_wlt.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json",
+          "pathlib.Path"
         ],
         "third-party": [
           "pytest"
@@ -595,6 +626,10 @@
       "target": "src/prompt_evaluator/provider.py"
     },
     {
+      "source": "tests/test_compare_prompts_cli.py",
+      "target": "src/prompt_evaluator/cli.py"
+    },
+    {
       "source": "tests/test_compare_report.py",
       "target": "src/prompt_evaluator/reporting/compare_report.py"
     },
@@ -604,6 +639,10 @@
     },
     {
       "source": "tests/test_comparison.py",
+      "target": "src/prompt_evaluator/comparison.py"
+    },
+    {
+      "source": "tests/test_comparison_wlt.py",
       "target": "src/prompt_evaluator/comparison.py"
     },
     {

@@ -258,6 +258,10 @@
         },
         {
           "type": "file",
+          "name": "test_compare_prompts_cli.py"
+        },
+        {
+          "type": "file",
           "name": "test_compare_report.py"
         },
         {
@@ -267,6 +271,10 @@
         {
           "type": "file",
           "name": "test_comparison.py"
+        },
+        {
+          "type": "file",
+          "name": "test_comparison_wlt.py"
         },
         {
           "type": "file",

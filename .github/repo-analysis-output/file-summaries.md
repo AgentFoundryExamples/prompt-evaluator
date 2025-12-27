@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 32
+Total files: 34
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,8 @@ Total files: 32
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 90.76 KB  
-**LOC:** 1787  
+**Size:** 112.67 KB  
+**LOC:** 2245  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/comparison.py
@@ -29,8 +29,8 @@ Total files: 32
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 8.71 KB  
-**LOC:** 174  
+**Size:** 14.58 KB  
+**LOC:** 284  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/config.py
@@ -56,8 +56,8 @@ Total files: 32
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 34.80 KB  
-**LOC:** 734  
+**Size:** 36.26 KB  
+**LOC:** 764  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -83,8 +83,8 @@ Total files: 32
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 19.02 KB  
-**LOC:** 413  
+**Size:** 22.03 KB  
+**LOC:** 475  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/reporting/run_report.py
@@ -132,6 +132,15 @@ Total files: 32
 **LOC:** 350  
 **TODOs/FIXMEs:** 0  
 
+## tests/test_compare_prompts_cli.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 22.39 KB  
+**LOC:** 581  
+**TODOs/FIXMEs:** 0  
+
 ## tests/test_compare_report.py
 **Language:** Python  
 **Role:** test  
@@ -157,6 +166,15 @@ Total files: 32
 **Summary:** Python test file (role: test)  
 **Size:** 35.58 KB  
 **LOC:** 726  
+**TODOs/FIXMEs:** 0  
+
+## tests/test_comparison_wlt.py
+**Language:** Python  
+**Role:** test  
+**Role Justification:** filename starts with 'test_'  
+**Summary:** Python test file (role: test)  
+**Size:** 17.49 KB  
+**LOC:** 422  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_config_manager.py

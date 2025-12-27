@@ -414,6 +414,9 @@ class OpenAIProvider(BaseProvider, LLMProvider):
 class ClaudeProvider(BaseProvider, LLMProvider):
     """Provider implementation for Anthropic Claude models using Messages API."""
 
+    # Maximum schema length to prevent prompt injection risks
+    MAX_SCHEMA_LENGTH = 10000
+
     def __init__(self, api_key: str | None = None, base_url: str | None = None):
         """
         Initialize Claude provider.
@@ -433,6 +436,25 @@ class ClaudeProvider(BaseProvider, LLMProvider):
         self.client = Anthropic(**client_kwargs)
         # Initialize parent with the actual API key used by the client
         super().__init__(self.client.api_key)
+
+    def _sanitize_schema_for_prompt(self, schema: dict[str, Any]) -> str:
+        """
+        Sanitize JSON schema for safe embedding in system prompts.
+        
+        Args:
+            schema: JSON schema dictionary
+            
+        Returns:
+            Sanitized schema string (compact JSON, truncated if needed)
+        """
+        # Use compact JSON serialization to minimize size
+        schema_str = json.dumps(schema, separators=(',', ':'))
+        
+        # Truncate very large schemas to prevent prompt injection
+        if len(schema_str) > self.MAX_SCHEMA_LENGTH:
+            schema_str = schema_str[:self.MAX_SCHEMA_LENGTH] + "...[truncated]"
+        
+        return schema_str
 
     def validate_config(self) -> None:
         """
@@ -516,13 +538,7 @@ class ClaudeProvider(BaseProvider, LLMProvider):
             # Add system prompt if provided
             # If JSON schema is specified, add JSON formatting instructions
             if system_prompt and config.json_schema:
-                # Sanitize schema for embedding in prompt - use compact JSON and truncate if needed
-                schema_str = json.dumps(config.json_schema, separators=(',', ':'))
-                # Truncate very large schemas to prevent prompt injection risks
-                max_schema_length = 10000
-                if len(schema_str) > max_schema_length:
-                    schema_str = schema_str[:max_schema_length] + "...[truncated]"
-                
+                schema_str = self._sanitize_schema_for_prompt(config.json_schema)
                 enhanced_system_prompt = (
                     f"{system_prompt}\n\n"
                     "IMPORTANT: You must respond with valid JSON that conforms to the provided schema. "
@@ -533,12 +549,7 @@ class ClaudeProvider(BaseProvider, LLMProvider):
             elif system_prompt:
                 params["system"] = system_prompt
             elif config.json_schema:
-                # Sanitize schema for embedding in prompt
-                schema_str = json.dumps(config.json_schema, separators=(',', ':'))
-                max_schema_length = 10000
-                if len(schema_str) > max_schema_length:
-                    schema_str = schema_str[:max_schema_length] + "...[truncated]"
-                
+                schema_str = self._sanitize_schema_for_prompt(config.json_schema)
                 params["system"] = (
                     "You must respond with valid JSON that conforms to the provided schema. "
                     "Do not include any text before or after the JSON object.\n"

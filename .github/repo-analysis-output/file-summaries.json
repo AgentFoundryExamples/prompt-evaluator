@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "total_files": 29,
+  "total_files": 31,
   "files": [
     {
       "schema_version": "2.0",
@@ -25,8 +25,8 @@
       "summary": "Python command-line interface (role: cli)",
       "summary_text": "Python command-line interface (role: cli)",
       "metrics": {
-        "size_bytes": 82914,
-        "loc": 1603,
+        "size_bytes": 86843,
+        "loc": 1656,
         "todo_count": 0
       }
     },
@@ -53,8 +53,8 @@
       "summary": "Python configuration file (role: configuration)",
       "summary_text": "Python configuration file (role: configuration)",
       "metrics": {
-        "size_bytes": 32749,
-        "loc": 671,
+        "size_bytes": 36857,
+        "loc": 747,
         "todo_count": 0
       }
     },
@@ -67,8 +67,8 @@
       "summary": "Python core implementation",
       "summary_text": "Python core implementation",
       "metrics": {
-        "size_bytes": 17919,
-        "loc": 359,
+        "size_bytes": 18058,
+        "loc": 361,
         "todo_count": 0
       }
     },
@@ -228,6 +228,20 @@
     },
     {
       "schema_version": "2.0",
+      "path": "tests/test_config_manager.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 9422,
+        "loc": 174,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
       "path": "tests/test_config_models.py",
       "language": "Python",
       "role": "test",
@@ -291,8 +305,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 47404,
-        "loc": 1078,
+        "size_bytes": 47569,
+        "loc": 1080,
         "todo_count": 0
       }
     },
@@ -333,8 +347,8 @@
       "summary": "Python test file (role: test)",
       "summary_text": "Python test file (role: test)",
       "metrics": {
-        "size_bytes": 14735,
-        "loc": 307,
+        "size_bytes": 14947,
+        "loc": 311,
         "todo_count": 0
       }
     },
@@ -363,6 +377,20 @@
       "metrics": {
         "size_bytes": 34356,
         "loc": 635,
+        "todo_count": 0
+      }
+    },
+    {
+      "schema_version": "2.0",
+      "path": "tests/test_provider_independence.py",
+      "language": "Python",
+      "role": "test",
+      "role_justification": "filename starts with 'test_'",
+      "summary": "Python test file (role: test)",
+      "summary_text": "Python test file (role: test)",
+      "metrics": {
+        "size_bytes": 13155,
+        "loc": 233,
         "todo_count": 0
       }
     },

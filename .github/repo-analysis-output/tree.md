@@ -56,6 +56,7 @@
   ├── test_compare_report.py
   ├── test_compare_runs_cli.py
   ├── test_comparison.py
+  ├── test_config_manager.py
   ├── test_config_models.py
   ├── test_dataset_evaluation.py
   ├── test_dataset_loader.py
@@ -66,6 +67,7 @@
   ├── test_mock_provider_integration.py
   ├── test_prompt_version_metadata.py
   ├── test_provider_abstraction.py
+  ├── test_provider_independence.py
   ├── test_rubric_cli.py
   ├── test_rubric_models.py
   └── test_run_report.py

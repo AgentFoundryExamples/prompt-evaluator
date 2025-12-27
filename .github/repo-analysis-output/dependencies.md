@@ -8,16 +8,16 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 29
-- **Intra-repo dependencies**: 50
-- **External stdlib dependencies**: 27
+- **Total files**: 31
+- **Intra-repo dependencies**: 53
+- **External stdlib dependencies**: 28
 - **External third-party dependencies**: 14
 
 ## External Dependencies
 
 ### Standard Library / Core Modules
 
-Total: 27 unique modules
+Total: 28 unique modules
 
 - `abc.ABC`
 - `abc.abstractmethod`
@@ -32,14 +32,14 @@ Total: 27 unique modules
 - `enum.Enum`
 - `hashlib`
 - `html`
+- `inspect`
 - `json`
 - `logging`
 - `os`
 - `pathlib.Path`
 - `re`
 - `sys`
-- `threading`
-- ... and 7 more (see JSON for full list)
+- ... and 8 more (see JSON for full list)
 
 ### Third-Party Packages
 
@@ -63,10 +63,10 @@ Total: 14 unique packages
 ## Most Depended Upon Files (Intra-Repo)
 
 - `src/prompt_evaluator/models.py` (14 dependents)
+- `src/prompt_evaluator/config.py` (9 dependents)
 - `src/prompt_evaluator/cli.py` (9 dependents)
-- `src/prompt_evaluator/config.py` (7 dependents)
 - `src/prompt_evaluator/provider.py` (7 dependents)
-- `src/prompt_evaluator/dataset_evaluation.py` (3 dependents)
+- `src/prompt_evaluator/dataset_evaluation.py` (4 dependents)
 - `src/prompt_evaluator/reporting/run_report.py` (3 dependents)
 - `src/prompt_evaluator/__init__.py` (2 dependents)
 - `src/prompt_evaluator/comparison.py` (2 dependents)

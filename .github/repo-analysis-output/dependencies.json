@@ -251,6 +251,19 @@
       }
     },
     {
+      "id": "tests/test_config_manager.py",
+      "path": "tests/test_config_manager.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "pathlib.Path"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
       "id": "tests/test_config_models.py",
       "path": "tests/test_config_models.py",
       "type": "file",
@@ -398,6 +411,21 @@
         "stdlib": [
           "threading",
           "unittest.mock.patch"
+        ],
+        "third-party": [
+          "pytest"
+        ]
+      }
+    },
+    {
+      "id": "tests/test_provider_independence.py",
+      "path": "tests/test_provider_independence.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "inspect",
+          "os",
+          "pathlib.Path"
         ],
         "third-party": [
           "pytest"
@@ -556,6 +584,10 @@
       "target": "src/prompt_evaluator/comparison.py"
     },
     {
+      "source": "tests/test_config_manager.py",
+      "target": "src/prompt_evaluator/config.py"
+    },
+    {
       "source": "tests/test_config_models.py",
       "target": "src/prompt_evaluator/config.py"
     },
@@ -632,6 +664,14 @@
       "target": "src/prompt_evaluator/provider.py"
     },
     {
+      "source": "tests/test_provider_independence.py",
+      "target": "src/prompt_evaluator/config.py"
+    },
+    {
+      "source": "tests/test_provider_independence.py",
+      "target": "src/prompt_evaluator/dataset_evaluation.py"
+    },
+    {
       "source": "tests/test_rubric_cli.py",
       "target": "src/prompt_evaluator/cli.py"
     },
@@ -667,6 +707,7 @@
       "enum.Enum",
       "hashlib",
       "html",
+      "inspect",
       "json",
       "logging",
       "os",
@@ -698,7 +739,7 @@
       "typer.testing.CliRunner",
       "yaml"
     ],
-    "stdlib_count": 27,
+    "stdlib_count": 28,
     "third-party_count": 14
   }
 }

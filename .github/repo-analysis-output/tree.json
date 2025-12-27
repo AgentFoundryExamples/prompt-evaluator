@@ -252,6 +252,10 @@
         },
         {
           "type": "file",
+          "name": "test_config_manager.py"
+        },
+        {
+          "type": "file",
           "name": "test_config_models.py"
         },
         {
@@ -289,6 +293,10 @@
         {
           "type": "file",
           "name": "test_provider_abstraction.py"
+        },
+        {
+          "type": "file",
+          "name": "test_provider_independence.py"
         },
         {
           "type": "file",

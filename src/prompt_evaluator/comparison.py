@@ -23,7 +23,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from prompt_evaluator.models import ComparisonResult, FlagDelta, MetricDelta, TestCaseComparison
+from prompt_evaluator.models import (
+    ComparisonResult,
+    FlagDelta,
+    MetricDelta,
+    TestCaseComparison,
+)
+
+
+# Constants for tie detection
+TIE_DETECTION_EPSILON = 0.01  # Delta below this threshold is considered a tie
 
 
 def load_run_artifact(artifact_path: Path) -> dict[str, Any]:
@@ -249,8 +258,8 @@ def compute_test_case_comparisons(
                     break
             
             # Determine winner based on overall delta
-            # Use a small epsilon for tie detection (0.01)
-            if abs(overall_delta) < 0.01:
+            # Use TIE_DETECTION_EPSILON for tie detection
+            if abs(overall_delta) < TIE_DETECTION_EPSILON:
                 winner = "tie"
                 tie_count += 1
             elif overall_delta > 0:

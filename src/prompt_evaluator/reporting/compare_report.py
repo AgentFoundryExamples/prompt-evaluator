@@ -159,12 +159,12 @@ def render_comparison_metadata_section(comparison_data: dict[str, Any]) -> str:
 
     # Add win/loss/tie statistics if available
     win_loss_tie = comparison_data.get("win_loss_tie_stats", {})
-    if win_loss_tie and win_loss_tie.get("total", 0) > 0:
+    total = win_loss_tie.get("total", 0)
+    if win_loss_tie and total > 0:
         lines.append("\n### Win/Loss/Tie Summary\n")
         candidate_wins = win_loss_tie.get("candidate_wins", 0)
         baseline_wins = win_loss_tie.get("baseline_wins", 0)
         ties = win_loss_tie.get("ties", 0)
-        total = win_loss_tie.get("total", 0)
         
         lines.append(f"- **Candidate Wins**: {candidate_wins} ({candidate_wins/total*100:.1f}%)")
         lines.append(f"- **Baseline Wins**: {baseline_wins} ({baseline_wins/total*100:.1f}%)")

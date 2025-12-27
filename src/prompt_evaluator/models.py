@@ -206,7 +206,7 @@ class JudgeConfig:
 
     model_name: str = "gpt-5.1"
     temperature: float = 0.0
-    max_completion_tokens: int = 2048
+    max_completion_tokens: int = 1024
     seed: int | None = None
     top_p: float | None = None
     system_instructions: str | None = None

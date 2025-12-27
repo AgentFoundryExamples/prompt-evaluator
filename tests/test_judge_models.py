@@ -42,7 +42,7 @@ class TestJudgeConfig:
         config = JudgeConfig()
         assert config.model_name == "gpt-5.1"
         assert config.temperature == 0.0
-        assert config.max_completion_tokens == 2048
+        assert config.max_completion_tokens == 1024
         assert config.seed is None
         assert config.top_p is None
         assert config.system_instructions is None

@@ -339,7 +339,7 @@ class TestPromptEvaluatorConfig:
         assert config.defaults.judge.provider == "openai"
         assert config.defaults.judge.model == "gpt-5.1"
         assert config.defaults.judge.temperature == 0.0
-        assert config.defaults.judge.max_completion_tokens == 2048
+        assert config.defaults.judge.max_completion_tokens == 1024
         assert config.defaults.judge.top_p is None
         assert config.defaults.judge.system_instructions is None
 
@@ -924,6 +924,6 @@ defaults:
         config = PromptEvaluatorConfig(**config_data)
         
         # Should use default values
-        assert config.defaults.judge.max_completion_tokens == 2048
+        assert config.defaults.judge.max_completion_tokens == 1024
         assert config.defaults.judge.top_p is None
         assert config.defaults.judge.system_instructions is None

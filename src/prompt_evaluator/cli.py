@@ -705,17 +705,23 @@ def evaluate_single(
     judge_max_tokens: int | None = typer.Option(
         None,
         "--judge-max-tokens",
-        help="Maximum tokens for judge responses (default: 2048). Higher values allow more detailed evaluation rationales."
+        help="Maximum tokens for judge responses (default: 1024). Higher values allow more detailed evaluation rationales.",
+        min=1,
+        max=32000,
     ),
     judge_temperature: float | None = typer.Option(
         None,
         "--judge-temperature",
-        help="Judge temperature (0.0-2.0). Default: 0.0 for deterministic judging."
+        help="Judge temperature (0.0-2.0). Default: 0.0 for deterministic judging.",
+        min=0.0,
+        max=2.0,
     ),
     judge_top_p: float | None = typer.Option(
         None,
         "--judge-top-p",
-        help="Judge nucleus sampling parameter (0.0-1.0). Controls response diversity."
+        help="Judge nucleus sampling parameter (0.0-1.0). Controls response diversity.",
+        min=0.0,
+        max=1.0,
     ),
     judge_system_prompt: str | None = typer.Option(
         None,
@@ -906,7 +912,7 @@ def evaluate_single(
         final_judge_max_tokens = (
             judge_max_tokens
             or (app_judge_config.max_completion_tokens if app_judge_config else None)
-            or 2048
+            or 1024
         )
         
         final_judge_temperature = (
@@ -1314,17 +1320,23 @@ def evaluate_dataset(
     judge_max_tokens: int | None = typer.Option(
         None,
         "--judge-max-tokens",
-        help="Maximum tokens for judge responses (default: 2048). Higher values allow more detailed evaluation rationales."
+        help="Maximum tokens for judge responses (default: 1024). Higher values allow more detailed evaluation rationales.",
+        min=1,
+        max=32000,
     ),
     judge_temperature: float | None = typer.Option(
         None,
         "--judge-temperature",
-        help="Judge temperature (0.0-2.0). Default: 0.0 for deterministic judging."
+        help="Judge temperature (0.0-2.0). Default: 0.0 for deterministic judging.",
+        min=0.0,
+        max=2.0,
     ),
     judge_top_p: float | None = typer.Option(
         None,
         "--judge-top-p",
-        help="Judge nucleus sampling parameter (0.0-1.0). Controls response diversity."
+        help="Judge nucleus sampling parameter (0.0-1.0). Controls response diversity.",
+        min=0.0,
+        max=1.0,
     ),
     judge_system_prompt: str | None = typer.Option(
         None,
@@ -1573,7 +1585,7 @@ def evaluate_dataset(
         final_judge_max_tokens = (
             judge_max_tokens
             or (app_judge_config.max_completion_tokens if app_judge_config else None)
-            or 2048
+            or 1024
         )
         
         final_judge_temperature = (

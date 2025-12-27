@@ -122,7 +122,7 @@ class DefaultJudgeConfig(BaseModel):
     model: str = Field("gpt-5.1", description="Default judge model ID")
     temperature: float = Field(0.0, ge=0.0, le=2.0, description="Default temperature for judge")
     max_completion_tokens: int = Field(
-        2048,
+        1024,
         gt=0,
         description="Maximum tokens to generate for judge responses"
     )

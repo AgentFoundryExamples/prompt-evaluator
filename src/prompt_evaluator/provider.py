@@ -241,9 +241,10 @@ class OpenAIProvider(BaseProvider, LLMProvider):
             if system_prompt:
                 params["instructions"] = system_prompt
 
-            # Add top_p if provided
-            if config.top_p is not None:
-                params["top_p"] = config.top_p
+            # Note: top_p is not supported by the OpenAI Responses API
+            # If needed, use the Chat Completions API instead
+            # if config.top_p is not None:
+            #     params["top_p"] = config.top_p
 
             # Add seed if provided (using metadata as per Responses API)
             if config.seed is not None:

@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from prompt_evaluator.models import ComparisonResult, FlagDelta, MetricDelta
+from prompt_evaluator.models import ComparisonResult, FlagDelta, MetricDelta, TestCaseComparison
 
 
 def load_run_artifact(artifact_path: Path) -> dict[str, Any]:
@@ -156,11 +156,137 @@ def compute_flag_delta(
     )
 
 
+def compute_test_case_comparisons(
+    baseline_data: dict[str, Any],
+    candidate_data: dict[str, Any],
+    metric_threshold: float,
+) -> tuple[list[TestCaseComparison], dict[str, int]]:
+    """
+    Compute per-test-case comparisons between baseline and candidate.
+    
+    Args:
+        baseline_data: Baseline run artifact
+        candidate_data: Candidate run artifact
+        metric_threshold: Threshold for regression detection
+        
+    Returns:
+        Tuple of (test_case_comparisons, win_loss_tie_stats)
+    """
+    test_case_comparisons: list[TestCaseComparison] = []
+    win_count = 0
+    loss_count = 0
+    tie_count = 0
+    
+    # Get test case results from both runs
+    baseline_test_cases = baseline_data.get("test_case_results", [])
+    candidate_test_cases = candidate_data.get("test_case_results", [])
+    
+    # Create lookup maps by test case ID
+    baseline_map = {tc["test_case_id"]: tc for tc in baseline_test_cases}
+    candidate_map = {tc["test_case_id"]: tc for tc in candidate_test_cases}
+    
+    # Get all test case IDs (union of both runs)
+    all_test_case_ids = sorted(set(baseline_map.keys()) | set(candidate_map.keys()))
+    
+    for test_case_id in all_test_case_ids:
+        baseline_tc = baseline_map.get(test_case_id)
+        candidate_tc = candidate_map.get(test_case_id)
+        
+        # Skip if either is missing
+        if not baseline_tc or not candidate_tc:
+            continue
+            
+        # Get per_metric_stats for this test case
+        baseline_metrics = baseline_tc.get("per_metric_stats", {})
+        candidate_metrics = candidate_tc.get("per_metric_stats", {})
+        
+        # Compute per-metric deltas for this test case
+        per_metric_deltas: dict[str, float | None] = {}
+        metric_scores_baseline: list[float] = []
+        metric_scores_candidate: list[float] = []
+        
+        # Get all metrics (union)
+        all_metrics = set(baseline_metrics.keys()) | set(candidate_metrics.keys())
+        
+        for metric_name in sorted(all_metrics):
+            baseline_mean = baseline_metrics.get(metric_name, {}).get("mean")
+            candidate_mean = candidate_metrics.get(metric_name, {}).get("mean")
+            
+            if baseline_mean is not None and candidate_mean is not None:
+                delta = candidate_mean - baseline_mean
+                per_metric_deltas[metric_name] = delta
+                metric_scores_baseline.append(baseline_mean)
+                metric_scores_candidate.append(candidate_mean)
+            else:
+                per_metric_deltas[metric_name] = None
+        
+        # Compute overall means (average across all metrics)
+        baseline_overall_mean = (
+            sum(metric_scores_baseline) / len(metric_scores_baseline)
+            if metric_scores_baseline
+            else None
+        )
+        candidate_overall_mean = (
+            sum(metric_scores_candidate) / len(metric_scores_candidate)
+            if metric_scores_candidate
+            else None
+        )
+        
+        # Determine winner
+        # Candidate wins if overall mean is higher and no regressions exceed threshold
+        # Tie if overall means are equal (or very close)
+        # Baseline wins otherwise
+        is_regression = False
+        winner = "tie"
+        
+        if baseline_overall_mean is not None and candidate_overall_mean is not None:
+            overall_delta = candidate_overall_mean - baseline_overall_mean
+            
+            # Check for regressions (any metric drops more than threshold)
+            for delta in per_metric_deltas.values():
+                if delta is not None and delta < 0 and abs(delta) > metric_threshold:
+                    is_regression = True
+                    break
+            
+            # Determine winner based on overall delta
+            # Use a small epsilon for tie detection (0.01)
+            if abs(overall_delta) < 0.01:
+                winner = "tie"
+                tie_count += 1
+            elif overall_delta > 0:
+                winner = "candidate"
+                win_count += 1
+            else:
+                winner = "baseline"
+                loss_count += 1
+        
+        test_case_comparison = TestCaseComparison(
+            test_case_id=test_case_id,
+            baseline_mean=baseline_overall_mean,
+            candidate_mean=candidate_overall_mean,
+            per_metric_deltas=per_metric_deltas,
+            winner=winner,
+            is_regression=is_regression,
+        )
+        
+        test_case_comparisons.append(test_case_comparison)
+    
+    win_loss_tie_stats = {
+        "candidate_wins": win_count,
+        "baseline_wins": loss_count,
+        "ties": tie_count,
+        "total": len(test_case_comparisons),
+    }
+    
+    return test_case_comparisons, win_loss_tie_stats
+
+
 def compare_runs(
     baseline_artifact: Path,
     candidate_artifact: Path,
     metric_threshold: float = 0.1,
     flag_threshold: float = 0.05,
+    include_test_case_comparisons: bool = True,
 ) -> ComparisonResult:
     """
     Compare baseline and candidate evaluation runs.
@@ -173,6 +299,8 @@ def compare_runs(
         flag_threshold: Absolute threshold for flag regression (default: 0.05)
                        A regression is flagged if:
                        candidate_proportion > baseline_proportion + threshold
+        include_test_case_comparisons: Whether to compute per-test-case comparisons
+                                      (default: True)
 
     Returns:
         ComparisonResult with all deltas and regression flags
@@ -222,6 +350,20 @@ def compare_runs(
     regression_count += sum(1 for d in flag_deltas if d.is_regression)
     has_regressions = regression_count > 0
 
+    # Compute per-test-case comparisons if requested and data available
+    test_case_comparisons: list[TestCaseComparison] = []
+    win_loss_tie_stats: dict[str, int] = {}
+    
+    if include_test_case_comparisons:
+        try:
+            test_case_comparisons, win_loss_tie_stats = compute_test_case_comparisons(
+                baseline_data, candidate_data, metric_threshold
+            )
+        except Exception:
+            # If per-test-case comparison fails, continue without it
+            # This maintains backward compatibility with runs that don't have test_case_results
+            pass
+
     # Create comparison result
     result = ComparisonResult(
         baseline_run_id=baseline_run_id,
@@ -237,6 +379,8 @@ def compare_runs(
             "metric_threshold": metric_threshold,
             "flag_threshold": flag_threshold,
         },
+        test_case_comparisons=test_case_comparisons,
+        win_loss_tie_stats=win_loss_tie_stats,
     )
 
     return result

@@ -1125,12 +1125,17 @@ def judge_completion(
     """
     Call judge model to evaluate generator output and return structured results.
 
-    This function builds system+user messages, executes the provider API with the
+    This function uses the OpenAI Responses API (not Chat Completions API) for
+    OpenAI providers, ensuring parity with the generator implementation. The judge
+    prompts and system instructions flow through provider.generate() which calls
+    the Responses API with appropriate response_format handling.
+
+    The function builds system+user messages, executes the provider API with the
     configured judge model, enforces JSON schema, and returns structured results
     or a judge_error status with raw text preserved.
 
     Args:
-        provider: The LLM provider to use for judge model
+        provider: The LLM provider to use for judge model (uses Responses API for OpenAI)
         input_text: Original input text
         generator_output: Output from the generator model to evaluate
         judge_config: JudgeConfig with model settings (max_completion_tokens, temperature, 
@@ -1138,24 +1143,29 @@ def judge_completion(
         judge_system_prompt: System prompt instructing judge on scoring (used as fallback)
         task_description: Optional description of the task for context
         rubric: Optional Rubric object for structured evaluation criteria.
-               Currently passed through but not yet integrated into judge prompt.
-               Reserved for future enhancement to support multi-dimensional scoring.
 
     Returns:
         Dictionary with keys:
-        - status: "completed" or "judge_error"
+        - status: "completed", "judge_error", or "judge_invalid_response"
         - judge_score: float (1-5) if status is "completed", None otherwise
         - judge_rationale: str if status is "completed", None otherwise
         - judge_raw_response: str with raw model output
         - error: str with error details if status is "judge_error", None otherwise
+        - judge_metrics: dict with rubric metric scores (when using rubric)
+        - judge_flags: dict with rubric flag values (when using rubric)
+        - judge_overall_comment: str with overall assessment (when using rubric)
 
     Note:
-        The rubric parameter is currently reserved for future implementation of
-        multi-dimensional scoring. When fully implemented, it will be used to
-        dynamically generate judge prompts based on rubric metrics and flags.
-        
         Judge-specific configuration (max_completion_tokens, top_p) overrides
         generator defaults and applies only to judge model calls.
+        
+        For OpenAI providers, this function uses the Responses API endpoint
+        (responses.create) which provides better safety controls and response
+        formatting compared to the legacy Chat Completions API.
+        
+        Errors from the API (rate limits, validation failures, unavailable models)
+        are caught and returned in the result dict with status="judge_error",
+        making them distinct from generator errors for easier debugging.
     """
     # Use rubric-aware prompt if rubric is provided
     if rubric is not None:

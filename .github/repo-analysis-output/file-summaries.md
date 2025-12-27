@@ -20,8 +20,8 @@ Total files: 31
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 84.81 KB  
-**LOC:** 1656  
+**Size:** 87.47 KB  
+**LOC:** 1732  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/comparison.py
@@ -38,8 +38,8 @@ Total files: 31
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 35.99 KB  
-**LOC:** 747  
+**Size:** 37.08 KB  
+**LOC:** 774  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/dataset_evaluation.py
@@ -56,8 +56,8 @@ Total files: 31
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 33.08 KB  
-**LOC:** 703  
+**Size:** 34.00 KB  
+**LOC:** 722  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -65,8 +65,8 @@ Total files: 31
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 46.72 KB  
-**LOC:** 950  
+**Size:** 48.40 KB  
+**LOC:** 978  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/reporting/__init__.py
@@ -164,8 +164,8 @@ Total files: 31
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 28.79 KB  
-**LOC:** 599  
+**Size:** 33.47 KB  
+**LOC:** 704  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_dataset_evaluation.py
@@ -218,8 +218,8 @@ Total files: 31
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 49.76 KB  
-**LOC:** 1111  
+**Size:** 54.27 KB  
+**LOC:** 1201  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_mock_provider_integration.py

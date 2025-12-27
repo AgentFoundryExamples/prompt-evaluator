@@ -221,7 +221,8 @@ class TestMockProviderDatasetIntegration:
 
         # Run evaluation
         result = evaluate_dataset(
-            provider=mock_provider,
+            generator_provider=mock_provider,
+            judge_provider=mock_provider,
             test_cases=test_cases,
             dataset_metadata=dataset_metadata,
             system_prompt=system_prompt,
@@ -267,7 +268,8 @@ class TestMockProviderDatasetIntegration:
 
         # Run evaluation twice
         result1 = evaluate_dataset(
-            provider=mock_provider,
+            generator_provider=mock_provider,
+            judge_provider=mock_provider,
             test_cases=test_cases,
             dataset_metadata=dataset_metadata,
             system_prompt=system_prompt,
@@ -284,7 +286,8 @@ class TestMockProviderDatasetIntegration:
         )
 
         result2 = evaluate_dataset(
-            provider=mock_provider,
+            generator_provider=mock_provider,
+            judge_provider=mock_provider,
             test_cases=test_cases,
             dataset_metadata=dataset_metadata,
             system_prompt=system_prompt,
@@ -374,7 +377,8 @@ class TestConcurrentProviderUsage:
             judge_config = JudgeConfig(model_name="gpt-5.1")
 
             result = evaluate_dataset(
-                provider=mock_provider,
+                generator_provider=mock_provider,
+                judge_provider=mock_provider,
                 test_cases=[test_case],
                 dataset_metadata=dataset_metadata,
                 system_prompt="System",

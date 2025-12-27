@@ -65,8 +65,8 @@ Total files: 31
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 48.40 KB  
-**LOC:** 978  
+**Size:** 49.04 KB  
+**LOC:** 986  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/reporting/__init__.py
@@ -218,8 +218,8 @@ Total files: 31
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 54.27 KB  
-**LOC:** 1201  
+**Size:** 58.77 KB  
+**LOC:** 1331  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_mock_provider_integration.py
@@ -245,8 +245,8 @@ Total files: 31
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 33.55 KB  
-**LOC:** 635  
+**Size:** 42.08 KB  
+**LOC:** 763  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_provider_independence.py

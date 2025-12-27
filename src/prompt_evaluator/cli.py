@@ -833,6 +833,11 @@ def evaluate_single(
         "--ab-test-system-prompt",
         help="Run A/B test: evaluate with and without system prompt. Doubles API calls.",
     ),
+    json_schema: str | None = typer.Option(
+        None,
+        "--json-schema",
+        help="Path to JSON schema file for validating generator outputs. Uses config default if not provided.",
+    ),
 ) -> None:
     """
     Evaluate a prompt by generating N samples and judging each output.

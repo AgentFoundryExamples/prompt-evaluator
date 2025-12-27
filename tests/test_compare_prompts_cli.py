@@ -544,9 +544,10 @@ class TestComparePromptsArtifacts:
     """Tests for artifact generation in compare-prompts command."""
 
     def test_compare_prompts_creates_separate_run_directories(
-        self, cli_runner, sample_dataset, sample_prompts, tmp_path
+        self, cli_runner, sample_dataset, sample_prompts, tmp_path, monkeypatch
     ):
         """Test that separate directories are created for each prompt."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         prompt_a, prompt_b = sample_prompts
         output_dir = tmp_path / "runs"
         
@@ -584,9 +585,10 @@ class TestComparePromptsArtifacts:
         assert (output_dir / prompt_b_run_id / "dataset_evaluation.json").exists()
 
     def test_compare_prompts_creates_comparison_directory(
-        self, cli_runner, sample_dataset, sample_prompts, tmp_path
+        self, cli_runner, sample_dataset, sample_prompts, tmp_path, monkeypatch
     ):
         """Test that comparison directory and artifacts are created."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         prompt_a, prompt_b = sample_prompts
         output_dir = tmp_path / "runs"
         
@@ -615,6 +617,7 @@ class TestComparePromptsArtifacts:
         comparison_artifact_path = output_data["comparison_artifact_path"]
         
         # Verify comparison artifact exists
+        from pathlib import Path
         assert Path(comparison_artifact_path).exists()
         
         # Verify comparison report exists
@@ -627,9 +630,10 @@ class TestComparePromptsQuickMode:
     """Tests for quick mode in compare-prompts command."""
 
     def test_compare_prompts_quick_mode_sets_num_samples(
-        self, cli_runner, sample_dataset, sample_prompts, tmp_path
+        self, cli_runner, sample_dataset, sample_prompts, tmp_path, monkeypatch
     ):
         """Test that quick mode sets num-samples to 2."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         prompt_a, prompt_b = sample_prompts
         output_dir = tmp_path / "runs"
         
@@ -655,9 +659,10 @@ class TestComparePromptsQuickMode:
         assert "Quick mode: Using --num-samples=2" in result.stderr
 
     def test_compare_prompts_quick_mode_overridden_by_num_samples(
-        self, cli_runner, sample_dataset, sample_prompts, tmp_path
+        self, cli_runner, sample_dataset, sample_prompts, tmp_path, monkeypatch
     ):
         """Test that explicit num-samples overrides quick mode."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         prompt_a, prompt_b = sample_prompts
         output_dir = tmp_path / "runs"
         

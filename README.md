@@ -3195,6 +3195,287 @@ prompt-evaluator compare-runs \
   --flag-threshold 0.1
 ```
 
+Compare runs to validate that changes actually improved performance:
+
+```bash
+prompt-evaluator compare-runs \
+  --baseline runs/old-prompt/dataset_evaluation.json \
+  --candidate runs/improved-prompt/dataset_evaluation.json
+```
+
+### Compare Prompts Command (Dual-Prompt A/B Testing)
+
+The `compare-prompts` command enables **dual-prompt A/B evaluation** by running two different prompts against the same dataset in a single command. This provides an efficient way to compare prompt variations and detect regressions without running separate evaluations.
+
+**Key Benefits:**
+- Single command execution for both prompts
+- Identical test inputs for fair comparison
+- Automatic side-by-side comparison
+- Per-test-case win/loss/tie statistics
+- Integrated regression detection
+
+#### Basic Usage
+
+```bash
+# Compare two prompts against the same dataset
+prompt-evaluator compare-prompts \
+  --dataset examples/datasets/sample.yaml \
+  --prompt-a prompts/baseline_v1.txt \
+  --prompt-b prompts/improved_v2.txt \
+  --provider mock \
+  --quick
+```
+
+#### Full Example with All Options
+
+```bash
+# Comprehensive dual-prompt comparison
+prompt-evaluator compare-prompts \
+  --dataset examples/datasets/sample.yaml \
+  --prompt-a prompts/concise.txt \
+  --prompt-b prompts/detailed.txt \
+  --generator-provider openai \
+  --judge-provider openai \
+  --generator-model gpt-5.1 \
+  --judge-model gpt-5.1 \
+  --num-samples 5 \
+  --rubric examples/rubrics/coding.yaml \
+  --metric-threshold 0.1 \
+  --flag-threshold 0.05 \
+  --prompt-a-version "v1.0-concise" \
+  --prompt-b-version "v2.0-detailed" \
+  --run-note "Testing concise vs detailed instructions" \
+  --output-dir runs
+```
+
+#### Command Parameters
+
+**Required Parameters:**
+
+- `--dataset`, `-d`: Path to dataset file (.yaml/.yml or .jsonl) or dataset key
+- `--prompt-a`: Path to first prompt (Prompt A) file or template key
+- `--prompt-b`: Path to second prompt (Prompt B) file or template key
+
+**Optional Parameters:**
+
+- `--num-samples`, `-n`: Number of samples per test case (default: 5, quick mode: 2)
+- `--provider`, `-p`: Provider for both generator and judge (openai, claude, anthropic, mock)
+- `--generator-provider`: Override provider for generator
+- `--judge-provider`: Override provider for judge
+- `--generator-model`: Generator model name override
+- `--judge-model`: Judge model name override
+- `--judge-max-tokens`: Maximum tokens for judge responses (default: 1024)
+- `--judge-temperature`: Judge temperature (default: 0.0 for deterministic judging)
+- `--judge-system-prompt`: Path to custom judge system prompt
+- `--rubric`: Rubric to use for evaluation
+- `--seed`: Random seed for reproducibility
+- `--temperature`, `-t`: Generator temperature (0.0-2.0)
+- `--max-tokens`: Maximum tokens for generator
+- `--case-ids`: Comma-separated list of test case IDs to evaluate
+- `--max-cases`: Maximum number of test cases to evaluate
+- `--quick`: Quick mode (sets --num-samples=2)
+- `--output-dir`, `-o`: Output directory for runs
+- `--config`, `-c`: Path to config file (YAML/TOML)
+- `--prompt-a-version`: Version identifier for prompt A
+- `--prompt-b-version`: Version identifier for prompt B
+- `--run-note`: Optional note about this comparison run
+- `--metric-threshold`: Absolute threshold for metric regression detection (default: 0.1)
+- `--flag-threshold`: Absolute threshold for flag regression detection (default: 0.05)
+
+#### How It Works
+
+The compare-prompts command:
+
+1. **Phase 1:** Evaluates Prompt A against the dataset
+   - Generates samples for each test case
+   - Judges all outputs
+   - Computes per-case and overall statistics
+   - Saves artifacts to `runs/{prompt_a_run_id}/`
+
+2. **Phase 2:** Evaluates Prompt B against the same dataset
+   - Uses identical test inputs as Prompt A
+   - Generates samples for each test case
+   - Judges all outputs
+   - Saves artifacts to `runs/{prompt_b_run_id}/`
+
+3. **Phase 3:** Compares the results
+   - Computes metric and flag deltas
+   - Determines winner for each test case
+   - Calculates win/loss/tie statistics
+   - Detects regressions
+   - Generates comparison report
+   - Saves to `runs/comparison_{a_id}_vs_{b_id}/`
+
+#### Output Structure
+
+The command creates three sets of artifacts:
+
+```
+runs/
+├── {prompt_a_run_id}/
+│   ├── dataset_evaluation.json       # Prompt A results
+│   └── test_case_{id}.json          # Per-test-case results
+├── {prompt_b_run_id}/
+│   ├── dataset_evaluation.json       # Prompt B results
+│   └── test_case_{id}.json          # Per-test-case results
+└── comparison_{a_id}_vs_{b_id}/
+    ├── comparison.json               # Comparison artifact
+    └── comparison_report.md          # Human-readable report
+```
+
+#### Win/Loss/Tie Statistics
+
+For each test case, the command determines a winner:
+
+- **Candidate Wins** (Prompt B): Overall mean score is higher than Prompt A
+- **Baseline Wins** (Prompt A): Overall mean score is higher than Prompt B
+- **Tie**: Overall mean scores are equal (within 0.01 threshold)
+
+**Example Output:**
+
+```json
+{
+  "win_loss_tie_stats": {
+    "candidate_wins": 12,
+    "baseline_wins": 5,
+    "ties": 3,
+    "total": 20
+  },
+  "test_case_comparisons": [
+    {
+      "test_case_id": "test-001",
+      "baseline_mean": 3.5,
+      "candidate_mean": 4.2,
+      "per_metric_deltas": {
+        "semantic_fidelity": 0.8,
+        "clarity": 0.6
+      },
+      "winner": "candidate",
+      "is_regression": false
+    }
+  ]
+}
+```
+
+#### Comparison Report
+
+The Markdown report includes:
+
+1. **Metadata Section**
+   - Run IDs and prompt versions
+   - Win/Loss/Tie summary with percentages
+   - Regression status
+
+2. **Suite-Level Metrics**
+   - Side-by-side comparison table
+   - Deltas and percent changes
+   - Status indicators (improved/regressed/unchanged)
+
+3. **Per-Test-Case Comparison**
+   - Table showing winner for each test case
+   - Baseline vs candidate means
+   - Regression indicators
+
+4. **Regressions Detected**
+   - Detailed list of regressed metrics/flags
+   - Severity indicators
+   - Baseline → Candidate changes
+
+5. **Improvements Detected**
+   - List of improved metrics/flags
+   - Magnitude of improvements
+
+#### Use Cases
+
+**1. Prompt Iteration:**
+
+```bash
+# Quickly test if your improved prompt is better
+prompt-evaluator compare-prompts \
+  --dataset my_dataset.yaml \
+  --prompt-a prompts/current.txt \
+  --prompt-b prompts/candidate.txt \
+  --quick \
+  --max-cases 10
+```
+
+**2. Style Comparison:**
+
+```bash
+# Compare concise vs detailed instruction styles
+prompt-evaluator compare-prompts \
+  --dataset datasets/coding_tasks.yaml \
+  --prompt-a prompts/concise_style.txt \
+  --prompt-b prompts/detailed_style.txt \
+  --prompt-a-version "concise-v1" \
+  --prompt-b-version "detailed-v1" \
+  --run-note "Style A/B test"
+```
+
+**3. Regression Testing:**
+
+```bash
+# Ensure new prompt doesn't regress
+prompt-evaluator compare-prompts \
+  --dataset datasets/production.yaml \
+  --prompt-a prompts/prod_v2.3.txt \
+  --prompt-b prompts/prod_v2.4-candidate.txt \
+  --metric-threshold 0.05 \  # Strict threshold
+  --flag-threshold 0.02
+
+# Exit code 1 if regressions detected
+```
+
+**4. Provider Comparison:**
+
+```bash
+# Compare same prompt across different providers
+# (Note: Run twice with provider override)
+prompt-evaluator compare-prompts \
+  --dataset datasets/test.yaml \
+  --prompt-a prompts/standard.txt \
+  --prompt-b prompts/standard.txt \
+  --generator-provider openai \
+  --judge-provider openai
+
+# Then compare with Claude
+prompt-evaluator compare-prompts \
+  --dataset datasets/test.yaml \
+  --prompt-a prompts/standard.txt \
+  --prompt-b prompts/standard.txt \
+  --generator-provider claude \
+  --judge-provider claude
+```
+
+**5. Sanity Check:**
+
+```bash
+# Compare identical prompts (should show no differences)
+prompt-evaluator compare-prompts \
+  --dataset datasets/test.yaml \
+  --prompt-a prompts/test.txt \
+  --prompt-b prompts/test.txt \
+  --provider mock \
+  --quick
+
+# Useful for validating evaluation consistency
+```
+
+#### Best Practices
+
+1. **Use Quick Mode for Iteration:** Start with `--quick --max-cases 10` for fast feedback
+2. **Increase Samples for Production:** Use `--num-samples 10+` for reliable statistics
+3. **Set Appropriate Thresholds:** Match thresholds to your quality requirements
+4. **Tag Prompt Versions:** Use `--prompt-a-version` and `--prompt-b-version` for tracking
+5. **Add Run Notes:** Use `--run-note` to document what you're testing
+6. **Filter Test Cases:** Use `--case-ids` or `--max-cases` to focus on specific scenarios
+
+#### Exit Codes
+
+- **0**: Success, no regressions detected
+- **1**: Regressions detected (Prompt B regressed compared to Prompt A)
+- **1**: Error (invalid parameters, missing files, evaluation failure)
+
 **4. Tracking Improvements:**
 
 Compare runs to validate that changes actually improved performance:

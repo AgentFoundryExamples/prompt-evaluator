@@ -858,6 +858,32 @@ class FlagDelta:
 
 
 @dataclass
+class TestCaseComparison:
+    """
+    Per-test-case comparison between baseline and candidate.
+    
+    Attributes:
+        test_case_id: ID of the test case
+        baseline_mean: Mean score for baseline (averaged across all metrics)
+        candidate_mean: Mean score for candidate (averaged across all metrics)
+        per_metric_deltas: Delta for each metric in this test case
+        winner: "baseline", "candidate", or "tie"
+        is_regression: Whether candidate regressed on any metric
+    """
+    
+    test_case_id: str
+    baseline_mean: float | None
+    candidate_mean: float | None
+    per_metric_deltas: dict[str, float | None]
+    winner: str
+    is_regression: bool
+    
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to JSON-compatible dictionary."""
+        return asdict(self)
+
+
+@dataclass
 class ComparisonResult:
     """
     Result of comparing two evaluation runs.
@@ -873,6 +899,8 @@ class ComparisonResult:
         regression_count: Total number of regressions
         comparison_timestamp: When the comparison was performed
         thresholds_config: Configuration of thresholds used
+        test_case_comparisons: Optional per-test-case comparisons
+        win_loss_tie_stats: Optional aggregate win/loss/tie statistics
     """
 
     baseline_run_id: str
@@ -885,10 +913,12 @@ class ComparisonResult:
     regression_count: int
     comparison_timestamp: datetime
     thresholds_config: dict[str, Any]
+    test_case_comparisons: list[TestCaseComparison] = field(default_factory=list)
+    win_loss_tie_stats: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to JSON-compatible dictionary."""
-        return {
+        result = {
             "baseline_run_id": self.baseline_run_id,
             "candidate_run_id": self.candidate_run_id,
             "baseline_prompt_version": self.baseline_prompt_version,
@@ -900,3 +930,13 @@ class ComparisonResult:
             "comparison_timestamp": self.comparison_timestamp.isoformat(),
             "thresholds_config": self.thresholds_config,
         }
+        
+        # Add test_case_comparisons if present
+        if self.test_case_comparisons:
+            result["test_case_comparisons"] = [tc.to_dict() for tc in self.test_case_comparisons]
+        
+        # Add win_loss_tie_stats if present
+        if self.win_loss_tie_stats:
+            result["win_loss_tie_stats"] = self.win_loss_tie_stats
+        
+        return result

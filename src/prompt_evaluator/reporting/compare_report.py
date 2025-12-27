@@ -157,6 +157,20 @@ def render_comparison_metadata_section(comparison_data: dict[str, Any]) -> str:
     lines.append(f"- **Metric Regression Threshold**: {metric_threshold}")
     lines.append(f"- **Flag Regression Threshold**: {flag_threshold}")
 
+    # Add win/loss/tie statistics if available
+    win_loss_tie = comparison_data.get("win_loss_tie_stats", {})
+    total = win_loss_tie.get("total", 0)
+    if win_loss_tie and total > 0:
+        lines.append("\n### Win/Loss/Tie Summary\n")
+        candidate_wins = win_loss_tie.get("candidate_wins", 0)
+        baseline_wins = win_loss_tie.get("baseline_wins", 0)
+        ties = win_loss_tie.get("ties", 0)
+        
+        lines.append(f"- **Candidate Wins**: {candidate_wins} ({candidate_wins/total*100:.1f}%)")
+        lines.append(f"- **Baseline Wins**: {baseline_wins} ({baseline_wins/total*100:.1f}%)")
+        lines.append(f"- **Ties**: {ties} ({ties/total*100:.1f}%)")
+        lines.append(f"- **Total Test Cases**: {total}")
+
     # Add regression summary
     has_regressions = comparison_data.get("has_regressions", False)
     regression_count = comparison_data.get("regression_count", 0)
@@ -372,6 +386,75 @@ def render_regressions_section(
     return "\n".join(lines)
 
 
+def render_test_case_comparison_section(
+    comparison_data: dict[str, Any], config: CompareReportConfig
+) -> str:
+    """
+    Render per-test-case comparison section.
+
+    Args:
+        comparison_data: Comparison artifact dictionary
+        config: Report configuration
+
+    Returns:
+        Markdown-formatted test case comparison section
+    """
+    lines = ["## Per-Test-Case Comparison\n"]
+
+    test_case_comparisons = comparison_data.get("test_case_comparisons", [])
+    
+    if not test_case_comparisons:
+        lines.append("*Per-test-case comparison data not available.*\n")
+        return "\n".join(lines)
+
+    # Render as a table
+    lines.append("| Test Case | Baseline | Candidate | Delta | Winner | Status |")
+    lines.append("|-----------|----------|-----------|-------|--------|--------|")
+
+    for tc in test_case_comparisons:
+        test_case_id = escape_html_for_markdown(tc.get("test_case_id", "unknown"))
+        baseline_mean = tc.get("baseline_mean")
+        candidate_mean = tc.get("candidate_mean")
+        winner = tc.get("winner", "N/A")
+        is_regression = tc.get("is_regression", False)
+
+        # Calculate delta
+        if baseline_mean is not None and candidate_mean is not None:
+            delta = candidate_mean - baseline_mean
+            delta_str = format_delta_sign(delta)
+        else:
+            delta_str = "N/A"
+
+        # Format means
+        baseline_str = f"{baseline_mean:.2f}" if baseline_mean is not None else "N/A"
+        candidate_str = f"{candidate_mean:.2f}" if candidate_mean is not None else "N/A"
+
+        # Format winner
+        if winner == "candidate":
+            winner_icon = "🏆 Candidate"
+        elif winner == "baseline":
+            winner_icon = "🏆 Baseline"
+        else:
+            winner_icon = "🤝 Tie"
+
+        # Format status
+        if is_regression:
+            status = "🔴 Regression"
+        elif winner == "candidate":
+            status = "✓ Improved"
+        elif winner == "baseline":
+            status = "↓ Decreased"
+        else:
+            status = "→ Unchanged"
+
+        lines.append(
+            f"| {test_case_id} | {baseline_str} | {candidate_str} | "
+            f"{delta_str} | {winner_icon} | {status} |"
+        )
+
+    return "\n".join(lines) + "\n"
+
+
 def render_improvements_section(comparison_data: dict[str, Any]) -> str:
     """
     Render section highlighting improvements.
@@ -484,6 +567,7 @@ def render_markdown_comparison_report(
         render_comparison_metadata_section(comparison_data),
         render_suite_comparison_table(comparison_data),
         render_suite_flags_comparison_table(comparison_data),
+        render_test_case_comparison_section(comparison_data, config),
         render_regressions_section(comparison_data, config),
         render_improvements_section(comparison_data),
     ]

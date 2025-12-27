@@ -42,6 +42,7 @@ class ProviderConfig:
     temperature: float = 0.7
     max_completion_tokens: int = 1024
     seed: int | None = None
+    top_p: float | None = None
     additional_params: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
@@ -50,6 +51,9 @@ class ProviderConfig:
             raise ValueError("temperature must be between 0.0 and 2.0")
         if self.max_completion_tokens <= 0:
             raise ValueError("max_completion_tokens must be positive")
+        if self.top_p is not None:
+            if not 0.0 <= self.top_p <= 1.0:
+                raise ValueError("top_p must be between 0.0 and 1.0")
 
 
 @dataclass
@@ -236,6 +240,10 @@ class OpenAIProvider(BaseProvider, LLMProvider):
             # Add instructions (system prompt) if provided
             if system_prompt:
                 params["instructions"] = system_prompt
+
+            # Add top_p if provided
+            if config.top_p is not None:
+                params["top_p"] = config.top_p
 
             # Add seed if provided (using metadata as per Responses API)
             if config.seed is not None:
@@ -482,6 +490,10 @@ class ClaudeProvider(BaseProvider, LLMProvider):
             # Add system prompt if provided
             if system_prompt:
                 params["system"] = system_prompt
+
+            # Add top_p if provided
+            if config.top_p is not None:
+                params["top_p"] = config.top_p
 
             # Add additional parameters if provided
             if config.additional_params:
@@ -1120,8 +1132,9 @@ def judge_completion(
         provider: The LLM provider to use for judge model
         input_text: Original input text
         generator_output: Output from the generator model to evaluate
-        judge_config: JudgeConfig with model settings
-        judge_system_prompt: System prompt instructing judge on scoring
+        judge_config: JudgeConfig with model settings (max_completion_tokens, temperature, 
+            top_p, system_instructions, etc.)
+        judge_system_prompt: System prompt instructing judge on scoring (used as fallback)
         task_description: Optional description of the task for context
         rubric: Optional Rubric object for structured evaluation criteria.
                Currently passed through but not yet integrated into judge prompt.
@@ -1139,12 +1152,19 @@ def judge_completion(
         The rubric parameter is currently reserved for future implementation of
         multi-dimensional scoring. When fully implemented, it will be used to
         dynamically generate judge prompts based on rubric metrics and flags.
+        
+        Judge-specific configuration (max_completion_tokens, top_p) overrides
+        generator defaults and applies only to judge model calls.
     """
     # Use rubric-aware prompt if rubric is provided
     if rubric is not None:
         system_prompt = build_rubric_judge_prompt(rubric)
     else:
         system_prompt = judge_system_prompt
+    
+    # Allow judge config to override system prompt if system_instructions is provided
+    if hasattr(judge_config, 'system_instructions') and judge_config.system_instructions:
+        system_prompt = judge_config.system_instructions
 
     # Build user message with input, output, and optional task description
     user_parts = []
@@ -1164,16 +1184,37 @@ def judge_completion(
 
     # Make API call
     try:
-        response_text, metadata = generate_completion(
-            provider=provider,
-            system_prompt=system_prompt,
-            user_prompt=user_message,
+        # Build provider config with judge-specific parameters
+        provider_config = ProviderConfig(
             model=judge_config.model_name,
             temperature=judge_config.temperature,
             max_completion_tokens=judge_config.max_completion_tokens,
             seed=judge_config.seed,
+            top_p=getattr(judge_config, 'top_p', None),
         )
-
+        
+        result = provider.generate(
+            system_prompt=system_prompt,
+            user_prompt=user_message,
+            config=provider_config,
+        )
+        
+        # Check for errors from provider
+        if result.error:
+            error_msg = f"Judge API call failed: {result.error}"
+            logger.error(error_msg)
+            return {
+                "status": "judge_error",
+                "judge_score": None,
+                "judge_rationale": None,
+                "judge_raw_response": result.text or None,
+                "judge_metrics": {},
+                "judge_flags": {},
+                "judge_overall_comment": None,
+                "error": error_msg,
+            }
+        
+        response_text = result.text
         raw_response = response_text
 
         # Use rubric-aware parsing if rubric is provided

@@ -42,18 +42,27 @@ class TestJudgeConfig:
         config = JudgeConfig()
         assert config.model_name == "gpt-5.1"
         assert config.temperature == 0.0
-        assert config.max_completion_tokens == 512
+        assert config.max_completion_tokens == 2048
         assert config.seed is None
+        assert config.top_p is None
+        assert config.system_instructions is None
 
     def test_custom_values(self):
         """Test that JudgeConfig accepts custom values."""
         config = JudgeConfig(
-            model_name="gpt-4", temperature=0.3, max_completion_tokens=1024, seed=42
+            model_name="gpt-4",
+            temperature=0.3,
+            max_completion_tokens=4096,
+            seed=42,
+            top_p=0.95,
+            system_instructions="Custom judge prompt"
         )
         assert config.model_name == "gpt-4"
         assert config.temperature == 0.3
-        assert config.max_completion_tokens == 1024
+        assert config.max_completion_tokens == 4096
         assert config.seed == 42
+        assert config.top_p == 0.95
+        assert config.system_instructions == "Custom judge prompt"
 
     def test_temperature_validation_negative(self):
         """Test that negative temperature raises ValueError."""
@@ -79,6 +88,47 @@ class TestJudgeConfig:
         """Test that non-integer max_completion_tokens raises ValueError."""
         with pytest.raises(ValueError, match="max_completion_tokens must be an integer"):
             JudgeConfig(max_completion_tokens=100.5)  # type: ignore[arg-type]
+
+    def test_top_p_validation_in_range(self):
+        """Test that valid top_p values are accepted."""
+        # Valid top_p values
+        config1 = JudgeConfig(top_p=0.0)
+        assert config1.top_p == 0.0
+
+        config2 = JudgeConfig(top_p=0.5)
+        assert config2.top_p == 0.5
+
+        config3 = JudgeConfig(top_p=1.0)
+        assert config3.top_p == 1.0
+
+        # None is also valid (optional)
+        config4 = JudgeConfig(top_p=None)
+        assert config4.top_p is None
+
+    def test_top_p_validation_out_of_range(self):
+        """Test that out-of-range top_p raises ValueError."""
+        # top_p < 0.0
+        with pytest.raises(ValueError, match="top_p must be between 0.0 and 1.0"):
+            JudgeConfig(top_p=-0.1)
+
+        # top_p > 1.0
+        with pytest.raises(ValueError, match="top_p must be between 0.0 and 1.0"):
+            JudgeConfig(top_p=1.5)
+
+    def test_top_p_validation_non_numeric(self):
+        """Test that non-numeric top_p raises ValueError."""
+        with pytest.raises(ValueError, match="top_p must be numeric"):
+            JudgeConfig(top_p="high")  # type: ignore[arg-type]
+
+    def test_system_instructions(self):
+        """Test that system_instructions can be set."""
+        instructions = "You are an expert evaluator. Be thorough."
+        config = JudgeConfig(system_instructions=instructions)
+        assert config.system_instructions == instructions
+
+        # None is also valid
+        config2 = JudgeConfig(system_instructions=None)
+        assert config2.system_instructions is None
 
 
 class TestSample:
@@ -787,6 +837,79 @@ class TestJudgeCompletion:
             )
         assert result["status"] == "completed"
         assert result["judge_score"] == 5.0
+
+    def test_judge_completion_uses_judge_specific_settings(self):
+        """Test that judge-specific settings (max_tokens, top_p) are used."""
+        from prompt_evaluator.provider import ProviderConfig
+        
+        provider = MagicMock(spec=OpenAIProvider)
+        # Create mock result for provider.generate
+        mock_result = MagicMock()
+        mock_result.text = '{"semantic_fidelity": 4.0, "rationale": "Good"}'
+        mock_result.error = None
+        provider.generate.return_value = mock_result
+        
+        judge_config = JudgeConfig(
+            model_name="gpt-4",
+            temperature=0.1,
+            max_completion_tokens=4096,
+            top_p=0.9,
+            seed=123
+        )
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test input",
+            generator_output="test output",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
+
+        # Verify provider.generate was called
+        assert provider.generate.called
+        
+        # Extract the ProviderConfig that was passed
+        call_args = provider.generate.call_args
+        config_arg = call_args[1]['config']
+        
+        # Verify judge-specific settings were passed
+        assert isinstance(config_arg, ProviderConfig)
+        assert config_arg.model == "gpt-4"
+        assert config_arg.temperature == 0.1
+        assert config_arg.max_completion_tokens == 4096
+        assert config_arg.top_p == 0.9
+        assert config_arg.seed == 123
+        
+        # Verify result is successful
+        assert result["status"] == "completed"
+
+    def test_judge_completion_system_instructions_override(self):
+        """Test that judge system_instructions override default prompt."""
+        provider = MagicMock(spec=OpenAIProvider)
+        mock_result = MagicMock()
+        mock_result.text = '{"semantic_fidelity": 3.5, "rationale": "Acceptable"}'
+        mock_result.error = None
+        provider.generate.return_value = mock_result
+        
+        custom_instructions = "Custom judge evaluation instructions"
+        judge_config = JudgeConfig(
+            system_instructions=custom_instructions
+        )
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test input",
+            generator_output="test output",
+            judge_config=judge_config,
+            judge_system_prompt="Default prompt that should be overridden",
+        )
+
+        # Verify the custom system instructions were used
+        call_args = provider.generate.call_args
+        system_prompt_arg = call_args[1]['system_prompt']
+        assert system_prompt_arg == custom_instructions
+        
+        assert result["status"] == "completed"
 
     def test_judge_completion_preserves_raw_response_on_error(self):
         """Test that raw response is preserved even when parsing fails."""

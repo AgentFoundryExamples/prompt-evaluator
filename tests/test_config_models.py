@@ -339,6 +339,9 @@ class TestPromptEvaluatorConfig:
         assert config.defaults.judge.provider == "openai"
         assert config.defaults.judge.model == "gpt-5.1"
         assert config.defaults.judge.temperature == 0.0
+        assert config.defaults.judge.max_completion_tokens == 2048
+        assert config.defaults.judge.top_p is None
+        assert config.defaults.judge.system_instructions is None
 
         assert config.defaults.rubric is None
         assert config.defaults.run_directory == "runs"
@@ -359,7 +362,10 @@ class TestPromptEvaluatorConfig:
                 "judge": {
                     "provider": "openai",
                     "model": "gpt-4",
-                    "temperature": 0.1
+                    "temperature": 0.1,
+                    "max_completion_tokens": 4096,
+                    "top_p": 0.9,
+                    "system_instructions": "Custom judge instructions"
                 },
                 "rubric": "content-quality",
                 "run_directory": "custom_runs"
@@ -376,6 +382,9 @@ class TestPromptEvaluatorConfig:
         assert config.defaults.judge.provider == "openai"
         assert config.defaults.judge.model == "gpt-4"
         assert config.defaults.judge.temperature == 0.1
+        assert config.defaults.judge.max_completion_tokens == 4096
+        assert config.defaults.judge.top_p == 0.9
+        assert config.defaults.judge.system_instructions == "Custom judge instructions"
 
         assert config.defaults.rubric == "content-quality"
         assert config.defaults.run_directory == "custom_runs"
@@ -802,3 +811,119 @@ defaults:
 
         assert config is not None
         assert config._config_dir == tmp_path.resolve()
+
+    def test_judge_max_completion_tokens_validation(self):
+        """Test that judge max_completion_tokens is validated."""
+        # Valid max_completion_tokens
+        config_data = {
+            "defaults": {
+                "judge": {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                    "max_completion_tokens": 4096
+                }
+            }
+        }
+        config = PromptEvaluatorConfig(**config_data)
+        assert config.defaults.judge.max_completion_tokens == 4096
+
+        # Zero max_completion_tokens should fail
+        config_data_zero = {
+            "defaults": {
+                "judge": {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                    "max_completion_tokens": 0
+                }
+            }
+        }
+        with pytest.raises(ValueError, match="greater than 0"):
+            PromptEvaluatorConfig(**config_data_zero)
+
+        # Negative max_completion_tokens should fail
+        config_data_neg = {
+            "defaults": {
+                "judge": {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                    "max_completion_tokens": -100
+                }
+            }
+        }
+        with pytest.raises(ValueError, match="greater than 0"):
+            PromptEvaluatorConfig(**config_data_neg)
+
+    def test_judge_top_p_validation(self):
+        """Test that judge top_p is validated."""
+        # Valid top_p
+        config_data = {
+            "defaults": {
+                "judge": {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                    "top_p": 0.9
+                }
+            }
+        }
+        config = PromptEvaluatorConfig(**config_data)
+        assert config.defaults.judge.top_p == 0.9
+
+        # Boundary values should work
+        config_data_min = {
+            "defaults": {"judge": {"provider": "openai", "model": "gpt-4", "top_p": 0.0}}
+        }
+        config_min = PromptEvaluatorConfig(**config_data_min)
+        assert config_min.defaults.judge.top_p == 0.0
+
+        config_data_max = {
+            "defaults": {"judge": {"provider": "openai", "model": "gpt-4", "top_p": 1.0}}
+        }
+        config_max = PromptEvaluatorConfig(**config_data_max)
+        assert config_max.defaults.judge.top_p == 1.0
+
+        # top_p > 1.0 should fail
+        config_data_high = {
+            "defaults": {"judge": {"provider": "openai", "model": "gpt-4", "top_p": 1.5}}
+        }
+        with pytest.raises(ValueError, match="less than or equal to 1"):
+            PromptEvaluatorConfig(**config_data_high)
+
+        # Negative top_p should fail
+        config_data_neg = {
+            "defaults": {"judge": {"provider": "openai", "model": "gpt-4", "top_p": -0.1}}
+        }
+        with pytest.raises(ValueError, match="greater than or equal to 0"):
+            PromptEvaluatorConfig(**config_data_neg)
+
+    def test_judge_system_instructions(self):
+        """Test that judge system_instructions is accepted."""
+        config_data = {
+            "defaults": {
+                "judge": {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                    "system_instructions": "You are a helpful evaluator. Score carefully."
+                }
+            }
+        }
+        config = PromptEvaluatorConfig(**config_data)
+        assert config.defaults.judge.system_instructions == "You are a helpful evaluator. Score carefully."
+
+    def test_judge_config_backward_compatibility(self):
+        """Test that configs without new judge fields still work."""
+        # Old-style config without max_completion_tokens, top_p, or system_instructions
+        config_data = {
+            "defaults": {
+                "judge": {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                    "temperature": 0.0
+                }
+            }
+        }
+        config = PromptEvaluatorConfig(**config_data)
+        
+        # Should use default values
+        assert config.defaults.judge.max_completion_tokens == 2048
+        assert config.defaults.judge.top_p is None
+        assert config.defaults.judge.system_instructions is None

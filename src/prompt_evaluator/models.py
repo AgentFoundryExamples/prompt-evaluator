@@ -191,12 +191,25 @@ class PromptRun:
 
 @dataclass
 class JudgeConfig:
-    """Configuration for LLM judge parameters."""
+    """
+    Configuration for LLM judge parameters.
+    
+    Attributes:
+        model_name: Model identifier for judge
+        temperature: Sampling temperature (0.0-2.0)
+        max_completion_tokens: Maximum tokens to generate. Higher values allow for
+            more detailed evaluation rationales when using complex rubrics.
+        seed: Optional seed for reproducibility
+        top_p: Optional nucleus sampling parameter (0.0-1.0). Controls diversity.
+        system_instructions: Optional system instructions override for judge prompts.
+    """
 
     model_name: str = "gpt-5.1"
     temperature: float = 0.0
-    max_completion_tokens: int = 512
+    max_completion_tokens: int = 2048
     seed: int | None = None
+    top_p: float | None = None
+    system_instructions: str | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
@@ -211,6 +224,13 @@ class JudgeConfig:
             raise ValueError(
                 f"max_completion_tokens must be positive, got {self.max_completion_tokens}"
             )
+        if self.top_p is not None:
+            if not isinstance(self.top_p, (int, float)):
+                raise ValueError(
+                    f"top_p must be numeric, got {type(self.top_p).__name__}"
+                )
+            if self.top_p < 0.0 or self.top_p > 1.0:
+                raise ValueError(f"top_p must be between 0.0 and 1.0, got {self.top_p}")
 
 
 # Default judge system prompt for semantic fidelity scoring

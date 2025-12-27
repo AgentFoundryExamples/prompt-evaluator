@@ -359,10 +359,23 @@ def load_prompt_evaluator_config(
             )
         return None
 
+    # Resolve to absolute path to avoid duplicate loading
+    if located_path.is_absolute():
+        located_path = located_path.resolve()
+    else:
+        located_path = Path.cwd() / located_path
+        located_path = located_path.resolve()
+
     # Check if file exists
     if not located_path.exists():
         raise FileNotFoundError(
             f"Configuration file not found: {located_path}"
+        )
+
+    # Check if file is readable
+    if not os.access(located_path, os.R_OK):
+        raise ValueError(
+            f"Configuration file is not readable: {located_path}"
         )
 
     # Load and parse YAML
@@ -769,6 +782,109 @@ def load_rubric(rubric_path: Path) -> "Rubric":  # type: ignore[name-defined] # 
 
 # Supported dataset file extensions
 DATASET_FILE_EXTENSIONS = [".jsonl", ".yaml", ".yml"]
+
+
+class ConfigManager:
+    """
+    Shared configuration manager that caches loaded config files.
+    
+    This class ensures that config files are loaded once and reused across
+    CLI commands within the same invocation, preventing duplicate loading
+    and ensuring consistent configuration state.
+    """
+    
+    def __init__(self) -> None:
+        """Initialize the configuration manager with empty cache."""
+        self._app_config_cache: PromptEvaluatorConfig | None = None
+        self._app_config_path_cache: Path | None = None
+        self._api_config_cache: APIConfig | None = None
+        self._api_config_path_cache: Path | None = None
+    
+    def get_app_config(
+        self,
+        config_path: Path | None = None,
+        warn_if_missing: bool = True
+    ) -> PromptEvaluatorConfig | None:
+        """
+        Get or load the application configuration.
+        
+        If a config has already been loaded with the same path, return the cached version.
+        Otherwise, load the config and cache it.
+        
+        Args:
+            config_path: Optional explicit path to config file
+            warn_if_missing: Whether to warn if config file not found
+            
+        Returns:
+            Loaded configuration or None if not found
+            
+        Raises:
+            ValueError: If config file is found but invalid
+        """
+        # Normalize config path for cache comparison
+        normalized_path = None
+        if config_path is not None:
+            normalized_path = config_path.resolve() if config_path.is_absolute() else (Path.cwd() / config_path).resolve()
+        
+        # Check cache - return cached config if path matches
+        if self._app_config_path_cache == normalized_path and self._app_config_cache is not None:
+            return self._app_config_cache
+        
+        # Load new config
+        config = load_prompt_evaluator_config(
+            config_path=config_path,
+            warn_if_missing=warn_if_missing
+        )
+        
+        # Update cache
+        self._app_config_cache = config
+        self._app_config_path_cache = normalized_path
+        
+        return config
+    
+    def get_api_config(
+        self,
+        config_file_path: Path | None = None
+    ) -> APIConfig:
+        """
+        Get or load the API configuration.
+        
+        If an API config has already been loaded with the same path, return the cached version.
+        Otherwise, load the config and cache it.
+        
+        Args:
+            config_file_path: Optional path to configuration file
+            
+        Returns:
+            Loaded API configuration
+            
+        Raises:
+            ValueError: If API key is missing or configuration is invalid
+        """
+        # Normalize config path for cache comparison
+        normalized_path = None
+        if config_file_path is not None:
+            normalized_path = config_file_path.resolve() if config_file_path.is_absolute() else (Path.cwd() / config_file_path).resolve()
+        
+        # Check cache - return cached config if path matches
+        if self._api_config_path_cache == normalized_path and self._api_config_cache is not None:
+            return self._api_config_cache
+        
+        # Load new config
+        config = APIConfig(config_file_path=config_file_path)
+        
+        # Update cache
+        self._api_config_cache = config
+        self._api_config_path_cache = normalized_path
+        
+        return config
+    
+    def clear_cache(self) -> None:
+        """Clear all cached configurations."""
+        self._app_config_cache = None
+        self._app_config_path_cache = None
+        self._api_config_cache = None
+        self._api_config_path_cache = None
 
 
 def load_dataset(dataset_path: Path) -> tuple[list["TestCase"], dict[str, Any]]:  # type: ignore[name-defined] # noqa: F821

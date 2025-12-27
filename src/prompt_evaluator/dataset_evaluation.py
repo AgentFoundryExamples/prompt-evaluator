@@ -194,7 +194,8 @@ def compute_overall_statistics(
 
 
 def evaluate_dataset(
-    provider: LLMProvider,
+    generator_provider: LLMProvider,
+    judge_provider: LLMProvider,
     test_cases: list[TestCase],
     dataset_metadata: dict[str, Any],
     system_prompt: str,
@@ -224,7 +225,8 @@ def evaluate_dataset(
     6. Streams results to disk
 
     Args:
-        provider: OpenAI provider instance
+        generator_provider: LLM provider instance for generation
+        judge_provider: LLM provider instance for judging
         test_cases: List of TestCase objects to evaluate
         dataset_metadata: Metadata about the dataset (path, hash, count)
         system_prompt: System prompt for the generator
@@ -324,7 +326,7 @@ def evaluate_dataset(
                     # Generate completion with varied seed per sample
                     current_seed = generator_config.seed + sample_idx if generator_config.seed is not None else None
                     response_text, metadata = generate_completion(
-                        provider=provider,
+                        provider=generator_provider,
                         system_prompt=variant_system_prompt,
                         user_prompt=test_case.input,
                         model=generator_config.model_name,
@@ -336,7 +338,7 @@ def evaluate_dataset(
                     # Judge the output
                     try:
                         judge_result = judge_completion(
-                            provider=provider,
+                            provider=judge_provider,
                             input_text=test_case.input,
                             generator_output=response_text,
                             judge_config=judge_config,

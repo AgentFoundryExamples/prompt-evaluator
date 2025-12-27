@@ -1163,7 +1163,7 @@ def judge_completion(
         system_prompt = judge_system_prompt
     
     # Allow judge config to override system prompt if system_instructions is provided
-    if hasattr(judge_config, 'system_instructions') and judge_config.system_instructions:
+    if judge_config.system_instructions:
         system_prompt = judge_config.system_instructions
 
     # Build user message with input, output, and optional task description
@@ -1190,7 +1190,7 @@ def judge_completion(
             temperature=judge_config.temperature,
             max_completion_tokens=judge_config.max_completion_tokens,
             seed=judge_config.seed,
-            top_p=getattr(judge_config, 'top_p', None),
+            top_p=judge_config.top_p,
         )
         
         result = provider.generate(

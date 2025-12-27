@@ -44,6 +44,7 @@ class ProviderConfig:
     seed: int | None = None
     top_p: float | None = None
     additional_params: dict[str, Any] | None = None
+    json_schema: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
@@ -238,8 +239,32 @@ class OpenAIProvider(BaseProvider, LLMProvider):
             }
 
             # Add instructions (system prompt) if provided
-            if system_prompt:
+            # If JSON schema is specified, add JSON formatting instructions
+            if system_prompt and config.json_schema:
+                enhanced_system_prompt = (
+                    f"{system_prompt}\n\n"
+                    "IMPORTANT: You must respond with valid JSON that conforms to the provided schema. "
+                    "Do not include any text before or after the JSON object."
+                )
+                params["instructions"] = enhanced_system_prompt
+            elif system_prompt:
                 params["instructions"] = system_prompt
+            elif config.json_schema:
+                params["instructions"] = (
+                    "You must respond with valid JSON that conforms to the provided schema. "
+                    "Do not include any text before or after the JSON object."
+                )
+
+            # Add response format for JSON schema if provided
+            if config.json_schema:
+                params["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "response_schema",
+                        "schema": config.json_schema,
+                        "strict": True,
+                    }
+                }
 
             # Note: top_p is not supported by the OpenAI Responses API
             # If needed, use the Chat Completions API instead
@@ -389,6 +414,9 @@ class OpenAIProvider(BaseProvider, LLMProvider):
 class ClaudeProvider(BaseProvider, LLMProvider):
     """Provider implementation for Anthropic Claude models using Messages API."""
 
+    # Maximum schema length to prevent prompt injection risks
+    MAX_SCHEMA_LENGTH = 10000
+
     def __init__(self, api_key: str | None = None, base_url: str | None = None):
         """
         Initialize Claude provider.
@@ -408,6 +436,25 @@ class ClaudeProvider(BaseProvider, LLMProvider):
         self.client = Anthropic(**client_kwargs)
         # Initialize parent with the actual API key used by the client
         super().__init__(self.client.api_key)
+
+    def _sanitize_schema_for_prompt(self, schema: dict[str, Any]) -> str:
+        """
+        Sanitize JSON schema for safe embedding in system prompts.
+        
+        Args:
+            schema: JSON schema dictionary
+            
+        Returns:
+            Sanitized schema string (compact JSON, truncated if needed)
+        """
+        # Use compact JSON serialization to minimize size
+        schema_str = json.dumps(schema, separators=(',', ':'))
+        
+        # Truncate very large schemas to prevent prompt injection
+        if len(schema_str) > self.MAX_SCHEMA_LENGTH:
+            schema_str = schema_str[:self.MAX_SCHEMA_LENGTH] + "...[truncated]"
+        
+        return schema_str
 
     def validate_config(self) -> None:
         """
@@ -489,8 +536,25 @@ class ClaudeProvider(BaseProvider, LLMProvider):
             }
 
             # Add system prompt if provided
-            if system_prompt:
+            # If JSON schema is specified, add JSON formatting instructions
+            if system_prompt and config.json_schema:
+                schema_str = self._sanitize_schema_for_prompt(config.json_schema)
+                enhanced_system_prompt = (
+                    f"{system_prompt}\n\n"
+                    "IMPORTANT: You must respond with valid JSON that conforms to the provided schema. "
+                    "Do not include any text before or after the JSON object.\n"
+                    f"Schema: {schema_str}"
+                )
+                params["system"] = enhanced_system_prompt
+            elif system_prompt:
                 params["system"] = system_prompt
+            elif config.json_schema:
+                schema_str = self._sanitize_schema_for_prompt(config.json_schema)
+                params["system"] = (
+                    "You must respond with valid JSON that conforms to the provided schema. "
+                    "Do not include any text before or after the JSON object.\n"
+                    f"Schema: {schema_str}"
+                )
 
             # Add top_p if provided
             if config.top_p is not None:
@@ -680,12 +744,49 @@ class LocalMockProvider(LLMProvider):
         else:
             prompt_text = " | ".join(user_prompt)
 
-        # Generate deterministic mock response
-        response_text = self.response_template.format(prompt=prompt_text[:100])
+        # If JSON schema is provided, generate mock JSON output
+        if config.json_schema:
+            # Generate a mock JSON that attempts to conform to the schema structure
+            mock_json = {}
+            properties = config.json_schema.get("properties", {})
+            required = config.json_schema.get("required", [])
 
-        # Add system prompt context if provided
-        if system_prompt:
-            response_text = f"[System: {system_prompt[:50]}...] {response_text}"
+            # Ensure all required properties are present
+            for prop_name in required:
+                if prop_name in properties:
+                    prop_spec = properties[prop_name]
+                    prop_type = prop_spec.get("type", "string")
+                    
+                    if prop_type == "string":
+                        mock_json[prop_name] = f"Mock {prop_name}: {prompt_text[:30]}"
+                    elif prop_type == "number" or prop_type == "integer":
+                        minimum = prop_spec.get("minimum", 0)
+                        maximum = prop_spec.get("maximum", 100)
+                        mock_json[prop_name] = (minimum + maximum) / 2
+                    elif prop_type == "boolean":
+                        mock_json[prop_name] = True
+                    elif prop_type == "array":
+                        mock_json[prop_name] = ["mock_item_1", "mock_item_2"]
+                    elif prop_type == "object":
+                        mock_json[prop_name] = {"mock_key": "mock_value"}
+                    else:
+                        mock_json[prop_name] = f"mock_{prop_name}"
+            
+            if not mock_json:
+                # Fallback if no required properties with specs
+                mock_json = {
+                    "mock_response": f"Mock JSON response to: {prompt_text[:50]}",
+                    "prompt_length": len(prompt_text),
+                }
+            
+            response_text = json.dumps(mock_json, indent=2)
+        else:
+            # Generate deterministic mock response
+            response_text = self.response_template.format(prompt=prompt_text[:100])
+
+            # Add system prompt context if provided
+            if system_prompt:
+                response_text = f"[System: {system_prompt[:50]}...] {response_text}"
 
         # Compute deterministic mock token counts based on text length
         mock_prompt_tokens = len(prompt_text.split()) + (
@@ -769,6 +870,7 @@ def generate_completion(
     temperature: float,
     max_completion_tokens: int,
     seed: int | None = None,
+    json_schema: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, float | int | None]]:
     """
     Generate a completion using an LLM provider with system and user prompts.
@@ -784,6 +886,7 @@ def generate_completion(
         temperature: Sampling temperature (0.0-2.0)
         max_completion_tokens: Maximum tokens to generate
         seed: Optional seed for reproducibility
+        json_schema: Optional JSON schema for validating outputs
 
     Returns:
         Tuple of (response_text, metadata) where metadata contains tokens_used and latency_ms
@@ -797,6 +900,7 @@ def generate_completion(
         temperature=temperature,
         max_completion_tokens=max_completion_tokens,
         seed=seed,
+        json_schema=json_schema,
     )
 
     # Generate using the provider

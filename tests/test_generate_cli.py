@@ -779,3 +779,131 @@ class TestABTestingGenerate:
         metadata = json.loads(metadata_no_prompt.read_text())
         assert metadata["status"] == "generation_error"
         assert "error" in metadata
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_with_json_schema(self, mock_generate, cli_runner, temp_prompts, tmp_path, monkeypatch):
+        """Test generate command with JSON schema validation."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create a simple schema
+        schema_file = tmp_path / "schema.json"
+        schema_file.write_text(json.dumps({
+            "type": "object",
+            "properties": {
+                "answer": {"type": "string"},
+                "confidence": {"type": "number"}
+            },
+            "required": ["answer"]
+        }))
+
+        # Mock successful generation with valid JSON
+        valid_json = json.dumps({"answer": "Test answer", "confidence": 0.95})
+        mock_generate.return_value = (valid_json, {"tokens_used": 10, "latency_ms": 100.0})
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--json-schema",
+                str(schema_file),
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "✓ Loaded JSON schema" in result.stdout
+        assert "✓ Output validated against JSON schema" in result.stdout
+
+        # Check metadata contains schema validation info
+        run_dirs = list(temp_prompts["output_dir"].iterdir())
+        assert len(run_dirs) == 1
+        run_dir = run_dirs[0]
+
+        metadata_file = run_dir / "metadata.json"
+        assert metadata_file.exists()
+        metadata = json.loads(metadata_file.read_text())
+        assert metadata["schema_validation_status"] == "valid"
+        assert "json_schema_path" in metadata
+
+    @patch("prompt_evaluator.cli.generate_completion")
+    def test_generate_with_invalid_json_schema_output(
+        self, mock_generate, cli_runner, temp_prompts, tmp_path, monkeypatch
+    ):
+        """Test generate command with JSON schema validation failure."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Create a simple schema
+        schema_file = tmp_path / "schema.json"
+        schema_file.write_text(json.dumps({
+            "type": "object",
+            "properties": {
+                "answer": {"type": "string"}
+            },
+            "required": ["answer"]
+        }))
+
+        # Mock generation that returns invalid JSON (missing required field)
+        invalid_json = json.dumps({"confidence": 0.95})  # Missing "answer" field
+        mock_generate.return_value = (invalid_json, {"tokens_used": 10, "latency_ms": 100.0})
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--json-schema",
+                str(schema_file),
+            ],
+        )
+
+        # Should still succeed but show validation failure
+        assert result.exit_code == 0
+        assert "✓ Loaded JSON schema" in result.stdout
+        assert "✗ Schema validation failed" in result.stdout
+        assert "'answer' is a required property" in result.stdout
+
+        # Check metadata contains schema validation error
+        run_dirs = list(temp_prompts["output_dir"].iterdir())
+        assert len(run_dirs) == 1
+        run_dir = run_dirs[0]
+
+        metadata_file = run_dir / "metadata.json"
+        assert metadata_file.exists()
+        metadata = json.loads(metadata_file.read_text())
+        assert metadata["schema_validation_status"] == "schema_mismatch"
+        assert "schema_validation_error" in metadata
+
+    def test_generate_with_missing_json_schema_file(
+        self, cli_runner, temp_prompts, monkeypatch
+    ):
+        """Test generate command with missing JSON schema file."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "generate",
+                "--system-prompt",
+                str(temp_prompts["system"]),
+                "--input",
+                str(temp_prompts["input"]),
+                "--output-dir",
+                str(temp_prompts["output_dir"]),
+                "--json-schema",
+                "/nonexistent/schema.json",
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "Error loading JSON schema" in result.stdout
+        assert "not found" in result.stdout

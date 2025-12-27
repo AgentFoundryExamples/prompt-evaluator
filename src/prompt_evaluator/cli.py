@@ -394,6 +394,11 @@ def generate(
         "--ab-test-system-prompt",
         help="Run A/B test: generate with and without system prompt. Doubles API calls.",
     ),
+    json_schema: str | None = typer.Option(
+        None,
+        "--json-schema",
+        help="Path to JSON schema file for validating generator outputs. Uses config default if not provided.",
+    ),
 ) -> None:
     """
     Generate a completion from an LLM using system and user prompts.
@@ -450,6 +455,31 @@ def generate(
             typer.echo(f"Using output directory from config: {output_dir}", err=True)
         elif output_dir is None:
             output_dir = "runs"
+
+        # Load JSON schema if provided (CLI flag > config default)
+        schema_dict: dict[str, Any] | None = None
+        schema_path: Path | None = None
+        schema_path_str = json_schema
+        if schema_path_str is None and app_config is not None:
+            schema_path_str = app_config.defaults.json_schema
+            if schema_path_str:
+                typer.echo(f"Using JSON schema from config: {schema_path_str}", err=True)
+        
+        if schema_path_str:
+            from prompt_evaluator.schema_validation import load_json_schema
+            
+            try:
+                # Resolve schema path (may be relative to config)
+                if app_config and not Path(schema_path_str).is_absolute():
+                    schema_path = app_config.resolve_path(schema_path_str)
+                else:
+                    schema_path = Path(schema_path_str)
+                
+                schema_dict = load_json_schema(schema_path)
+                typer.echo(f"✓ Loaded JSON schema from: {schema_path}", err=True)
+            except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+                typer.echo(f"Error loading JSON schema: {e}", err=True)
+                raise typer.Exit(1)
 
         # Build GeneratorConfig with proper precedence
         # Precedence: CLI flags > API config (env vars) > app config > hardcoded defaults
@@ -548,13 +578,42 @@ def generate(
                     temperature=generator_config.temperature,
                     max_completion_tokens=generator_config.max_completion_tokens,
                     seed=generator_config.seed,
+                    json_schema=schema_dict,
                 )
+
+                # Validate against JSON schema if provided
+                schema_validation_status = "not_validated"
+                schema_validation_error = None
+                if schema_dict:
+                    from prompt_evaluator.schema_validation import validate_json_output
+                    
+                    is_valid, error_msg, parsed_json = validate_json_output(
+                        response_text,
+                        schema_dict,
+                        schema_path if schema_path_str else None,
+                    )
+                    
+                    if is_valid:
+                        schema_validation_status = "valid"
+                        typer.echo(f"  ✓ Output validated against JSON schema{variant_label}", err=True)
+                    else:
+                        if parsed_json is None:
+                            schema_validation_status = "invalid_json"
+                        else:
+                            schema_validation_status = "schema_mismatch"
+                        schema_validation_error = error_msg
+                        typer.echo(
+                            f"  ✗ Schema validation failed{variant_label}: {error_msg}",
+                            err=True,
+                        )
 
                 results.append({
                     "variant": variant_name,
                     "response_text": response_text,
                     "metadata": metadata,
                     "status": "completed",
+                    "schema_validation_status": schema_validation_status,
+                    "schema_validation_error": schema_validation_error,
                 })
 
             except Exception as e:
@@ -612,6 +671,13 @@ def generate(
                 metadata_dict["status"] = result["status"]
                 if "error" in result:
                     metadata_dict["error"] = result["error"]
+            # Add schema validation results if present
+            if "schema_validation_status" in result:
+                metadata_dict["schema_validation_status"] = result["schema_validation_status"]
+            if "schema_validation_error" in result and result["schema_validation_error"]:
+                metadata_dict["schema_validation_error"] = result["schema_validation_error"]
+            if schema_path:
+                metadata_dict["json_schema_path"] = str(schema_path)
             metadata_file.write_text(json.dumps(metadata_dict, indent=2), encoding="utf-8")
 
         # Print outputs to stdout (all variants)

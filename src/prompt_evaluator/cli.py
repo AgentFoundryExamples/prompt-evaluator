@@ -2232,6 +2232,555 @@ def render_report(
         raise typer.Exit(1)
 
 
+@app.command()
+def compare_prompts(
+    dataset: str = typer.Option(
+        ..., "--dataset", "-d", help="Path to dataset file (.yaml/.yml or .jsonl) or dataset key"
+    ),
+    prompt_a: str = typer.Option(
+        ..., "--prompt-a", help="Path to first prompt (Prompt A) file or template key"
+    ),
+    prompt_b: str = typer.Option(
+        ..., "--prompt-b", help="Path to second prompt (Prompt B) file or template key"
+    ),
+    num_samples: int | None = typer.Option(
+        None,
+        "--num-samples",
+        "-n",
+        help="Number of samples to generate per test case (default: 5)",
+    ),
+    provider: str | None = typer.Option(
+        None,
+        "--provider",
+        "-p",
+        help="Provider for both generator and judge (deprecated, use --generator-provider and --judge-provider). Uses config default.",
+    ),
+    generator_provider: str | None = typer.Option(
+        None,
+        "--generator-provider",
+        help="Provider for generator (openai, claude, anthropic, mock). Overrides --provider. Uses config default.",
+    ),
+    judge_provider: str | None = typer.Option(
+        None,
+        "--judge-provider",
+        help="Provider for judge (openai, claude, anthropic, mock). Overrides --provider. Uses config default.",
+    ),
+    generator_model: str | None = typer.Option(
+        None, "--generator-model", help="Generator model name override"
+    ),
+    judge_model: str | None = typer.Option(None, "--judge-model", help="Judge model name override"),
+    judge_max_tokens: int | None = typer.Option(
+        None,
+        "--judge-max-tokens",
+        help="Maximum tokens for judge responses (default: 1024).",
+        min=1,
+        max=32000,
+    ),
+    judge_temperature: float | None = typer.Option(
+        None,
+        "--judge-temperature",
+        help="Judge temperature (0.0-2.0). Default: 0.0 for deterministic judging.",
+        min=0.0,
+        max=2.0,
+    ),
+    judge_top_p: float | None = typer.Option(
+        None,
+        "--judge-top-p",
+        help="Judge nucleus sampling parameter (0.0-1.0).",
+        min=0.0,
+        max=1.0,
+    ),
+    judge_system_prompt: str | None = typer.Option(
+        None,
+        "--judge-system-prompt",
+        help="Path to custom judge system prompt file or template key",
+    ),
+    rubric: str | None = typer.Option(
+        None,
+        "--rubric",
+        help="Rubric to use for evaluation. Uses config default if not specified.",
+    ),
+    seed: int | None = typer.Option(
+        None, "--seed", help="Random seed for generator reproducibility"
+    ),
+    temperature: float | None = typer.Option(
+        None, "--temperature", "-t", help="Generator temperature (0.0-2.0)"
+    ),
+    max_completion_tokens: int | None = typer.Option(
+        None, "--max-tokens", help="Maximum tokens for generator"
+    ),
+    case_ids: str | None = typer.Option(
+        None, "--case-ids", help="Comma-separated list of test case IDs to evaluate"
+    ),
+    max_cases: int | None = typer.Option(
+        None, "--max-cases", help="Maximum number of test cases to evaluate"
+    ),
+    quick: bool = typer.Option(
+        False, "--quick", help="Quick mode: sets --num-samples=2 unless explicitly overridden"
+    ),
+    output_dir: str | None = typer.Option(
+        None, "--output-dir", "-o", help="Output directory for runs. Uses config default."
+    ),
+    config_file: str | None = typer.Option(
+        None, "--config", "-c", help="Path to config file (YAML/TOML)"
+    ),
+    prompt_a_version: str | None = typer.Option(
+        None,
+        "--prompt-a-version",
+        help="Version identifier for prompt A",
+    ),
+    prompt_b_version: str | None = typer.Option(
+        None,
+        "--prompt-b-version",
+        help="Version identifier for prompt B",
+    ),
+    run_note: str | None = typer.Option(
+        None, "--run-note", help="Optional note about this comparison run"
+    ),
+    metric_threshold: float = typer.Option(
+        0.1,
+        "--metric-threshold",
+        help="Absolute threshold for metric regression detection (default: 0.1)",
+    ),
+    flag_threshold: float = typer.Option(
+        0.05,
+        "--flag-threshold",
+        help="Absolute threshold for flag regression detection (default: 0.05)",
+    ),
+) -> None:
+    """
+    Compare two prompts against the same dataset in a single evaluation.
+
+    This command evaluates both Prompt A and Prompt B against the same dataset,
+    generating samples for each prompt with identical inputs, then automatically
+    compares the results to detect performance differences.
+
+    The comparison includes:
+    - Side-by-side metric comparisons
+    - Win/loss/tie statistics per test case
+    - Aggregate performance analysis
+    - Regression detection
+
+    Results are saved to separate directories for each prompt plus a comparison
+    artifact and report.
+    """
+    try:
+        # Load configurations
+        app_config = _config_manager.get_app_config(
+            config_path=Path(config_file) if config_file else None,
+            warn_if_missing=False
+        )
+        config_path = Path(config_file) if config_file else None
+        api_config = _config_manager.get_api_config(config_file_path=config_path)
+
+        # Handle --quick flag and num_samples interaction
+        if quick and num_samples is not None:
+            typer.echo(
+                "Warning: Both --quick and --num-samples provided. "
+                f"Using explicit --num-samples={num_samples}",
+                err=True,
+            )
+        elif quick:
+            num_samples = QUICK_MODE_NUM_SAMPLES
+            typer.echo(f"Quick mode: Using --num-samples={num_samples}", err=True)
+        elif num_samples is None:
+            num_samples = DEFAULT_NUM_SAMPLES
+            typer.echo(f"Using default --num-samples={num_samples}", err=True)
+
+        # Validate num_samples
+        if num_samples <= 0:
+            typer.echo("Error: --num-samples must be positive", err=True)
+            raise typer.Exit(1)
+
+        # Validate thresholds
+        if metric_threshold < 0:
+            typer.echo("Error: --metric-threshold must be non-negative", err=True)
+            raise typer.Exit(1)
+        if flag_threshold < 0:
+            typer.echo("Error: --flag-threshold must be non-negative", err=True)
+            raise typer.Exit(1)
+
+        # Load dataset
+        from prompt_evaluator.config import load_dataset
+
+        try:
+            dataset_path = resolve_dataset_path(dataset, app_config)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
+
+        typer.echo(f"Loading dataset from {dataset_path}...", err=True)
+        test_cases, dataset_metadata = load_dataset(dataset_path)
+        typer.echo(f"Loaded {len(test_cases)} test cases", err=True)
+
+        # Apply case-ids filter if provided
+        if case_ids:
+            requested_ids = [cid.strip() for cid in case_ids.split(",")]
+            test_case_map = {tc.id: tc for tc in test_cases}
+            available_ids = set(test_case_map.keys())
+
+            unknown_ids = [cid for cid in requested_ids if cid not in available_ids]
+            if unknown_ids:
+                typer.echo(f"Error: Unknown test case IDs: {', '.join(unknown_ids)}", err=True)
+                typer.echo(f"Available IDs: {', '.join(sorted(available_ids))}", err=True)
+                raise typer.Exit(1)
+
+            test_cases = [test_case_map[cid] for cid in requested_ids]
+            typer.echo(f"Filtered to {len(test_cases)} test cases by --case-ids", err=True)
+
+        # Apply max-cases filter if provided
+        if max_cases is not None:
+            if max_cases <= 0:
+                typer.echo("Error: --max-cases must be positive", err=True)
+                raise typer.Exit(1)
+
+            if len(test_cases) > max_cases:
+                test_cases = test_cases[:max_cases]
+                typer.echo(f"Limited to first {max_cases} test cases by --max-cases", err=True)
+
+        # Resolve prompt paths
+        try:
+            prompt_a_path = resolve_prompt_path(prompt_a, app_config)
+            prompt_b_path = resolve_prompt_path(prompt_b, app_config)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
+
+        prompt_a_content = prompt_a_path.read_text(encoding="utf-8")
+        prompt_b_content = prompt_b_path.read_text(encoding="utf-8")
+
+        # Warn if prompts are identical
+        if prompt_a_content == prompt_b_content:
+            typer.echo(
+                "⚠️  WARNING: Prompt A and Prompt B have identical content.",
+                err=True,
+            )
+            typer.echo(
+                "    This comparison will show no differences (useful for sanity checks).",
+                err=True,
+            )
+            typer.echo("", err=True)
+
+        # Determine providers
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
+            if app_config is not None and app_config.defaults.generator.provider:
+                final_generator_provider = app_config.defaults.generator.provider
+                typer.echo(f"Using generator provider from config: {final_generator_provider}", err=True)
+            else:
+                final_generator_provider = "openai"
+                typer.echo(f"Using default generator provider: {final_generator_provider}", err=True)
+        
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            if app_config is not None and app_config.defaults.judge.provider:
+                final_judge_provider = app_config.defaults.judge.provider
+                typer.echo(f"Using judge provider from config: {final_judge_provider}", err=True)
+            else:
+                final_judge_provider = "openai"
+                typer.echo(f"Using default judge provider: {final_judge_provider}", err=True)
+
+        # Determine output directory
+        if output_dir is None and app_config is not None:
+            output_dir = app_config.defaults.run_directory
+            typer.echo(f"Using output directory from config: {output_dir}", err=True)
+        elif output_dir is None:
+            output_dir = "runs"
+
+        # Load rubric
+        if rubric is None and app_config is not None and app_config.defaults.rubric is not None:
+            rubric = app_config.defaults.rubric
+            typer.echo(f"Using default rubric from config: {rubric}", err=True)
+
+        try:
+            from prompt_evaluator.config import load_rubric, resolve_rubric_path
+
+            rubric_path = resolve_rubric_path(rubric)
+            loaded_rubric = load_rubric(rubric_path)
+            typer.echo(f"Using rubric: {rubric_path}", err=True)
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error loading rubric: {e}", err=True)
+            raise typer.Exit(1)
+
+        # Load judge prompt
+        try:
+            if judge_system_prompt:
+                judge_prompt_path = resolve_prompt_path(judge_system_prompt, app_config)
+                judge_prompt_content = load_judge_prompt(judge_prompt_path)
+            else:
+                judge_prompt_content = load_judge_prompt()
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error loading judge prompt: {e}", err=True)
+            raise typer.Exit(1)
+
+        # Build GeneratorConfig
+        app_gen_config = app_config.defaults.generator if app_config else None
+
+        final_model_name = (
+            generator_model
+            or api_config.model_name
+            or (app_gen_config.model if app_gen_config else None)
+            or "gpt-5.1"
+        )
+        final_temperature = (
+            temperature
+            if temperature is not None
+            else (app_gen_config.temperature if app_gen_config else None)
+            if (app_gen_config.temperature if app_gen_config else None) is not None
+            else 0.7
+        )
+        final_max_tokens = (
+            max_completion_tokens
+            or (app_gen_config.max_completion_tokens if app_gen_config else None)
+            or 1024
+        )
+
+        generator_config = GeneratorConfig(
+            model_name=final_model_name,
+            temperature=final_temperature,
+            max_completion_tokens=final_max_tokens,
+            seed=seed,
+        )
+
+        # Build JudgeConfig
+        app_judge_config = app_config.defaults.judge if app_config else None
+
+        final_judge_model = (
+            judge_model
+            or (app_judge_config.model if app_judge_config else None)
+            or "gpt-5.1"
+        )
+        
+        final_judge_max_tokens = (
+            judge_max_tokens
+            or (app_judge_config.max_completion_tokens if app_judge_config else None)
+            or 1024
+        )
+        
+        final_judge_temperature = (
+            judge_temperature
+            if judge_temperature is not None
+            else (app_judge_config.temperature if app_judge_config else 0.0)
+        )
+        
+        final_judge_top_p = (
+            judge_top_p
+            if judge_top_p is not None
+            else (app_judge_config.top_p if app_judge_config else None)
+        )
+
+        judge_config = JudgeConfig(
+            model_name=final_judge_model,
+            temperature=final_judge_temperature,
+            max_completion_tokens=final_judge_max_tokens,
+            top_p=final_judge_top_p,
+        )
+
+        # Create provider instances
+        generator_api_key = api_config.api_key if final_generator_provider.lower() == "openai" else None
+        judge_api_key = api_config.api_key if final_judge_provider.lower() == "openai" else None
+
+        try:
+            generator_provider_instance = get_provider(
+                final_generator_provider,
+                api_key=generator_api_key,
+                base_url=api_config.base_url if final_generator_provider.lower() == "openai" else None
+            )
+            judge_provider_instance = get_provider(
+                final_judge_provider,
+                api_key=judge_api_key,
+                base_url=api_config.base_url if final_judge_provider.lower() == "openai" else None
+            )
+        except ValueError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
+
+        # Prepare output directory
+        output_dir_path = Path(output_dir)
+        if output_dir_path.exists() and not output_dir_path.is_dir():
+            typer.echo(
+                f"Error: Output path '{output_dir}' exists and is not a directory.", err=True
+            )
+            raise typer.Exit(1)
+
+        # Compute rubric metadata
+        rubric_metadata = compute_rubric_metadata(loaded_rubric, rubric_path)
+
+        # Compute prompt metadata for both prompts
+        try:
+            prompt_a_version_id, prompt_a_hash = compute_prompt_metadata(
+                prompt_a_path, prompt_a_version
+            )
+            prompt_b_version_id, prompt_b_hash = compute_prompt_metadata(
+                prompt_b_path, prompt_b_version
+            )
+        except (FileNotFoundError, ValueError) as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
+
+        # Print comparison start banner
+        typer.echo("\n" + "=" * 60, err=True)
+        typer.echo("Starting Dual-Prompt Comparison", err=True)
+        typer.echo("=" * 60, err=True)
+        typer.echo(f"Dataset: {dataset_path}", err=True)
+        typer.echo(f"Test Cases: {len(test_cases)}", err=True)
+        typer.echo(f"Samples per Case: {num_samples}", err=True)
+        typer.echo(f"", err=True)
+        typer.echo(f"Prompt A: {prompt_a_path}", err=True)
+        typer.echo(f"  Version: {prompt_a_version_id}", err=True)
+        typer.echo(f"", err=True)
+        typer.echo(f"Prompt B: {prompt_b_path}", err=True)
+        typer.echo(f"  Version: {prompt_b_version_id}", err=True)
+        typer.echo(f"", err=True)
+        typer.echo(f"Generator Model: {generator_config.model_name}", err=True)
+        typer.echo(f"Judge Model: {judge_config.model_name}", err=True)
+        typer.echo("=" * 60 + "\n", err=True)
+
+        from prompt_evaluator.dataset_evaluation import evaluate_dataset as run_dataset_evaluation
+
+        # Evaluate Prompt A
+        typer.echo("Phase 1/3: Evaluating Prompt A...\n", err=True)
+        prompt_a_note = f"Prompt A evaluation: {run_note}" if run_note else "Prompt A evaluation"
+        
+        evaluation_run_a = run_dataset_evaluation(
+            generator_provider=generator_provider_instance,
+            judge_provider=judge_provider_instance,
+            test_cases=test_cases,
+            dataset_metadata=dataset_metadata,
+            system_prompt=prompt_a_content,
+            system_prompt_path=prompt_a_path,
+            num_samples_per_case=num_samples,
+            generator_config=generator_config,
+            judge_config=judge_config,
+            judge_system_prompt=judge_prompt_content,
+            rubric=loaded_rubric,
+            rubric_metadata=rubric_metadata,
+            output_dir=output_dir_path,
+            progress_callback=typer.echo,
+            prompt_version_id=prompt_a_version_id,
+            prompt_hash=prompt_a_hash,
+            run_notes=prompt_a_note,
+            ab_test_system_prompt=False,
+        )
+
+        typer.echo(f"\n✓ Prompt A evaluation complete (Run ID: {evaluation_run_a.run_id})\n", err=True)
+
+        # Evaluate Prompt B
+        typer.echo("Phase 2/3: Evaluating Prompt B...\n", err=True)
+        prompt_b_note = f"Prompt B evaluation: {run_note}" if run_note else "Prompt B evaluation"
+        
+        evaluation_run_b = run_dataset_evaluation(
+            generator_provider=generator_provider_instance,
+            judge_provider=judge_provider_instance,
+            test_cases=test_cases,
+            dataset_metadata=dataset_metadata,
+            system_prompt=prompt_b_content,
+            system_prompt_path=prompt_b_path,
+            num_samples_per_case=num_samples,
+            generator_config=generator_config,
+            judge_config=judge_config,
+            judge_system_prompt=judge_prompt_content,
+            rubric=loaded_rubric,
+            rubric_metadata=rubric_metadata,
+            output_dir=output_dir_path,
+            progress_callback=typer.echo,
+            prompt_version_id=prompt_b_version_id,
+            prompt_hash=prompt_b_hash,
+            run_notes=prompt_b_note,
+            ab_test_system_prompt=False,
+        )
+
+        typer.echo(f"\n✓ Prompt B evaluation complete (Run ID: {evaluation_run_b.run_id})\n", err=True)
+
+        # Compare the two runs
+        typer.echo("Phase 3/3: Comparing results...\n", err=True)
+
+        from prompt_evaluator.comparison import compare_runs as run_comparison
+
+        prompt_a_artifact = output_dir_path / evaluation_run_a.run_id / "dataset_evaluation.json"
+        prompt_b_artifact = output_dir_path / evaluation_run_b.run_id / "dataset_evaluation.json"
+
+        comparison_result = run_comparison(
+            baseline_artifact=prompt_a_artifact,
+            candidate_artifact=prompt_b_artifact,
+            metric_threshold=metric_threshold,
+            flag_threshold=flag_threshold,
+        )
+
+        # Save comparison result
+        comparison_dir = output_dir_path / f"comparison_{evaluation_run_a.run_id}_vs_{evaluation_run_b.run_id}"
+        comparison_dir.mkdir(parents=True, exist_ok=True)
+        
+        comparison_file = comparison_dir / "comparison.json"
+        comparison_file.write_text(json.dumps(comparison_result.to_dict(), indent=2), encoding="utf-8")
+
+        # Generate comparison report
+        from prompt_evaluator.reporting import render_comparison_report
+
+        try:
+            report_path = render_comparison_report(
+                comparison_artifact_path=comparison_file,
+                top_cases_per_metric=5,
+                generate_html=False,
+                output_name="comparison_report.md",
+            )
+            typer.echo(f"✓ Comparison report generated: {report_path}\n", err=True)
+        except Exception as e:
+            typer.echo(f"⚠ Failed to generate comparison report: {e}\n", err=True)
+
+        # Print summary
+        typer.echo("=" * 60, err=True)
+        typer.echo("Dual-Prompt Comparison Complete!", err=True)
+        typer.echo("=" * 60, err=True)
+        typer.echo(f"Prompt A Run ID: {evaluation_run_a.run_id}", err=True)
+        typer.echo(f"Prompt B Run ID: {evaluation_run_b.run_id}", err=True)
+        typer.echo(f"", err=True)
+        typer.echo(f"Prompt A Status: {evaluation_run_a.status}", err=True)
+        typer.echo(f"Prompt B Status: {evaluation_run_b.status}", err=True)
+        typer.echo(f"", err=True)
+        
+        if comparison_result.has_regressions:
+            typer.echo(f"🔴 {comparison_result.regression_count} regression(s) detected (Prompt B vs Prompt A)", err=True)
+        else:
+            typer.echo("✓ No regressions detected", err=True)
+        
+        typer.echo(f"", err=True)
+        typer.echo(f"Results saved to:", err=True)
+        typer.echo(f"  Prompt A: {output_dir_path / evaluation_run_a.run_id}", err=True)
+        typer.echo(f"  Prompt B: {output_dir_path / evaluation_run_b.run_id}", err=True)
+        typer.echo(f"  Comparison: {comparison_dir}", err=True)
+        typer.echo("=" * 60, err=True)
+
+        # Print JSON output to stdout for programmatic use
+        output_data = {
+            "prompt_a_run_id": evaluation_run_a.run_id,
+            "prompt_b_run_id": evaluation_run_b.run_id,
+            "prompt_a_status": evaluation_run_a.status,
+            "prompt_b_status": evaluation_run_b.status,
+            "comparison": comparison_result.to_dict(),
+            "prompt_a_artifact_path": str(prompt_a_artifact),
+            "prompt_b_artifact_path": str(prompt_b_artifact),
+            "comparison_artifact_path": str(comparison_file),
+        }
+        typer.echo(json.dumps(output_data, indent=2))
+
+        # Exit with error if regressions detected
+        if comparison_result.has_regressions:
+            raise typer.Exit(1)
+
+    except ValueError as e:
+        typer.echo(f"Configuration error: {e}", err=True)
+        raise typer.Exit(1)
+    except FileNotFoundError as e:
+        typer.echo(f"File error: {e}", err=True)
+        raise typer.Exit(1)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
 @app.callback(invoke_without_command=True)
 def main_callback(
     ctx: typer.Context,

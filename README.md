@@ -333,6 +333,143 @@ rubric_paths:
 4. **Organize prompts by version**: Use descriptive keys like `v1.0-baseline`, `v2.0-candidate`
 5. **Reference .env.example**: Never commit API keys to config files
 
+#### Independent Generator and Judge Configuration
+
+The prompt evaluator uses separate configuration blocks for generator and judge models, allowing complete independence in model selection, provider choice, and parameters.
+
+**Why Separate Configurations?**
+
+1. **Provider Flexibility**: Use different providers for generation vs evaluation
+   - Example: Generate with Claude, evaluate with GPT-4
+   - Useful when one provider excels at generation, another at evaluation
+
+2. **Model Optimization**: Choose different models based on task requirements
+   - Generator: May need more creative, higher-temperature responses
+   - Judge: Needs consistent, deterministic evaluation (temperature=0.0)
+
+3. **Cost Optimization**: Use cheaper models where appropriate
+   - Generator: Can use newer/faster models for generation
+   - Judge: Can use same model for consistent comparison or more capable model for better evaluation
+
+4. **Token Allocation**: Different max_completion_tokens for each role
+   - Generator: Typically needs more tokens (1024+) for complete responses
+   - Judge: Usually needs fewer tokens (512) for evaluation feedback
+
+**Configuration Example - Mixed Providers**:
+
+```yaml
+defaults:
+  # Use Claude for generation (creative outputs)
+  generator:
+    provider: anthropic
+    model: claude-3-opus-20240229
+    temperature: 0.7
+    max_completion_tokens: 2048
+    
+  # Use OpenAI for judging (consistent evaluation)
+  judge:
+    provider: openai
+    model: gpt-4
+    temperature: 0.0
+    max_completion_tokens: 512
+```
+
+**Configuration Example - Same Provider, Different Models**:
+
+```yaml
+defaults:
+  # Use GPT-4 Turbo for faster generation
+  generator:
+    provider: openai
+    model: gpt-4-turbo
+    temperature: 0.7
+    max_completion_tokens: 1024
+    
+  # Use GPT-4 for more thorough evaluation
+  judge:
+    provider: openai
+    model: gpt-4
+    temperature: 0.0
+    max_completion_tokens: 512
+```
+
+**CLI Override Examples**:
+
+Override generator settings only:
+```bash
+prompt-evaluator evaluate-dataset \
+  --dataset sample \
+  --system-prompt default_system \
+  --generator-model gpt-4-turbo \
+  --temperature 0.5 \
+  --num-samples 5
+```
+
+Override judge settings only:
+```bash
+prompt-evaluator evaluate-dataset \
+  --dataset sample \
+  --system-prompt default_system \
+  --judge-model gpt-4 \
+  --num-samples 5
+```
+
+Override both generator and judge:
+```bash
+prompt-evaluator evaluate-dataset \
+  --dataset sample \
+  --system-prompt default_system \
+  --generator-model claude-3-opus-20240229 \
+  --generator-provider anthropic \
+  --judge-model gpt-4 \
+  --judge-provider openai \
+  --temperature 0.7 \
+  --num-samples 5
+```
+
+**Environment Variable Support**:
+
+You can also override settings via environment variables:
+
+```bash
+# Generator overrides
+export OPENAI_MODEL="gpt-4"
+export TEMPERATURE="0.7"
+
+# Provider selection (when not specified in config or CLI)
+export OPENAI_API_KEY="sk-..."      # Implies openai provider
+export ANTHROPIC_API_KEY="sk-ant-..." # Implies anthropic provider
+
+prompt-evaluator evaluate-dataset \
+  --dataset sample \
+  --system-prompt default_system \
+  --num-samples 5
+```
+
+**Important Notes:**
+
+1. **API Keys Required**: You must have valid API keys for each provider you use
+   - Generator uses `OPENAI_API_KEY` if provider is `openai`
+   - Judge uses `ANTHROPIC_API_KEY` if provider is `anthropic`
+   - See `.env.example` for all supported environment variables
+
+2. **Model Compatibility**: Ensure chosen models support required features
+   - JSON Schema validation requires OpenAI's response_format (GPT-4+)
+   - Some older models may not support all parameters (seed, max_completion_tokens)
+
+3. **Evaluation Validity**: For meaningful prompt comparisons:
+   - Keep judge model constant across runs
+   - Keep generator model constant to isolate prompt effects
+   - Only change what you're testing (prompt, not models)
+
+4. **Max Tokens Configuration**:
+   - `max_completion_tokens` is independent for generator and judge
+   - Generator default: 1024 tokens
+   - Judge default: 512 tokens (sufficient for most rubric evaluations)
+   - Can be overridden in config or via CLI (for generator only; judge tokens are config-only)
+
+See "Understanding Generator and Judge Roles" section below for detailed explanation of how these models work together in the evaluation workflow.
+
 #### Using Template Keys
 
 Once you define prompt templates and datasets in your config, you can reference them by key:
@@ -969,6 +1106,445 @@ else
   echo "Generation failed"
 fi
 ```
+
+## JSON Schema Validation
+
+The prompt evaluator supports JSON Schema validation to enforce structured output formats from LLMs. This is particularly useful when you need responses in a specific JSON structure for downstream processing or integration.
+
+### Overview
+
+JSON Schema validation allows you to:
+- Define the exact structure of expected JSON outputs
+- Validate that LLM responses conform to your schema
+- Get detailed error messages when validation fails
+- Leverage provider-specific structured output features (e.g., OpenAI's response_format)
+
+**Important**: JSON Schema validation requires the LLM to generate valid JSON. For OpenAI, this uses the `response_format` parameter with strict schema enforcement. For other providers, the schema is embedded in the system prompt with instructions to return JSON.
+
+### Defining JSON Schemas
+
+JSON Schemas should follow the [JSON Schema Draft-07](https://json-schema.org/draft-07/json-schema-release-notes.html) specification. Store schema files in your repository for version control and reusability.
+
+**Example Schema** (`examples/schemas/simple_response.json`):
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "answer": {
+      "type": "string",
+      "description": "The main answer to the question"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence level from 0 to 1"
+    },
+    "explanation": {
+      "type": "string",
+      "description": "Brief explanation of the answer"
+    }
+  },
+  "required": ["answer", "confidence"],
+  "additionalProperties": false
+}
+```
+
+**Key Schema Elements:**
+- `$schema`: Specifies JSON Schema version (use Draft-07 for compatibility)
+- `type`: Root type (typically `"object"`)
+- `properties`: Defines expected fields and their types
+- `required`: Lists mandatory fields
+- `additionalProperties`: Controls whether extra fields are allowed (use `false` for strict validation)
+
+**Best Practices:**
+- Keep schemas simple and focused - complex schemas can be harder for LLMs to follow
+- Add `description` fields to help the LLM understand what each field should contain
+- Use validation keywords (`minimum`, `maximum`, `pattern`, etc.) to enforce constraints
+- Test schemas with mock provider before using with real LLMs
+- Link to [JSON Schema Reference](https://json-schema.org/understanding-json-schema/) for complete specification
+
+### Using JSON Schema with CLI Commands
+
+#### Generate Command
+
+Validate a single generation against a schema:
+
+```bash
+# Basic usage with schema file
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --json-schema examples/schemas/simple_response.json
+
+# Output includes validation status:
+# ✓ Loaded JSON schema from: examples/schemas/simple_response.json
+# ✓ Output validated against JSON schema
+```
+
+**Schema Path Resolution:**
+- **Relative paths**: Resolved from current working directory
+  ```bash
+  --json-schema schemas/my_schema.json  # Relative to CWD
+  ```
+- **Absolute paths**: Used as-is
+  ```bash
+  --json-schema /home/user/project/schemas/my_schema.json  # Absolute
+  ```
+
+**Validation Results:**
+
+The tool validates the generator output and stores results in metadata:
+- `schema_validation_status`: One of:
+  - `"valid"`: Output matches schema
+  - `"invalid_json"`: Output is not valid JSON
+  - `"schema_mismatch"`: Output is valid JSON but doesn't match schema
+  - `"not_validated"`: No schema was provided
+- `schema_validation_error`: Error message if validation failed
+- `json_schema_path`: Path to schema file used
+
+**Example Output (Success)**:
+```
+Generated completion:
+{"answer": "Python is a programming language", "confidence": 0.95, "explanation": "Python is widely used for web development and data science."}
+
+✓ Output validated against JSON schema
+
+Run ID: abc123-def456...
+Metadata saved to: runs/abc123-def456.../metadata.json
+```
+
+**Example Output (Validation Failure)**:
+```
+Generated completion:
+{"answer": "Python is a programming language", "explanation": "Python is widely used..."}
+
+✗ Schema validation failed: Schema validation failed at 'root': 'confidence' is a required property
+
+Run ID: abc123-def456...
+Metadata saved to: runs/abc123-def456.../metadata.json
+```
+
+**Important**: Validation failure does NOT cause the command to fail (exit code 0). The generation succeeds, but validation results are reported. Check `metadata.json` for programmatic access to validation status.
+
+#### Configuration File Defaults
+
+Set a default JSON schema in `prompt_evaluator.yaml`:
+
+```yaml
+defaults:
+  generator:
+    provider: openai
+    model: gpt-4
+    temperature: 0.7
+    max_completion_tokens: 1024
+  
+  judge:
+    provider: openai
+    model: gpt-4
+    temperature: 0.0
+    max_completion_tokens: 1024
+  
+  # Default JSON schema for all generations
+  json_schema: schemas/response_format.json
+  
+  rubric: default
+  run_directory: runs
+```
+
+**Precedence**: CLI `--json-schema` flag overrides config file default.
+
+**Example with config default**:
+```bash
+# Uses schema from config file
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt
+
+# Override config default
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --json-schema schemas/different_schema.json
+```
+
+**Note**: Schema paths in config files are resolved relative to the config file location, not CWD.
+
+### Provider-Specific Behavior
+
+Different LLM providers handle JSON Schema validation differently:
+
+#### OpenAI
+
+**Uses**: `response_format` parameter with structured output mode
+- Natively enforces JSON schema during generation
+- Most reliable structured output
+- **Requirement**: Requires OpenAI API with response format support (GPT-4 and newer models)
+- Schema is passed directly to the API
+
+**Example API behavior**:
+```python
+# OpenAI provider automatically uses response_format when schema is provided
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[...],
+    response_format={
+        "type": "json_schema",
+        "json_schema": {
+            "name": "response_schema",
+            "strict": True,
+            "schema": schema_dict
+        }
+    }
+)
+```
+
+**Limitations**:
+- Not all OpenAI models support structured output (check OpenAI documentation)
+- Very complex schemas may fail - keep schemas reasonably simple
+- Legacy models may not support this feature
+
+#### Anthropic (Claude)
+
+**Uses**: Schema embedded in system prompt with JSON formatting instructions
+- Schema is shown to the model as part of the prompt
+- Less reliable than OpenAI's native enforcement
+- Validation occurs post-generation
+
+**Example prompt augmentation**:
+```
+[Your system prompt]
+
+IMPORTANT: You must respond with valid JSON matching this schema:
+{schema_json}
+
+Do not include any text outside the JSON object.
+```
+
+**Limitations**:
+- Model may occasionally generate text outside JSON object
+- Complex schemas may confuse the model
+- Validation is post-hoc (model isn't forced to conform)
+
+#### Mock Provider
+
+**Uses**: Auto-generates schema-conformant responses
+- Useful for testing without API calls
+- Generates deterministic JSON based on schema properties
+- Always passes validation (by design)
+
+**Example**:
+```bash
+# Test schema validation without API costs
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --provider mock \
+  --json-schema examples/schemas/simple_response.json
+
+# Output: Auto-generated JSON matching schema structure
+```
+
+### Interpreting Validation Errors
+
+Common validation error types and how to fix them:
+
+**1. Invalid JSON**
+```
+Error: Invalid JSON: Expecting property name enclosed in double quotes at position 42
+```
+**Cause**: LLM generated malformed JSON (syntax error)
+**Fix**: 
+- Simplify your prompt to emphasize JSON output
+- Use a more capable model
+- Add examples of valid JSON in system prompt
+
+**2. Missing Required Field**
+```
+Error: Schema validation failed at 'root': 'confidence' is a required property
+```
+**Cause**: Output is valid JSON but missing a required field
+**Fix**:
+- Explicitly list required fields in prompt
+- Add examples showing required fields
+- Simplify schema to require fewer fields
+
+**3. Type Mismatch**
+```
+Error: Schema validation failed at 'confidence': 'high' is not of type 'number'
+```
+**Cause**: Field has wrong type (string instead of number)
+**Fix**:
+- Clarify expected types in prompt
+- Provide examples with correct types
+- Add descriptions in schema explaining expected values
+
+**4. Additional Properties**
+```
+Error: Schema validation failed at 'root': Additional properties are not allowed ('extra_field' was unexpected)
+```
+**Cause**: Output contains fields not in schema (when `additionalProperties: false`)
+**Fix**:
+- Set `additionalProperties: true` if extra fields are acceptable
+- Instruct LLM to only include specified fields
+- Check if you need to add the field to schema
+
+**5. Constraint Violation**
+```
+Error: Schema validation failed at 'confidence': 1.5 is greater than the maximum of 1
+```
+**Cause**: Value violates schema constraints (min/max, pattern, etc.)
+**Fix**:
+- Explicitly state constraints in prompt
+- Provide examples within valid ranges
+- Adjust schema constraints if too restrictive
+
+### Debugging Tips
+
+**1. Test with Mock Provider First**
+```bash
+# Verify schema is valid before using real LLM
+prompt-evaluator generate \
+  --system-prompt examples/system_prompt.txt \
+  --input examples/input.txt \
+  --provider mock \
+  --json-schema examples/schemas/simple_response.json
+```
+If mock provider fails, your schema likely has issues.
+
+**2. Validate Schema File**
+```bash
+# Check schema is valid JSON
+cat examples/schemas/simple_response.json | jq .
+
+# Validate schema syntax (Python)
+python -c "import json; json.load(open('examples/schemas/simple_response.json'))"
+```
+
+**3. Check Metadata for Details**
+```bash
+# View full validation error in metadata
+cat runs/<run_id>/metadata.json | jq '.schema_validation_error'
+```
+
+**4. Review Generated Output**
+```bash
+# Compare output to expected schema
+cat runs/<run_id>/output.txt
+cat examples/schemas/simple_response.json
+```
+
+### Limitations and Known Issues
+
+**Current Limitations:**
+
+1. **evaluate-single Command**: `--json-schema` flag exists but is not fully integrated (generates samples without schema validation)
+2. **evaluate-dataset Command**: No JSON schema support yet
+3. **Judge Outputs**: Judge responses are not schema-validated (only generator outputs)
+4. **Aggregate Statistics**: Schema validation counts not included in evaluation reports
+5. **Schema References**: `$ref` keyword not supported yet
+
+**Future Enhancements** (planned):
+- Full evaluate-single and evaluate-dataset support
+- Schema validation statistics in reports
+- Judge output validation for structured rubrics
+- Support for schema composition and references
+
+See `docs/json-schema-validation-status.md` for implementation status and roadmap.
+
+### Fallback Behavior
+
+**When no schema is provided:**
+- Generator operates in normal text mode (no JSON enforcement)
+- No validation is performed
+- Validation status is `"not_validated"`
+- Tool behavior is identical to pre-schema functionality
+
+**Validation is NOT automatic** - you must explicitly provide a schema via `--json-schema` or config file.
+
+### Examples
+
+**Example 1: Structured Task Breakdown**
+
+Schema (`schemas/task_breakdown.json`):
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step_number": {"type": "integer"},
+          "description": {"type": "string"},
+          "estimated_time_minutes": {"type": "integer", "minimum": 1}
+        },
+        "required": ["step_number", "description"]
+      }
+    },
+    "total_time_minutes": {"type": "integer", "minimum": 1}
+  },
+  "required": ["steps", "total_time_minutes"],
+  "additionalProperties": false
+}
+```
+
+Usage:
+```bash
+prompt-evaluator generate \
+  --system-prompt prompts/task_planner.txt \
+  --input "Plan a project to build a web app" \
+  --json-schema schemas/task_breakdown.json
+```
+
+**Example 2: API Response Format**
+
+Schema (`schemas/api_response.json`):
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["success", "error", "pending"]
+    },
+    "data": {
+      "type": "object",
+      "description": "Response payload"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Error details if status is error"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": ["status", "timestamp"],
+  "additionalProperties": false
+}
+```
+
+Usage:
+```bash
+prompt-evaluator generate \
+  --system-prompt prompts/api_generator.txt \
+  --input "Generate error response for invalid API key" \
+  --json-schema schemas/api_response.json
+```
+
+### See Also
+
+- [JSON Schema Official Documentation](https://json-schema.org/)
+- [Understanding JSON Schema](https://json-schema.org/understanding-json-schema/) - Comprehensive guide
+- [JSON Schema Validator](https://www.jsonschemavalidator.net/) - Online testing tool
+- [docs/json-schema-validation-status.md](docs/json-schema-validation-status.md) - Implementation status
 
 ## Understanding Generator and Judge Roles
 

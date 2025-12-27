@@ -204,3 +204,62 @@ defaults:
         # Second load should return cached config
         config2 = manager.get_api_config(config_file_path=None)
         assert config2 is config1
+
+    def test_app_config_respects_default_file_discovery(self, tmp_path, monkeypatch):
+        """Test that config manager respects default file discovery via env var."""
+        monkeypatch.chdir(tmp_path)
+        
+        # Create a config file
+        config_file = tmp_path / "custom_config.yaml"
+        config_file.write_text("""
+defaults:
+  generator:
+    provider: anthropic
+    model: claude-3
+""")
+        
+        # Set environment variable to point to this file
+        monkeypatch.setenv("PROMPT_EVALUATOR_CONFIG", str(config_file))
+        
+        manager = ConfigManager()
+        
+        # First call with None should find config via env var
+        config1 = manager.get_app_config(config_path=None, warn_if_missing=False)
+        assert config1 is not None
+        assert config1.defaults.generator.provider == "anthropic"
+        
+        # Second call should return cached config
+        config2 = manager.get_app_config(config_path=None, warn_if_missing=False)
+        assert config2 is config1
+
+    def test_app_config_cache_changes_when_env_var_changes(self, tmp_path, monkeypatch):
+        """Test that cache is invalidated when env var points to different file."""
+        monkeypatch.chdir(tmp_path)
+        
+        # Create two config files
+        config_file1 = tmp_path / "config1.yaml"
+        config_file1.write_text("""
+defaults:
+  generator:
+    provider: openai
+""")
+        
+        config_file2 = tmp_path / "config2.yaml"
+        config_file2.write_text("""
+defaults:
+  generator:
+    provider: anthropic
+""")
+        
+        manager = ConfigManager()
+        
+        # Load first config via env var
+        monkeypatch.setenv("PROMPT_EVALUATOR_CONFIG", str(config_file1))
+        config1 = manager.get_app_config(config_path=None, warn_if_missing=False)
+        assert config1.defaults.generator.provider == "openai"
+        
+        # Change env var to point to second config
+        monkeypatch.setenv("PROMPT_EVALUATOR_CONFIG", str(config_file2))
+        config2 = manager.get_app_config(config_path=None, warn_if_missing=False)
+        assert config2.defaults.generator.provider == "anthropic"
+        assert config2 is not config1  # Should be a different instance

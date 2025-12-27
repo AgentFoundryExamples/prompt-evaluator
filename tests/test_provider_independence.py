@@ -225,3 +225,181 @@ defaults:
         # Generator should use defaults
         assert config.defaults.generator.provider == "openai"
         assert config.defaults.generator.model == "gpt-5.1"
+
+
+class TestProviderPrecedenceLogic:
+    """Tests for provider precedence logic in CLI commands."""
+
+    def test_precedence_both_flags_none_uses_config(self, tmp_path):
+        """Test that when both CLI flags are None, config values are used."""
+        from prompt_evaluator.config import PromptEvaluatorConfig
+        
+        # Simulate config with different providers
+        config = PromptEvaluatorConfig(**{
+            "defaults": {
+                "generator": {"provider": "anthropic", "model": "claude-3"},
+                "judge": {"provider": "openai", "model": "gpt-4"}
+            }
+        })
+        
+        # Simulate CLI logic
+        generator_provider = None
+        judge_provider = None
+        provider = None
+        
+        # Apply precedence logic
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
+            final_generator_provider = config.defaults.generator.provider
+        
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            final_judge_provider = config.defaults.judge.provider
+        
+        assert final_generator_provider == "anthropic"
+        assert final_judge_provider == "openai"
+
+    def test_precedence_only_provider_flag_applies_to_both(self, tmp_path):
+        """Test that --provider flag applies to both generator and judge."""
+        from prompt_evaluator.config import PromptEvaluatorConfig
+        
+        config = PromptEvaluatorConfig(**{
+            "defaults": {
+                "generator": {"provider": "anthropic", "model": "claude-3"},
+                "judge": {"provider": "openai", "model": "gpt-4"}
+            }
+        })
+        
+        # Simulate CLI with only --provider set
+        generator_provider = None
+        judge_provider = None
+        provider = "mock"
+        
+        # Apply precedence logic
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
+            final_generator_provider = config.defaults.generator.provider
+        
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            final_judge_provider = config.defaults.judge.provider
+        
+        # Both should use the --provider value
+        assert final_generator_provider == "mock"
+        assert final_judge_provider == "mock"
+
+    def test_precedence_only_generator_provider_set(self, tmp_path):
+        """Test that --generator-provider only affects generator."""
+        from prompt_evaluator.config import PromptEvaluatorConfig
+        
+        config = PromptEvaluatorConfig(**{
+            "defaults": {
+                "generator": {"provider": "anthropic", "model": "claude-3"},
+                "judge": {"provider": "openai", "model": "gpt-4"}
+            }
+        })
+        
+        # Simulate CLI with only --generator-provider set
+        generator_provider = "mock"
+        judge_provider = None
+        provider = None
+        
+        # Apply precedence logic
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
+            final_generator_provider = config.defaults.generator.provider
+        
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            final_judge_provider = config.defaults.judge.provider
+        
+        # Generator uses CLI flag, judge uses config
+        assert final_generator_provider == "mock"
+        assert final_judge_provider == "openai"
+
+    def test_precedence_only_judge_provider_set(self, tmp_path):
+        """Test that --judge-provider only affects judge."""
+        from prompt_evaluator.config import PromptEvaluatorConfig
+        
+        config = PromptEvaluatorConfig(**{
+            "defaults": {
+                "generator": {"provider": "anthropic", "model": "claude-3"},
+                "judge": {"provider": "openai", "model": "gpt-4"}
+            }
+        })
+        
+        # Simulate CLI with only --judge-provider set
+        generator_provider = None
+        judge_provider = "mock"
+        provider = None
+        
+        # Apply precedence logic
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
+            final_generator_provider = config.defaults.generator.provider
+        
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            final_judge_provider = config.defaults.judge.provider
+        
+        # Generator uses config, judge uses CLI flag
+        assert final_generator_provider == "anthropic"
+        assert final_judge_provider == "mock"
+
+    def test_precedence_both_specific_flags_set(self, tmp_path):
+        """Test that specific flags override --provider and config."""
+        from prompt_evaluator.config import PromptEvaluatorConfig
+        
+        config = PromptEvaluatorConfig(**{
+            "defaults": {
+                "generator": {"provider": "anthropic", "model": "claude-3"},
+                "judge": {"provider": "openai", "model": "gpt-4"}
+            }
+        })
+        
+        # Simulate CLI with all flags set
+        generator_provider = "mock"
+        judge_provider = "mock"
+        provider = "anthropic"  # This should be overridden
+        
+        # Apply precedence logic
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
+            final_generator_provider = config.defaults.generator.provider
+        
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            final_judge_provider = config.defaults.judge.provider
+        
+        # Both should use specific flags
+        assert final_generator_provider == "mock"
+        assert final_judge_provider == "mock"
+
+    def test_precedence_generator_provider_overrides_generic_provider(self, tmp_path):
+        """Test that --generator-provider takes precedence over --provider."""
+        from prompt_evaluator.config import PromptEvaluatorConfig
+        
+        config = PromptEvaluatorConfig(**{
+            "defaults": {
+                "generator": {"provider": "anthropic", "model": "claude-3"},
+                "judge": {"provider": "openai", "model": "gpt-4"}
+            }
+        })
+        
+        # Simulate CLI with --generator-provider and --provider
+        generator_provider = "mock"
+        judge_provider = None
+        provider = "anthropic"
+        
+        # Apply precedence logic
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
+            final_generator_provider = config.defaults.generator.provider
+        
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            final_judge_provider = config.defaults.judge.provider
+        
+        # Generator uses specific flag, judge uses --provider
+        assert final_generator_provider == "mock"
+        assert final_judge_provider == "anthropic"

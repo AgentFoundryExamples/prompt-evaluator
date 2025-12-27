@@ -818,22 +818,22 @@ class ConfigManager:
         Raises:
             ValueError: If config file is found but invalid
         """
-        # Normalize config path for cache comparison
-        normalized_path = None
-        if config_path is not None:
-            normalized_path = config_path.resolve() if config_path.is_absolute() else (Path.cwd() / config_path).resolve()
+        # Locate the config file to determine the canonical path for caching
+        # This ensures we cache based on the actual file found, not the input path
+        located_path = locate_config_file(cli_path=config_path)
+        normalized_path = located_path.resolve() if located_path else None
         
         # Check cache - return cached config if path matches
         if self._app_config_path_cache == normalized_path and self._app_config_cache is not None:
             return self._app_config_cache
         
-        # Load new config
+        # Load new config, passing the original path for correct logic inside
         config = load_prompt_evaluator_config(
             config_path=config_path,
             warn_if_missing=warn_if_missing
         )
         
-        # Update cache
+        # Update cache with the resolved path
         self._app_config_cache = config
         self._app_config_path_cache = normalized_path
         
@@ -861,7 +861,7 @@ class ConfigManager:
         # Normalize config path for cache comparison
         normalized_path = None
         if config_file_path is not None:
-            normalized_path = config_file_path.resolve() if config_file_path.is_absolute() else (Path.cwd() / config_file_path).resolve()
+            normalized_path = config_file_path.resolve()
         
         # Check cache - return cached config if path matches
         if self._api_config_path_cache == normalized_path and self._api_config_cache is not None:

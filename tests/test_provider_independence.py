@@ -230,6 +230,19 @@ defaults:
 class TestProviderPrecedenceLogic:
     """Tests for provider precedence logic in CLI commands."""
 
+    @staticmethod
+    def _apply_precedence_logic(generator_provider, judge_provider, provider, config):
+        """Helper to apply provider precedence logic as done in CLI."""
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
+            final_generator_provider = config.defaults.generator.provider
+        
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            final_judge_provider = config.defaults.judge.provider
+        
+        return final_generator_provider, final_judge_provider
+
     def test_precedence_both_flags_none_uses_config(self, tmp_path):
         """Test that when both CLI flags are None, config values are used."""
         from prompt_evaluator.config import PromptEvaluatorConfig
@@ -242,22 +255,10 @@ class TestProviderPrecedenceLogic:
             }
         })
         
-        # Simulate CLI logic
-        generator_provider = None
-        judge_provider = None
-        provider = None
+        final_gen, final_judge = self._apply_precedence_logic(None, None, None, config)
         
-        # Apply precedence logic
-        final_generator_provider = generator_provider or provider
-        if final_generator_provider is None:
-            final_generator_provider = config.defaults.generator.provider
-        
-        final_judge_provider = judge_provider or provider
-        if final_judge_provider is None:
-            final_judge_provider = config.defaults.judge.provider
-        
-        assert final_generator_provider == "anthropic"
-        assert final_judge_provider == "openai"
+        assert final_gen == "anthropic"
+        assert final_judge == "openai"
 
     def test_precedence_only_provider_flag_applies_to_both(self, tmp_path):
         """Test that --provider flag applies to both generator and judge."""
@@ -270,23 +271,11 @@ class TestProviderPrecedenceLogic:
             }
         })
         
-        # Simulate CLI with only --provider set
-        generator_provider = None
-        judge_provider = None
-        provider = "mock"
-        
-        # Apply precedence logic
-        final_generator_provider = generator_provider or provider
-        if final_generator_provider is None:
-            final_generator_provider = config.defaults.generator.provider
-        
-        final_judge_provider = judge_provider or provider
-        if final_judge_provider is None:
-            final_judge_provider = config.defaults.judge.provider
+        final_gen, final_judge = self._apply_precedence_logic(None, None, "mock", config)
         
         # Both should use the --provider value
-        assert final_generator_provider == "mock"
-        assert final_judge_provider == "mock"
+        assert final_gen == "mock"
+        assert final_judge == "mock"
 
     def test_precedence_only_generator_provider_set(self, tmp_path):
         """Test that --generator-provider only affects generator."""
@@ -299,23 +288,11 @@ class TestProviderPrecedenceLogic:
             }
         })
         
-        # Simulate CLI with only --generator-provider set
-        generator_provider = "mock"
-        judge_provider = None
-        provider = None
-        
-        # Apply precedence logic
-        final_generator_provider = generator_provider or provider
-        if final_generator_provider is None:
-            final_generator_provider = config.defaults.generator.provider
-        
-        final_judge_provider = judge_provider or provider
-        if final_judge_provider is None:
-            final_judge_provider = config.defaults.judge.provider
+        final_gen, final_judge = self._apply_precedence_logic("mock", None, None, config)
         
         # Generator uses CLI flag, judge uses config
-        assert final_generator_provider == "mock"
-        assert final_judge_provider == "openai"
+        assert final_gen == "mock"
+        assert final_judge == "openai"
 
     def test_precedence_only_judge_provider_set(self, tmp_path):
         """Test that --judge-provider only affects judge."""
@@ -328,23 +305,11 @@ class TestProviderPrecedenceLogic:
             }
         })
         
-        # Simulate CLI with only --judge-provider set
-        generator_provider = None
-        judge_provider = "mock"
-        provider = None
-        
-        # Apply precedence logic
-        final_generator_provider = generator_provider or provider
-        if final_generator_provider is None:
-            final_generator_provider = config.defaults.generator.provider
-        
-        final_judge_provider = judge_provider or provider
-        if final_judge_provider is None:
-            final_judge_provider = config.defaults.judge.provider
+        final_gen, final_judge = self._apply_precedence_logic(None, "mock", None, config)
         
         # Generator uses config, judge uses CLI flag
-        assert final_generator_provider == "anthropic"
-        assert final_judge_provider == "mock"
+        assert final_gen == "anthropic"
+        assert final_judge == "mock"
 
     def test_precedence_both_specific_flags_set(self, tmp_path):
         """Test that specific flags override --provider and config."""
@@ -357,23 +322,11 @@ class TestProviderPrecedenceLogic:
             }
         })
         
-        # Simulate CLI with all flags set
-        generator_provider = "mock"
-        judge_provider = "mock"
-        provider = "anthropic"  # This should be overridden
-        
-        # Apply precedence logic
-        final_generator_provider = generator_provider or provider
-        if final_generator_provider is None:
-            final_generator_provider = config.defaults.generator.provider
-        
-        final_judge_provider = judge_provider or provider
-        if final_judge_provider is None:
-            final_judge_provider = config.defaults.judge.provider
+        final_gen, final_judge = self._apply_precedence_logic("mock", "mock", "anthropic", config)
         
         # Both should use specific flags
-        assert final_generator_provider == "mock"
-        assert final_judge_provider == "mock"
+        assert final_gen == "mock"
+        assert final_judge == "mock"
 
     def test_precedence_generator_provider_overrides_generic_provider(self, tmp_path):
         """Test that --generator-provider takes precedence over --provider."""
@@ -386,20 +339,8 @@ class TestProviderPrecedenceLogic:
             }
         })
         
-        # Simulate CLI with --generator-provider and --provider
-        generator_provider = "mock"
-        judge_provider = None
-        provider = "anthropic"
-        
-        # Apply precedence logic
-        final_generator_provider = generator_provider or provider
-        if final_generator_provider is None:
-            final_generator_provider = config.defaults.generator.provider
-        
-        final_judge_provider = judge_provider or provider
-        if final_judge_provider is None:
-            final_judge_provider = config.defaults.judge.provider
+        final_gen, final_judge = self._apply_precedence_logic("mock", None, "anthropic", config)
         
         # Generator uses specific flag, judge uses --provider
-        assert final_generator_provider == "mock"
-        assert final_judge_provider == "anthropic"
+        assert final_gen == "mock"
+        assert final_judge == "anthropic"

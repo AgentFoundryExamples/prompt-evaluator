@@ -148,6 +148,7 @@ examples/*
 !examples/rubrics/
 !examples/datasets/
 !examples/run-artifacts/
+!examples/schemas/
 *.local.yaml
 *.local.yml
 *.local.json

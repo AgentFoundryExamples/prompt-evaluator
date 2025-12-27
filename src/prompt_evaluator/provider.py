@@ -722,12 +722,37 @@ class LocalMockProvider(LLMProvider):
 
         # If JSON schema is provided, generate mock JSON output
         if config.json_schema:
-            # Generate a simple mock JSON that conforms to basic schema structure
-            response_text = json.dumps({
-                "mock_response": f"Mock JSON response to: {prompt_text[:50]}",
-                "prompt_length": len(prompt_text),
-                "has_system_prompt": system_prompt is not None,
-            })
+            # Generate a mock JSON that attempts to conform to the schema structure
+            mock_json = {}
+            
+            # If schema has properties, try to populate them
+            if "properties" in config.json_schema:
+                for prop_name, prop_spec in config.json_schema["properties"].items():
+                    prop_type = prop_spec.get("type", "string")
+                    
+                    if prop_type == "string":
+                        mock_json[prop_name] = f"Mock {prop_name}: {prompt_text[:30]}"
+                    elif prop_type == "number" or prop_type == "integer":
+                        # Use a default number or extract from spec
+                        minimum = prop_spec.get("minimum", 0)
+                        maximum = prop_spec.get("maximum", 100)
+                        mock_json[prop_name] = (minimum + maximum) / 2
+                    elif prop_type == "boolean":
+                        mock_json[prop_name] = True
+                    elif prop_type == "array":
+                        mock_json[prop_name] = ["mock_item_1", "mock_item_2"]
+                    elif prop_type == "object":
+                        mock_json[prop_name] = {"mock_key": "mock_value"}
+                    else:
+                        mock_json[prop_name] = f"mock_{prop_name}"
+            else:
+                # Fallback if no properties specified
+                mock_json = {
+                    "mock_response": f"Mock JSON response to: {prompt_text[:50]}",
+                    "prompt_length": len(prompt_text),
+                }
+            
+            response_text = json.dumps(mock_json, indent=2)
         else:
             # Generate deterministic mock response
             response_text = self.response_template.format(prompt=prompt_text[:100])

@@ -360,11 +360,8 @@ def load_prompt_evaluator_config(
         return None
 
     # Resolve to absolute path to avoid duplicate loading
-    if located_path.is_absolute():
-        located_path = located_path.resolve()
-    else:
-        located_path = Path.cwd() / located_path
-        located_path = located_path.resolve()
+    # resolve() handles both absolute and relative paths correctly
+    located_path = located_path.resolve()
 
     # Check if file exists
     if not located_path.exists():

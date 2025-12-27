@@ -2464,7 +2464,7 @@ def compare_prompts(
         # Determine providers
         final_generator_provider = generator_provider or provider
         if final_generator_provider is None:
-            if app_config is not None and app_config.defaults.generator.provider:
+            if app_config is not None and hasattr(app_config, 'defaults') and hasattr(app_config.defaults, 'generator') and app_config.defaults.generator.provider:
                 final_generator_provider = app_config.defaults.generator.provider
                 typer.echo(f"Using generator provider from config: {final_generator_provider}", err=True)
             else:
@@ -2473,7 +2473,7 @@ def compare_prompts(
         
         final_judge_provider = judge_provider or provider
         if final_judge_provider is None:
-            if app_config is not None and app_config.defaults.judge.provider:
+            if app_config is not None and hasattr(app_config, 'defaults') and hasattr(app_config.defaults, 'judge') and app_config.defaults.judge.provider:
                 final_judge_provider = app_config.defaults.judge.provider
                 typer.echo(f"Using judge provider from config: {final_judge_provider}", err=True)
             else:
@@ -2557,11 +2557,12 @@ def compare_prompts(
             or 1024
         )
         
-        final_judge_temperature = (
-            judge_temperature
-            if judge_temperature is not None
-            else (app_judge_config.temperature if app_judge_config else 0.0)
-        )
+        if judge_temperature is not None:
+            final_judge_temperature = judge_temperature
+        elif app_judge_config and app_judge_config.temperature is not None:
+            final_judge_temperature = app_judge_config.temperature
+        else:
+            final_judge_temperature = 0.0
         
         final_judge_top_p = (
             judge_top_p
@@ -2577,19 +2578,16 @@ def compare_prompts(
         )
 
         # Create provider instances
-        generator_api_key = api_config.api_key if final_generator_provider.lower() == "openai" else None
-        judge_api_key = api_config.api_key if final_judge_provider.lower() == "openai" else None
-
         try:
             generator_provider_instance = get_provider(
                 final_generator_provider,
-                api_key=generator_api_key,
-                base_url=api_config.base_url if final_generator_provider.lower() == "openai" else None
+                api_key=api_config.api_key,
+                base_url=api_config.base_url
             )
             judge_provider_instance = get_provider(
                 final_judge_provider,
-                api_key=judge_api_key,
-                base_url=api_config.base_url if final_judge_provider.lower() == "openai" else None
+                api_key=api_config.api_key,
+                base_url=api_config.base_url
             )
         except ValueError as e:
             typer.echo(f"Error: {e}", err=True)

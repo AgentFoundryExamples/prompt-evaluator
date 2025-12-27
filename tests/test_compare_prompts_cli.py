@@ -51,7 +51,6 @@ def sample_dataset(tmp_path):
         },
     ]
     dataset_path = tmp_path / "test_dataset.yaml"
-    import yaml
     dataset_path.write_text(yaml.dump(dataset_content))
     return dataset_path
 

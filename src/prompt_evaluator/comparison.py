@@ -368,9 +368,12 @@ def compare_runs(
             test_case_comparisons, win_loss_tie_stats = compute_test_case_comparisons(
                 baseline_data, candidate_data, metric_threshold
             )
-        except Exception:
+        except Exception as e:
             # If per-test-case comparison fails, continue without it
             # This maintains backward compatibility with runs that don't have test_case_results
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Failed to compute test case comparisons: {e}")
             pass
 
     # Create comparison result

@@ -458,6 +458,7 @@ def generate(
 
         # Load JSON schema if provided (CLI flag > config default)
         schema_dict: dict[str, Any] | None = None
+        schema_path: Path | None = None
         schema_path_str = json_schema
         if schema_path_str is None and app_config is not None:
             schema_path_str = app_config.defaults.json_schema
@@ -672,8 +673,8 @@ def generate(
                 metadata_dict["schema_validation_status"] = result["schema_validation_status"]
             if "schema_validation_error" in result and result["schema_validation_error"]:
                 metadata_dict["schema_validation_error"] = result["schema_validation_error"]
-            if schema_path_str:
-                metadata_dict["json_schema_path"] = str(schema_path if schema_path_str else schema_path_str)
+            if schema_path:
+                metadata_dict["json_schema_path"] = str(schema_path)
             metadata_file.write_text(json.dumps(metadata_dict, indent=2), encoding="utf-8")
 
         # Print outputs to stdout (all variants)

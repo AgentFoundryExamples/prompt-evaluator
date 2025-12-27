@@ -23,7 +23,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft7Validator, ValidationError, validators
+from jsonschema import Draft7Validator, ValidationError
 
 logger = logging.getLogger(__name__)
 

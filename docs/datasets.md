@@ -1446,6 +1446,60 @@ If rubrics differ, not all metrics will be present in both runs:
 
 **Recommendation:** Use the same rubric for both runs to get full metric coverage.
 
+## JSON Schema Validation for Structured Outputs
+
+### Overview
+
+When evaluating prompts that should generate structured JSON data (e.g., API responses, task breakdowns, form data), you can use JSON Schema validation to ensure outputs conform to expected formats.
+
+**For comprehensive guidance** on JSON schema validation, including:
+- How to author and structure schemas
+- CLI usage with the `--json-schema` flag
+- Provider-specific behavior (OpenAI, Anthropic, Mock)
+- Validation error interpretation and debugging
+- Path resolution (relative vs absolute)
+- Current implementation status and limitations
+
+**Please see the [JSON Schema Validation section in README.md](../README.md#json-schema-validation)** for complete documentation.
+
+### Quick Reference for Dataset Usage
+
+While JSON schema validation is currently **only available for the `generate` command**, here are key points for future reference when it becomes available for dataset evaluations:
+
+**Defining Schemas**: Store JSON schemas in a `schemas/` directory within your project:
+```
+project/
+├── schemas/
+│   ├── api_response.json
+│   └── task_breakdown.json
+├── datasets/
+│   └── test_suite.yaml
+└── prompt_evaluator.yaml
+```
+
+**Schema Path Resolution**:
+- **Relative paths in CLI**: Resolved from current working directory
+  ```bash
+  --json-schema schemas/my_schema.json
+  ```
+- **Relative paths in config**: Resolved from config file location
+  ```yaml
+  json_schema: schemas/my_schema.json
+  ```
+- **Absolute paths**: Work across all environments
+  ```bash
+  --json-schema /home/user/project/schemas/schema.json
+  ```
+
+**Validation Status Fields**: When schema validation is available, outputs will include:
+- `schema_validation_status`: `"valid"`, `"invalid_json"`, `"schema_mismatch"`, or `"not_validated"`
+- `schema_validation_error`: Error message if validation failed
+- `json_schema_path`: Path to schema file used
+
+**Current Limitation**: Schema validation for `evaluate-dataset` and `evaluate-single` commands is not yet implemented. See the [Limitations section in README.md](../README.md#limitations-and-known-issues) for current status.
+
+For detailed examples, authoring guidelines, and troubleshooting, refer to the main README.md documentation.
+
 ## Best Practices
 
 1. **Version Control**: Keep datasets in version control to track changes over time

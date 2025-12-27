@@ -44,6 +44,7 @@ class ProviderConfig:
     seed: int | None = None
     top_p: float | None = None
     additional_params: dict[str, Any] | None = None
+    json_schema: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
@@ -238,8 +239,32 @@ class OpenAIProvider(BaseProvider, LLMProvider):
             }
 
             # Add instructions (system prompt) if provided
-            if system_prompt:
+            # If JSON schema is specified, add JSON formatting instructions
+            if system_prompt and config.json_schema:
+                enhanced_system_prompt = (
+                    f"{system_prompt}\n\n"
+                    "IMPORTANT: You must respond with valid JSON that conforms to the provided schema. "
+                    "Do not include any text before or after the JSON object."
+                )
+                params["instructions"] = enhanced_system_prompt
+            elif system_prompt:
                 params["instructions"] = system_prompt
+            elif config.json_schema:
+                params["instructions"] = (
+                    "You must respond with valid JSON that conforms to the provided schema. "
+                    "Do not include any text before or after the JSON object."
+                )
+
+            # Add response format for JSON schema if provided
+            if config.json_schema:
+                params["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "response_schema",
+                        "schema": config.json_schema,
+                        "strict": True,
+                    }
+                }
 
             # Note: top_p is not supported by the OpenAI Responses API
             # If needed, use the Chat Completions API instead
@@ -489,8 +514,23 @@ class ClaudeProvider(BaseProvider, LLMProvider):
             }
 
             # Add system prompt if provided
-            if system_prompt:
+            # If JSON schema is specified, add JSON formatting instructions
+            if system_prompt and config.json_schema:
+                enhanced_system_prompt = (
+                    f"{system_prompt}\n\n"
+                    "IMPORTANT: You must respond with valid JSON that conforms to the provided schema. "
+                    "Do not include any text before or after the JSON object.\n"
+                    f"Schema: {json.dumps(config.json_schema)}"
+                )
+                params["system"] = enhanced_system_prompt
+            elif system_prompt:
                 params["system"] = system_prompt
+            elif config.json_schema:
+                params["system"] = (
+                    "You must respond with valid JSON that conforms to the provided schema. "
+                    "Do not include any text before or after the JSON object.\n"
+                    f"Schema: {json.dumps(config.json_schema)}"
+                )
 
             # Add top_p if provided
             if config.top_p is not None:
@@ -680,12 +720,21 @@ class LocalMockProvider(LLMProvider):
         else:
             prompt_text = " | ".join(user_prompt)
 
-        # Generate deterministic mock response
-        response_text = self.response_template.format(prompt=prompt_text[:100])
+        # If JSON schema is provided, generate mock JSON output
+        if config.json_schema:
+            # Generate a simple mock JSON that conforms to basic schema structure
+            response_text = json.dumps({
+                "mock_response": f"Mock JSON response to: {prompt_text[:50]}",
+                "prompt_length": len(prompt_text),
+                "has_system_prompt": system_prompt is not None,
+            })
+        else:
+            # Generate deterministic mock response
+            response_text = self.response_template.format(prompt=prompt_text[:100])
 
-        # Add system prompt context if provided
-        if system_prompt:
-            response_text = f"[System: {system_prompt[:50]}...] {response_text}"
+            # Add system prompt context if provided
+            if system_prompt:
+                response_text = f"[System: {system_prompt[:50]}...] {response_text}"
 
         # Compute deterministic mock token counts based on text length
         mock_prompt_tokens = len(prompt_text.split()) + (
@@ -769,6 +818,7 @@ def generate_completion(
     temperature: float,
     max_completion_tokens: int,
     seed: int | None = None,
+    json_schema: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, float | int | None]]:
     """
     Generate a completion using an LLM provider with system and user prompts.
@@ -784,6 +834,7 @@ def generate_completion(
         temperature: Sampling temperature (0.0-2.0)
         max_completion_tokens: Maximum tokens to generate
         seed: Optional seed for reproducibility
+        json_schema: Optional JSON schema for validating outputs
 
     Returns:
         Tuple of (response_text, metadata) where metadata contains tokens_used and latency_ms
@@ -797,6 +848,7 @@ def generate_completion(
         temperature=temperature,
         max_completion_tokens=max_completion_tokens,
         seed=seed,
+        json_schema=json_schema,
     )
 
     # Generate using the provider

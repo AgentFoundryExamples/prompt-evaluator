@@ -271,7 +271,7 @@ class Sample:
                         (deprecated - use judge_metrics for rubric-based evaluation)
         judge_raw_response: Raw response from judge model for debugging
         status: Status of evaluation ("pending", "completed", "judge_error",
-                "generation_error", "judge_invalid_response")
+                "generation_error", "judge_invalid_response", "schema_validation_failed")
         task_description: Optional description of the task for context
         judge_metrics: Dict of metric results keyed by metric name, each containing
                       "score" (float) and "rationale" (str). Used for rubric-based evaluation.
@@ -279,6 +279,9 @@ class Sample:
                     Used for rubric-based evaluation.
         judge_overall_comment: Overall comment from judge for rubric-based evaluation
         ab_variant: Optional A/B test variant identifier (e.g., "with_prompt", "no_prompt")
+        schema_validation_status: Status of JSON schema validation if applicable
+                                ("not_validated", "valid", "invalid_json", "schema_mismatch")
+        schema_validation_error: Error message if schema validation failed
     """
 
     sample_id: str
@@ -293,6 +296,8 @@ class Sample:
     judge_flags: dict[str, bool] = field(default_factory=dict)
     judge_overall_comment: str | None = None
     ab_variant: str | None = None
+    schema_validation_status: str = "not_validated"
+    schema_validation_error: str | None = None
 
     def __post_init__(self) -> None:
         """Validate sample fields."""
@@ -302,11 +307,20 @@ class Sample:
             "judge_error",
             "generation_error",
             "judge_invalid_response",
+            "schema_validation_failed",
         )
         if self.status not in valid_statuses:
             raise ValueError(f"status must be one of {valid_statuses}, got '{self.status}'")
         if self.judge_score is not None and (self.judge_score < 1.0 or self.judge_score > 5.0):
             raise ValueError(f"judge_score must be between 1.0 and 5.0, got {self.judge_score}")
+
+        # Validate schema_validation_status
+        valid_schema_statuses = ("not_validated", "valid", "invalid_json", "schema_mismatch")
+        if self.schema_validation_status not in valid_schema_statuses:
+            raise ValueError(
+                f"schema_validation_status must be one of {valid_schema_statuses}, "
+                f"got '{self.schema_validation_status}'"
+            )
 
         # Validate judge_metrics structure if present
         if self.judge_metrics:

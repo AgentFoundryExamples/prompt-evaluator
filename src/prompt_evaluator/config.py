@@ -161,6 +161,10 @@ class DefaultsConfig(BaseModel):
     )
     rubric: str | None = Field(None, description="Default rubric path or preset name")
     run_directory: str = Field("runs", description="Default directory for run outputs")
+    json_schema: str | None = Field(
+        None,
+        description="Default JSON schema path for validating generator outputs"
+    )
 
 
 class PromptEvaluatorConfig(BaseModel):

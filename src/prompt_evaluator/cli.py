@@ -702,6 +702,27 @@ def evaluate_single(
         None, "--generator-model", help="Generator model name override"
     ),
     judge_model: str | None = typer.Option(None, "--judge-model", help="Judge model name override"),
+    judge_max_tokens: int | None = typer.Option(
+        None,
+        "--judge-max-tokens",
+        help="Maximum tokens for judge responses (default: 1024). Higher values allow more detailed evaluation rationales.",
+        min=1,
+        max=32000,
+    ),
+    judge_temperature: float | None = typer.Option(
+        None,
+        "--judge-temperature",
+        help="Judge temperature (0.0-2.0). Default: 0.0 for deterministic judging.",
+        min=0.0,
+        max=2.0,
+    ),
+    judge_top_p: float | None = typer.Option(
+        None,
+        "--judge-top-p",
+        help="Judge nucleus sampling parameter (0.0-1.0). Controls response diversity.",
+        min=0.0,
+        max=1.0,
+    ),
     judge_system_prompt: str | None = typer.Option(
         None,
         "--judge-system-prompt",
@@ -888,9 +909,29 @@ def evaluate_single(
             or "gpt-5.1"
         )
 
+        final_judge_max_tokens = (
+            judge_max_tokens
+            or (app_judge_config.max_completion_tokens if app_judge_config else None)
+            or 1024
+        )
+        
+        final_judge_temperature = (
+            judge_temperature
+            if judge_temperature is not None
+            else (app_judge_config.temperature if app_judge_config else 0.0)
+        )
+        
+        final_judge_top_p = (
+            judge_top_p
+            if judge_top_p is not None
+            else (app_judge_config.top_p if app_judge_config else None)
+        )
+        
         judge_config = JudgeConfig(
             model_name=final_judge_model,
-            temperature=0.0,  # Use deterministic judge
+            temperature=final_judge_temperature,
+            max_completion_tokens=final_judge_max_tokens,
+            top_p=final_judge_top_p,
         )
 
         # Create separate provider instances for generator and judge
@@ -1276,6 +1317,27 @@ def evaluate_dataset(
         None, "--generator-model", help="Generator model name override"
     ),
     judge_model: str | None = typer.Option(None, "--judge-model", help="Judge model name override"),
+    judge_max_tokens: int | None = typer.Option(
+        None,
+        "--judge-max-tokens",
+        help="Maximum tokens for judge responses (default: 1024). Higher values allow more detailed evaluation rationales.",
+        min=1,
+        max=32000,
+    ),
+    judge_temperature: float | None = typer.Option(
+        None,
+        "--judge-temperature",
+        help="Judge temperature (0.0-2.0). Default: 0.0 for deterministic judging.",
+        min=0.0,
+        max=2.0,
+    ),
+    judge_top_p: float | None = typer.Option(
+        None,
+        "--judge-top-p",
+        help="Judge nucleus sampling parameter (0.0-1.0). Controls response diversity.",
+        min=0.0,
+        max=1.0,
+    ),
     judge_system_prompt: str | None = typer.Option(
         None,
         "--judge-system-prompt",
@@ -1519,10 +1581,30 @@ def evaluate_dataset(
             or (app_judge_config.model if app_judge_config else None)
             or "gpt-5.1"
         )
+        
+        final_judge_max_tokens = (
+            judge_max_tokens
+            or (app_judge_config.max_completion_tokens if app_judge_config else None)
+            or 1024
+        )
+        
+        final_judge_temperature = (
+            judge_temperature
+            if judge_temperature is not None
+            else (app_judge_config.temperature if app_judge_config else 0.0)
+        )
+        
+        final_judge_top_p = (
+            judge_top_p
+            if judge_top_p is not None
+            else (app_judge_config.top_p if app_judge_config else None)
+        )
 
         judge_config = JudgeConfig(
             model_name=final_judge_model,
-            temperature=0.0,  # Use deterministic judge
+            temperature=final_judge_temperature,
+            max_completion_tokens=final_judge_max_tokens,
+            top_p=final_judge_top_p,
         )
 
         # Create separate provider instances for generator and judge

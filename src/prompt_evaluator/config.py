@@ -100,7 +100,20 @@ class DefaultGeneratorConfig(BaseModel):
 
 
 class DefaultJudgeConfig(BaseModel):
-    """Default configuration for the judge LLM."""
+    """
+    Default configuration for the judge LLM.
+    
+    Attributes:
+        provider: Default judge provider (e.g., 'openai', 'anthropic')
+        model: Default judge model ID
+        temperature: Default temperature for judge (0.0-2.0)
+        max_completion_tokens: Maximum tokens to generate for judge responses.
+            Higher values allow for more detailed evaluation rationales.
+        top_p: Nucleus sampling parameter (0.0-1.0). Controls diversity of judge outputs.
+            Lower values make outputs more focused and deterministic.
+        system_instructions: Optional system instructions override for judge prompts.
+            If provided, overrides the default or rubric-based judge prompt.
+    """
 
     provider: str = Field(
         "openai",
@@ -108,6 +121,21 @@ class DefaultJudgeConfig(BaseModel):
     )
     model: str = Field("gpt-5.1", description="Default judge model ID")
     temperature: float = Field(0.0, ge=0.0, le=2.0, description="Default temperature for judge")
+    max_completion_tokens: int = Field(
+        1024,
+        gt=0,
+        description="Maximum tokens to generate for judge responses"
+    )
+    top_p: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Nucleus sampling parameter for judge (0.0-1.0)"
+    )
+    system_instructions: str | None = Field(
+        None,
+        description="Optional system instructions override for judge prompts"
+    )
 
     @field_validator("provider")
     @classmethod

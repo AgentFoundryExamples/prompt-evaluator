@@ -16,6 +16,13 @@ defaults:
     provider: openai
     model: gpt-5.1
     temperature: 0.0
+    # Maximum tokens for judge responses (higher for detailed rubric evaluations)
+    max_completion_tokens: 1024
+    # Optional: Nucleus sampling parameter (0.0-1.0) for judge diversity
+    # Note: top_p may not be supported by all providers/endpoints
+    # top_p: 0.95
+    # Optional: Override default judge system instructions
+    # system_instructions: "Custom judge prompt here..."
 
   # Default rubric (can be a preset name or file path)
   rubric: default

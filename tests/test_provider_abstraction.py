@@ -864,3 +864,185 @@ class TestClaudeProvider:
         provider = get_provider("Claude")
         from prompt_evaluator.provider import ClaudeProvider
         assert isinstance(provider, ClaudeProvider)
+
+
+class TestJudgeResponsesAPI:
+    """Tests verifying that judge uses OpenAI Responses API (not Chat Completions)."""
+
+    @patch("prompt_evaluator.provider.OpenAI")
+    def test_judge_uses_responses_api_not_chat_completions(self, mock_openai_class, monkeypatch):
+        """Test that judge calls use responses.create, not chat.completions.create."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        from prompt_evaluator.provider import judge_completion
+        from prompt_evaluator.models import JudgeConfig, DEFAULT_JUDGE_SYSTEM_PROMPT
+        from unittest.mock import MagicMock
+
+        # Mock OpenAI client response for Responses API
+        mock_client = mock_openai_class.return_value
+        mock_response = mock_client.responses.create.return_value
+        
+        # Mock the response structure for Responses API using MagicMock
+        mock_response.status = "completed"
+        
+        mock_output_item = MagicMock()
+        mock_content_item = MagicMock()
+        mock_content_item.text = '{"semantic_fidelity": 4.0, "rationale": "Good"}'
+        mock_output_item.content = [mock_content_item]
+        mock_response.output = [mock_output_item]
+        
+        # Mock usage
+        mock_usage = MagicMock()
+        mock_usage.total_tokens = 100
+        mock_usage.input_tokens = 50
+        mock_usage.output_tokens = 50
+        mock_response.usage = mock_usage
+
+        provider = OpenAIProvider()
+        judge_config = JudgeConfig(model_name="gpt-5.1", temperature=0.0, max_completion_tokens=2048, top_p=0.9)
+
+        result = judge_completion(
+            provider=provider,
+            input_text="Test input",
+            generator_output="Test output",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
+
+        # Verify that responses.create was called (Responses API)
+        assert mock_client.responses.create.called, "Should call responses.create (Responses API)"
+        # Verify that chat.completions.create was NOT called (old Chat Completions API)
+        assert not mock_client.chat.completions.create.called, "Should NOT call chat.completions.create"
+        
+        # Verify the actual parameters passed to responses.create
+        call_kwargs = mock_client.responses.create.call_args[1]
+        assert call_kwargs["model"] == "gpt-5.1", "Model should be passed correctly"
+        assert call_kwargs["temperature"] == 0.0, "Temperature should be passed correctly"
+        assert call_kwargs["max_output_tokens"] == 2048, "max_completion_tokens should be passed as max_output_tokens"
+        assert "instructions" in call_kwargs, "System prompt should be passed as instructions"
+        assert "input" in call_kwargs, "User prompt should be passed as input"
+        assert "Test input" in call_kwargs["input"], "Input text should be in user prompt"
+        assert "Test output" in call_kwargs["input"], "Generator output should be in user prompt"
+        
+        # Verify result is correct
+        assert result["status"] == "completed"
+        assert result["judge_score"] == 4.0
+
+    @patch("prompt_evaluator.provider.OpenAI")
+    def test_judge_with_responses_api_unavailable_error(self, mock_openai_class, monkeypatch):
+        """Test clear error message when Responses API is unavailable (e.g., 404)."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        from prompt_evaluator.provider import judge_completion
+        from prompt_evaluator.models import JudgeConfig, DEFAULT_JUDGE_SYSTEM_PROMPT
+        from openai import OpenAIError
+
+        # Mock OpenAI client to raise 404 error (API not available)
+        mock_client = mock_openai_class.return_value
+        # Use a specific OpenAIError to accurately test the exception handling
+        error = OpenAIError("The model `gpt-5.1` does not exist or you do not have access to it. (404)")
+        mock_client.responses.create.side_effect = error
+
+        provider = OpenAIProvider()
+        judge_config = JudgeConfig(model_name="gpt-5.1", temperature=0.0)
+
+        result = judge_completion(
+            provider=provider,
+            input_text="Test input",
+            generator_output="Test output",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
+
+        # Should return error result, not raise exception
+        assert result["status"] == "judge_error"
+        assert result["error"] is not None
+        # Error message should mention the API issue
+        assert "Judge API call failed" in result["error"]
+        assert "does not exist" in result["error"] or "404" in result["error"]
+        
+        # Verify that responses.create was attempted (proving it came from Responses API pathway)
+        assert mock_client.responses.create.called, "Should have attempted to call responses.create"
+
+    @patch("prompt_evaluator.provider.OpenAI")
+    def test_judge_handles_rate_limit_errors(self, mock_openai_class, monkeypatch):
+        """Test that judge handles rate limit errors gracefully."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        from prompt_evaluator.provider import judge_completion
+        from prompt_evaluator.models import JudgeConfig, DEFAULT_JUDGE_SYSTEM_PROMPT
+        from openai import OpenAIError
+
+        # Mock OpenAI client to raise rate limit error
+        mock_client = mock_openai_class.return_value
+        # Use a specific OpenAIError with rate limit message
+        error = OpenAIError("Rate limit exceeded (429). Please try again later.")
+        mock_client.responses.create.side_effect = error
+
+        provider = OpenAIProvider()
+        judge_config = JudgeConfig(model_name="gpt-5.1", temperature=0.0)
+
+        result = judge_completion(
+            provider=provider,
+            input_text="Test input",
+            generator_output="Test output",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
+
+        # Should return error result with rate limit info
+        assert result["status"] == "judge_error"
+        assert result["error"] is not None
+        assert "Judge API call failed" in result["error"]
+        # Error should be distinct and recognizable
+        assert "rate limit" in result["error"].lower() or "429" in result["error"].lower()
+        
+        # Verify that responses.create was attempted (proving it came from Responses API pathway)
+        assert mock_client.responses.create.called, "Should have attempted to call responses.create"
+
+    @patch("prompt_evaluator.provider.OpenAI")
+    def test_judge_response_format_handling(self, mock_openai_class, monkeypatch):
+        """Test that judge properly handles text response format (not forcing JSON at API level)."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        from prompt_evaluator.provider import judge_completion
+        from prompt_evaluator.models import JudgeConfig, DEFAULT_JUDGE_SYSTEM_PROMPT
+        from unittest.mock import MagicMock
+
+        # Mock OpenAI client response
+        mock_client = mock_openai_class.return_value
+        mock_response = mock_client.responses.create.return_value
+        
+        # Mock response with JSON embedded in text (not forced JSON response_format) using MagicMock
+        mock_response.status = "completed"
+        
+        mock_output_item = MagicMock()
+        mock_content_item = MagicMock()
+        mock_content_item.text = 'Here is my evaluation: {"semantic_fidelity": 3.5, "rationale": "Acceptable"}'
+        mock_output_item.content = [mock_content_item]
+        mock_response.output = [mock_output_item]
+        
+        mock_usage = MagicMock()
+        mock_usage.total_tokens = 100
+        mock_usage.input_tokens = 50
+        mock_usage.output_tokens = 50
+        mock_response.usage = mock_usage
+
+        provider = OpenAIProvider()
+        judge_config = JudgeConfig(model_name="gpt-5.1", temperature=0.0)
+
+        result = judge_completion(
+            provider=provider,
+            input_text="Test input",
+            generator_output="Test output",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
+
+        # Verify API call did NOT include response_format (using text, not forced JSON)
+        call_kwargs = mock_client.responses.create.call_args[1]
+        assert "response_format" not in call_kwargs, (
+            "Judge should use text response format (with JSON in prompt), "
+            "not forced JSON response_format"
+        )
+        
+        # Verify JSON parsing still works from text
+        assert result["status"] == "completed"
+        assert result["judge_score"] == 3.5
+        assert result["judge_rationale"] == "Acceptable"

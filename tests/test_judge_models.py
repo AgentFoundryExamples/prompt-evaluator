@@ -473,23 +473,32 @@ class TestJudgeCompletion:
 
     def test_judge_completion_success(self):
         """Test successful judge completion with valid JSON response."""
-        # Mock provider and generate_completion
+        # Mock provider with Responses API
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         valid_json = '{"semantic_fidelity": 4.5, "rationale": "Good semantic preservation"}'
+        
+        # Mock provider.generate() to return a ProviderResult
+        mock_result = ProviderResult(
+            text=valid_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(valid_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="What is Python?",
-                generator_output="Python is a programming language.",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        result = judge_completion(
+            provider=provider,
+            input_text="What is Python?",
+            generator_output="Python is a programming language.",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "completed"
         assert result["judge_score"] == 4.5
@@ -499,26 +508,34 @@ class TestJudgeCompletion:
 
     def test_judge_completion_with_task_description(self):
         """Test judge completion includes task description in user message."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         valid_json = '{"semantic_fidelity": 3.0, "rationale": "Acceptable"}'
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(valid_json, {"tokens_used": 100, "latency_ms": 500}),
-        ) as mock_generate:
-            result = judge_completion(
-                provider=provider,
-                input_text="Explain Python",
-                generator_output="Python is a language",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-                task_description="Explain programming concepts clearly",
-            )
+        mock_result = ProviderResult(
+            text=valid_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="Explain Python",
+            generator_output="Python is a language",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+            task_description="Explain programming concepts clearly",
+        )
 
         # Check that task description was included in the call
-        call_args = mock_generate.call_args
+        call_args = provider.generate.call_args
         user_prompt = call_args[1]["user_prompt"]
         assert "Task: Explain programming concepts clearly" in user_prompt
 
@@ -526,6 +543,8 @@ class TestJudgeCompletion:
 
     def test_judge_completion_json_with_extra_text(self):
         """Test that JSON can be extracted from response with extra text."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
@@ -534,17 +553,23 @@ class TestJudgeCompletion:
             '"rationale": "Mostly good"}\nHope this helps!'
         )
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(response_with_extra, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test input",
-                generator_output="test output",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=response_with_extra,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test input",
+            generator_output="test output",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "completed"
         assert result["judge_score"] == 3.5
@@ -552,66 +577,90 @@ class TestJudgeCompletion:
 
     def test_judge_completion_score_clamping_below_minimum(self):
         """Test that scores below 1.0 are clamped to 1.0."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         low_score_json = '{"semantic_fidelity": 0.5, "rationale": "Very poor"}'
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(low_score_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=low_score_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "completed"
         assert result["judge_score"] == 1.0
 
     def test_judge_completion_score_clamping_above_maximum(self):
         """Test that scores above 5.0 are clamped to 5.0."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         high_score_json = '{"semantic_fidelity": 6.5, "rationale": "Excellent"}'
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(high_score_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=high_score_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "completed"
         assert result["judge_score"] == 5.0
 
     def test_judge_completion_invalid_json(self):
         """Test that invalid JSON results in judge_error status."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         invalid_json = "This is not JSON at all"
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(invalid_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=invalid_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "judge_error"
         assert result["judge_score"] is None
@@ -621,112 +670,152 @@ class TestJudgeCompletion:
 
     def test_judge_completion_missing_semantic_fidelity_field(self):
         """Test that missing semantic_fidelity field results in judge_error."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         missing_field_json = '{"rationale": "Good answer"}'
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(missing_field_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=missing_field_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "judge_error"
         assert "Missing required field: semantic_fidelity" in result["error"]
 
     def test_judge_completion_missing_rationale_field(self):
         """Test that missing rationale field results in judge_error."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         missing_field_json = '{"semantic_fidelity": 4.0}'
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(missing_field_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=missing_field_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "judge_error"
         assert "Missing required field: rationale" in result["error"]
 
     def test_judge_completion_api_exception(self):
         """Test that API exceptions result in judge_error status."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            side_effect=Exception("API connection failed"),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        # Mock provider.generate to return an error result
+        mock_result = ProviderResult(
+            text="",
+            usage={"total_tokens": None, "prompt_tokens": None, "completion_tokens": None},
+            latency_ms=100.0,
+            model="gpt-5.1",
+            finish_reason=None,
+            error="API connection failed"
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "judge_error"
         assert result["judge_score"] is None
         assert result["judge_rationale"] is None
         assert "Judge API call failed" in result["error"]
         assert "API connection failed" in result["error"]
-        assert result["judge_raw_response"] is None
 
     def test_judge_completion_non_numeric_score(self):
         """Test that non-numeric semantic_fidelity results in judge_error."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         non_numeric_json = '{"semantic_fidelity": "high", "rationale": "Good"}'
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(non_numeric_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=non_numeric_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "judge_error"
         assert "Failed to parse judge response" in result["error"]
 
     def test_judge_completion_integer_score(self):
         """Test that integer scores are converted to float correctly."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         integer_score_json = '{"semantic_fidelity": 4, "rationale": "Good answer"}'
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(integer_score_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=integer_score_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "completed"
         assert result["judge_score"] == 4.0
@@ -734,6 +823,8 @@ class TestJudgeCompletion:
 
     def test_judge_completion_json_with_extra_fields(self):
         """Test that JSON with extra fields is handled correctly."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
@@ -742,17 +833,23 @@ class TestJudgeCompletion:
             '"confidence": 0.9, "metadata": {"source": "test"}}'
         )
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(json_with_extras, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=json_with_extras,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "completed"
         assert result["judge_score"] == 3.5
@@ -760,42 +857,58 @@ class TestJudgeCompletion:
 
     def test_judge_completion_malformed_nested_json(self):
         """Test that malformed nested JSON results in judge_error."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         malformed_json = '{"semantic_fidelity": {"value": 4.0}, "rationale": "Test"}'
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(malformed_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=malformed_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "judge_error"
         assert "Failed to parse judge response" in result["error"]
 
     def test_judge_completion_empty_response(self):
         """Test that empty response results in judge_error."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=("", {"tokens_used": 0, "latency_ms": 100}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text="",
+            usage={"total_tokens": 0, "prompt_tokens": 0, "completion_tokens": 0},
+            latency_ms=100.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "judge_error"
         assert result["judge_raw_response"] == ""
@@ -803,38 +916,52 @@ class TestJudgeCompletion:
 
     def test_judge_completion_score_at_exact_boundaries(self):
         """Test scores at exact 1.0 and 5.0 boundaries."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         # Test exact 1.0
         json_min = '{"semantic_fidelity": 1.0, "rationale": "Minimum score"}'
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(json_min, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result_min = ProviderResult(
+            text=json_min,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result_min
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
         assert result["status"] == "completed"
         assert result["judge_score"] == 1.0
 
         # Test exact 5.0
         json_max = '{"semantic_fidelity": 5.0, "rationale": "Maximum score"}'
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(json_max, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result_max = ProviderResult(
+            text=json_max,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result_max
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
         assert result["status"] == "completed"
         assert result["judge_score"] == 5.0
 
@@ -913,22 +1040,30 @@ class TestJudgeCompletion:
 
     def test_judge_completion_preserves_raw_response_on_error(self):
         """Test that raw response is preserved even when parsing fails."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
         raw_text = "This is not JSON but should be preserved for debugging"
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(raw_text, {"tokens_used": 50, "latency_ms": 200}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test input",
-                generator_output="test output",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        mock_result = ProviderResult(
+            text=raw_text,
+            usage={"total_tokens": 50, "prompt_tokens": 25, "completion_tokens": 25},
+            latency_ms=200.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="test input",
+            generator_output="test output",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "judge_error"
         assert result["judge_raw_response"] == raw_text
@@ -937,26 +1072,29 @@ class TestJudgeCompletion:
 
     def test_judge_completion_api_exception_with_response(self):
         """Test that raw response from exception is preserved when available."""
+        from prompt_evaluator.provider import ProviderResult
+        
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
 
-        # Create exception with response attribute
-        exception = Exception("API error")
-        mock_response = MagicMock()
-        mock_response.text = "Raw response from failed API call"
-        exception.response = mock_response
+        # Mock provider.generate to return error with partial response text
+        mock_result = ProviderResult(
+            text="Raw response from failed API call",
+            usage={"total_tokens": None, "prompt_tokens": None, "completion_tokens": None},
+            latency_ms=100.0,
+            model="gpt-5.1",
+            finish_reason=None,
+            error="API error"
+        )
+        provider.generate.return_value = mock_result
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            side_effect=exception,
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="test",
-                generator_output="test",
-                judge_config=judge_config,
-                judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
-            )
+        result = judge_completion(
+            provider=provider,
+            input_text="test",
+            generator_output="test",
+            judge_config=judge_config,
+            judge_system_prompt=DEFAULT_JUDGE_SYSTEM_PROMPT,
+        )
 
         assert result["status"] == "judge_error"
         assert result["judge_score"] is None
@@ -1346,6 +1484,26 @@ class TestRubricAwareJudge:
             ],
         )
 
+    def test_judge_completion_with_rubric(self):
+        """Test judge_completion with rubric uses rubric-aware logic."""
+        from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import ProviderResult
+
+        provider = MagicMock(spec=OpenAIProvider)
+        judge_config = JudgeConfig()
+
+        rubric = Rubric(
+            metrics=[
+                RubricMetric(
+                    name="quality",
+                    description="Quality",
+                    min_score=1.0,
+                    max_score=5.0,
+                    guidelines="Rate quality 1-5",
+                ),
+            ],
+        )
+
         valid_json = json.dumps(
             {
                 "metrics": {"quality": {"score": 4.0, "rationale": "Good quality"}},
@@ -1354,18 +1512,24 @@ class TestRubricAwareJudge:
             }
         )
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(valid_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="Test input",
-                generator_output="Test output",
-                judge_config=judge_config,
-                judge_system_prompt="<ignored when rubric provided>",
-                rubric=rubric,
-            )
+        mock_result = ProviderResult(
+            text=valid_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="Test input",
+            generator_output="Test output",
+            judge_config=judge_config,
+            judge_system_prompt="<ignored when rubric provided>",
+            rubric=rubric,
+        )
 
         assert result["status"] == "completed"
         assert result["judge_metrics"]["quality"]["score"] == 4.0
@@ -1377,6 +1541,7 @@ class TestRubricAwareJudge:
     def test_judge_completion_with_rubric_invalid_response(self):
         """Test that invalid rubric response sets judge_invalid_response status."""
         from prompt_evaluator.models import Rubric, RubricMetric
+        from prompt_evaluator.provider import ProviderResult
 
         provider = MagicMock(spec=OpenAIProvider)
         judge_config = JudgeConfig()
@@ -1396,18 +1561,24 @@ class TestRubricAwareJudge:
         # Invalid JSON - missing metrics field
         invalid_json = json.dumps({"flags": {}, "overall_comment": "Comment"})
 
-        with patch(
-            "prompt_evaluator.provider.generate_completion",
-            return_value=(invalid_json, {"tokens_used": 100, "latency_ms": 500}),
-        ):
-            result = judge_completion(
-                provider=provider,
-                input_text="Test input",
-                generator_output="Test output",
-                judge_config=judge_config,
-                judge_system_prompt="<ignored>",
-                rubric=rubric,
-            )
+        mock_result = ProviderResult(
+            text=invalid_json,
+            usage={"total_tokens": 100, "prompt_tokens": 50, "completion_tokens": 50},
+            latency_ms=500.0,
+            model="gpt-5.1",
+            finish_reason="stop",
+            error=None
+        )
+        provider.generate.return_value = mock_result
+
+        result = judge_completion(
+            provider=provider,
+            input_text="Test input",
+            generator_output="Test output",
+            judge_config=judge_config,
+            judge_system_prompt="<ignored>",
+            rubric=rubric,
+        )
 
         assert result["status"] == "judge_invalid_response"
         assert "Missing required field: metrics" in result["error"]

@@ -1003,7 +1003,8 @@ defaults:
         # Should succeed
         assert result.exit_code == 0
         # Check that config defaults were used
-        assert "Using provider from config: mock" in result.stdout
+        assert "Using generator provider from config: mock" in result.stdout
+        assert "Using judge provider from config: mock" in result.stdout
         assert "Using output directory from config: config_runs" in result.stdout
         assert "Using default rubric from config: default" in result.stdout
 
@@ -1063,7 +1064,8 @@ flags: []
         # Should succeed with CLI overrides
         assert result.exit_code == 0
         # Should NOT show config messages since CLI flags were provided
-        assert "Using provider from config:" not in result.stdout
+        assert "Using generator provider from config:" not in result.stdout
+        assert "Using judge provider from config:" not in result.stdout
         assert "Using output directory from config:" not in result.stdout
 
 

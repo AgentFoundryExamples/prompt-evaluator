@@ -31,6 +31,7 @@ import typer
 
 from prompt_evaluator.config import (
     APIConfig,
+    ConfigManager,
     PromptEvaluatorConfig,
     load_prompt_evaluator_config,
 )
@@ -54,6 +55,9 @@ app = typer.Typer(
     help="Evaluate and compare prompts across different LLM providers",
     add_completion=False,
 )
+
+# Shared config manager for caching configuration across CLI commands
+_config_manager = ConfigManager()
 
 # Configuration constants for evaluate-dataset command
 DEFAULT_NUM_SAMPLES = 5  # Default number of samples per test case
@@ -401,15 +405,15 @@ def generate(
     Configuration defaults are used when CLI flags are omitted.
     """
     try:
-        # Load prompt evaluator config (for template resolution)
-        app_config = load_prompt_evaluator_config(
+        # Load configurations using shared config manager
+        app_config = _config_manager.get_app_config(
             config_path=Path(config_file) if config_file else None,
             warn_if_missing=False
         )
 
-        # Load API configuration
+        # Load API configuration using shared config manager
         config_path = Path(config_file) if config_file else None
-        api_config = APIConfig(config_file_path=config_path)
+        api_config = _config_manager.get_api_config(config_file_path=config_path)
 
         # Resolve system prompt path (supports template keys)
         try:
@@ -682,7 +686,17 @@ def evaluate_single(
         None,
         "--provider",
         "-p",
-        help="Provider to use (openai, claude, anthropic, mock). Uses config default.",
+        help="Provider for both generator and judge (deprecated, use --generator-provider and --judge-provider). Uses config default.",
+    ),
+    generator_provider: str | None = typer.Option(
+        None,
+        "--generator-provider",
+        help="Provider for generator (openai, claude, anthropic, mock). Overrides --provider. Uses config default.",
+    ),
+    judge_provider: str | None = typer.Option(
+        None,
+        "--judge-provider",
+        help="Provider for judge (openai, claude, anthropic, mock). Overrides --provider. Uses config default.",
     ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
@@ -752,15 +766,15 @@ def evaluate_single(
             typer.echo("Error: --num-samples must be positive", err=True)
             raise typer.Exit(1)
 
-        # Load prompt evaluator config (for template resolution and defaults)
-        app_config = load_prompt_evaluator_config(
+        # Load configurations using shared config manager
+        app_config = _config_manager.get_app_config(
             config_path=Path(config_file) if config_file else None,
             warn_if_missing=False
         )
 
-        # Load API configuration
+        # Load API configuration using shared config manager
         config_path = Path(config_file) if config_file else None
-        api_config = APIConfig(config_file_path=config_path)
+        api_config = _config_manager.get_api_config(config_file_path=config_path)
 
         # Resolve system prompt path (supports template keys)
         try:
@@ -779,14 +793,27 @@ def evaluate_single(
 
         user_prompt_content = input_file_path.read_text(encoding="utf-8")
 
-        # Determine provider with proper precedence: CLI flag > app config > hardcoded default
-        if provider is None:
+        # Determine generator provider with proper precedence
+        # Precedence: --generator-provider > --provider > app config > hardcoded default
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
             if app_config is not None and app_config.defaults.generator.provider:
-                provider = app_config.defaults.generator.provider
-                typer.echo(f"Using provider from config: {provider}", err=True)
+                final_generator_provider = app_config.defaults.generator.provider
+                typer.echo(f"Using generator provider from config: {final_generator_provider}", err=True)
             else:
-                provider = "openai"
-                typer.echo(f"Using default provider: {provider}", err=True)
+                final_generator_provider = "openai"
+                typer.echo(f"Using default generator provider: {final_generator_provider}", err=True)
+        
+        # Determine judge provider with proper precedence
+        # Precedence: --judge-provider > --provider > app config > hardcoded default
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            if app_config is not None and app_config.defaults.judge.provider:
+                final_judge_provider = app_config.defaults.judge.provider
+                typer.echo(f"Using judge provider from config: {final_judge_provider}", err=True)
+            else:
+                final_judge_provider = "openai"
+                typer.echo(f"Using default judge provider: {final_judge_provider}", err=True)
 
         # Determine output directory with proper precedence
         if output_dir is None and app_config is not None:
@@ -866,16 +893,22 @@ def evaluate_single(
             temperature=0.0,  # Use deterministic judge
         )
 
-        # Create provider
+        # Create separate provider instances for generator and judge
         # Providers handle API key detection internally via environment variables
         # Only pass api_key for OpenAI to support custom config
-        provider_api_key = api_config.api_key if provider.lower() == "openai" else None
+        generator_api_key = api_config.api_key if final_generator_provider.lower() == "openai" else None
+        judge_api_key = api_config.api_key if final_judge_provider.lower() == "openai" else None
 
         try:
-            provider_instance = get_provider(
-                provider,
-                api_key=provider_api_key,
-                base_url=api_config.base_url if provider.lower() == "openai" else None
+            generator_provider_instance = get_provider(
+                final_generator_provider,
+                api_key=generator_api_key,
+                base_url=api_config.base_url if final_generator_provider.lower() == "openai" else None
+            )
+            judge_provider_instance = get_provider(
+                final_judge_provider,
+                api_key=judge_api_key,
+                base_url=api_config.base_url if final_judge_provider.lower() == "openai" else None
             )
         except ValueError as e:
             typer.echo(f"Error: {e}", err=True)
@@ -951,7 +984,7 @@ def evaluate_single(
                     # Generate completion with varied seed per sample
                     current_seed = generator_config.seed + i if generator_config.seed is not None else None
                     response_text, metadata = generate_completion(
-                        provider=provider_instance,
+                        provider=generator_provider_instance,
                         system_prompt=variant_system_prompt,
                         user_prompt=user_prompt_content,
                         model=generator_config.model_name,
@@ -962,7 +995,7 @@ def evaluate_single(
 
                     # Judge the output
                     judge_result = judge_completion(
-                        provider=provider_instance,
+                        provider=judge_provider_instance,
                         input_text=user_prompt_content,
                         generator_output=response_text,
                         judge_config=judge_config,
@@ -1227,7 +1260,17 @@ def evaluate_dataset(
         None,
         "--provider",
         "-p",
-        help="Provider to use (openai, claude, anthropic, mock). Uses config default.",
+        help="Provider for both generator and judge (deprecated, use --generator-provider and --judge-provider). Uses config default.",
+    ),
+    generator_provider: str | None = typer.Option(
+        None,
+        "--generator-provider",
+        help="Provider for generator (openai, claude, anthropic, mock). Overrides --provider. Uses config default.",
+    ),
+    judge_provider: str | None = typer.Option(
+        None,
+        "--judge-provider",
+        help="Provider for judge (openai, claude, anthropic, mock). Overrides --provider. Uses config default.",
     ),
     generator_model: str | None = typer.Option(
         None, "--generator-model", help="Generator model name override"
@@ -1302,8 +1345,8 @@ def evaluate_dataset(
     prompt_evaluator.yaml.
     """
     try:
-        # Load prompt evaluator config (for template/dataset resolution)
-        app_config = load_prompt_evaluator_config(
+        # Load configurations using shared config manager
+        app_config = _config_manager.get_app_config(
             config_path=Path(config_file) if config_file else None,
             warn_if_missing=False
         )
@@ -1328,9 +1371,9 @@ def evaluate_dataset(
             typer.echo("Error: --num-samples must be positive", err=True)
             raise typer.Exit(1)
 
-        # Load API configuration
+        # Load API configuration using shared config manager
         config_path = Path(config_file) if config_file else None
-        api_config = APIConfig(config_file_path=config_path)
+        api_config = _config_manager.get_api_config(config_file_path=config_path)
 
         # Load dataset (supports dataset keys from config)
         from prompt_evaluator.config import load_dataset
@@ -1381,14 +1424,27 @@ def evaluate_dataset(
 
         system_prompt_content = system_prompt_path.read_text(encoding="utf-8")
 
-        # Determine provider with proper precedence: CLI flag > app config > hardcoded default
-        if provider is None:
+        # Determine generator provider with proper precedence
+        # Precedence: --generator-provider > --provider > app config > hardcoded default
+        final_generator_provider = generator_provider or provider
+        if final_generator_provider is None:
             if app_config is not None and app_config.defaults.generator.provider:
-                provider = app_config.defaults.generator.provider
-                typer.echo(f"Using provider from config: {provider}", err=True)
+                final_generator_provider = app_config.defaults.generator.provider
+                typer.echo(f"Using generator provider from config: {final_generator_provider}", err=True)
             else:
-                provider = "openai"
-                typer.echo(f"Using default provider: {provider}", err=True)
+                final_generator_provider = "openai"
+                typer.echo(f"Using default generator provider: {final_generator_provider}", err=True)
+        
+        # Determine judge provider with proper precedence
+        # Precedence: --judge-provider > --provider > app config > hardcoded default
+        final_judge_provider = judge_provider or provider
+        if final_judge_provider is None:
+            if app_config is not None and app_config.defaults.judge.provider:
+                final_judge_provider = app_config.defaults.judge.provider
+                typer.echo(f"Using judge provider from config: {final_judge_provider}", err=True)
+            else:
+                final_judge_provider = "openai"
+                typer.echo(f"Using default judge provider: {final_judge_provider}", err=True)
 
         # Determine output directory with proper precedence
         if output_dir is None and app_config is not None:
@@ -1469,16 +1525,22 @@ def evaluate_dataset(
             temperature=0.0,  # Use deterministic judge
         )
 
-        # Create provider
+        # Create separate provider instances for generator and judge
         # Providers handle API key detection internally via environment variables
         # Only pass api_key for OpenAI to support custom config
-        provider_api_key = api_config.api_key if provider.lower() == "openai" else None
+        generator_api_key = api_config.api_key if final_generator_provider.lower() == "openai" else None
+        judge_api_key = api_config.api_key if final_judge_provider.lower() == "openai" else None
 
         try:
-            provider_instance = get_provider(
-                provider,
-                api_key=provider_api_key,
-                base_url=api_config.base_url if provider.lower() == "openai" else None
+            generator_provider_instance = get_provider(
+                final_generator_provider,
+                api_key=generator_api_key,
+                base_url=api_config.base_url if final_generator_provider.lower() == "openai" else None
+            )
+            judge_provider_instance = get_provider(
+                final_judge_provider,
+                api_key=judge_api_key,
+                base_url=api_config.base_url if final_judge_provider.lower() == "openai" else None
             )
         except ValueError as e:
             typer.echo(f"Error: {e}", err=True)
@@ -1537,7 +1599,8 @@ def evaluate_dataset(
         from prompt_evaluator.dataset_evaluation import evaluate_dataset as run_dataset_evaluation
 
         evaluation_run = run_dataset_evaluation(
-            provider=provider_instance,
+            generator_provider=generator_provider_instance,
+            judge_provider=judge_provider_instance,
             test_cases=test_cases,
             dataset_metadata=dataset_metadata,
             system_prompt=system_prompt_content,

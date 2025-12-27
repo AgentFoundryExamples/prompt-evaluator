@@ -176,6 +176,23 @@
       }
     },
     {
+      "id": "src/prompt_evaluator/schema_validation.py",
+      "path": "src/prompt_evaluator/schema_validation.py",
+      "type": "file",
+      "external_dependencies": {
+        "stdlib": [
+          "json",
+          "logging",
+          "pathlib.Path",
+          "typing.Any"
+        ],
+        "third-party": [
+          "jsonschema.Draft7Validator",
+          "jsonschema.ValidationError"
+        ]
+      }
+    },
+    {
       "id": "tests/__init__.py",
       "path": "tests/__init__.py",
       "type": "file",
@@ -503,6 +520,10 @@
     },
     {
       "source": "src/prompt_evaluator/cli.py",
+      "target": "src/prompt_evaluator/schema_validation.py"
+    },
+    {
+      "source": "src/prompt_evaluator/cli.py",
       "target": "src/prompt_evaluator/dataset_evaluation.py"
     },
     {
@@ -732,6 +753,8 @@
     "third-party": [
       "anthropic.Anthropic",
       "anthropic.AnthropicError",
+      "jsonschema.Draft7Validator",
+      "jsonschema.ValidationError",
       "markdown",
       "openai.OpenAI",
       "openai.OpenAIError",
@@ -746,6 +769,6 @@
       "yaml"
     ],
     "stdlib_count": 28,
-    "third-party_count": 14
+    "third-party_count": 16
   }
 }

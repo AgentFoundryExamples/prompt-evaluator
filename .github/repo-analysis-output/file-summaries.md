@@ -4,7 +4,7 @@ Heuristic summaries of source files based on filenames, extensions, and paths.
 
 Schema Version: 2.0
 
-Total files: 31
+Total files: 32
 
 ## src/prompt_evaluator/__init__.py
 **Language:** Python  
@@ -20,8 +20,8 @@ Total files: 31
 **Role:** cli  
 **Role Justification:** CLI-related name 'cli'  
 **Summary:** Python command-line interface (role: cli)  
-**Size:** 87.47 KB  
-**LOC:** 1732  
+**Size:** 90.76 KB  
+**LOC:** 1787  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/comparison.py
@@ -38,8 +38,8 @@ Total files: 31
 **Role:** configuration  
 **Role Justification:** configuration file name 'config'  
 **Summary:** Python configuration file (role: configuration)  
-**Size:** 37.08 KB  
-**LOC:** 774  
+**Size:** 37.22 KB  
+**LOC:** 778  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/dataset_evaluation.py
@@ -56,8 +56,8 @@ Total files: 31
 **Role:** model  
 **Role Justification:** model/schema name 'models'  
 **Summary:** Python data models (role: model)  
-**Size:** 34.00 KB  
-**LOC:** 722  
+**Size:** 34.80 KB  
+**LOC:** 734  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/provider.py
@@ -65,8 +65,8 @@ Total files: 31
 **Role:** implementation  
 **Role Justification:** general implementation file (default classification)  
 **Summary:** Python core implementation  
-**Size:** 49.04 KB  
-**LOC:** 986  
+**Size:** 53.92 KB  
+**LOC:** 1069  
 **TODOs/FIXMEs:** 0  
 
 ## src/prompt_evaluator/reporting/__init__.py
@@ -94,6 +94,15 @@ Total files: 31
 **Summary:** Python core implementation  
 **Size:** 24.20 KB  
 **LOC:** 527  
+**TODOs/FIXMEs:** 0  
+
+## src/prompt_evaluator/schema_validation.py
+**Language:** Python  
+**Role:** implementation  
+**Role Justification:** general implementation file (default classification)  
+**Summary:** Python core implementation  
+**Size:** 5.75 KB  
+**LOC:** 122  
 **TODOs/FIXMEs:** 0  
 
 ## tests/__init__.py
@@ -209,8 +218,8 @@ Total files: 31
 **Role:** test  
 **Role Justification:** filename starts with 'test_'  
 **Summary:** Python test file (role: test)  
-**Size:** 26.04 KB  
-**LOC:** 600  
+**Size:** 30.65 KB  
+**LOC:** 704  
 **TODOs/FIXMEs:** 0  
 
 ## tests/test_judge_models.py

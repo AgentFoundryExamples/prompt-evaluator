@@ -18,6 +18,7 @@
 ├── docs
   ├── ab-testing.md
   ├── datasets.md
+  ├── json-schema-validation-status.md
   └── reporting.md
 ├── examples
   ├── datasets
@@ -33,6 +34,8 @@
     ├── index.json
     ├── report-sample.md
     └── run-sample.json
+  ├── schemas
+    └── simple_response.json
   ├── .gitkeep
   ├── input.txt
   └── system_prompt.txt
@@ -48,7 +51,8 @@
     ├── config.py
     ├── dataset_evaluation.py
     ├── models.py
-    └── provider.py
+    ├── provider.py
+    └── schema_validation.py
 ├── tests
   ├── __init__.py
   ├── test_aggregation.py

@@ -84,6 +84,10 @@
         },
         {
           "type": "file",
+          "name": "json-schema-validation-status.md"
+        },
+        {
+          "type": "file",
           "name": "reporting.md"
         }
       ]
@@ -147,6 +151,16 @@
             {
               "type": "file",
               "name": "run-sample.json"
+            }
+          ]
+        },
+        {
+          "type": "directory",
+          "name": "schemas",
+          "children": [
+            {
+              "type": "file",
+              "name": "simple_response.json"
             }
           ]
         },
@@ -217,6 +231,10 @@
             {
               "type": "file",
               "name": "provider.py"
+            },
+            {
+              "type": "file",
+              "name": "schema_validation.py"
             }
           ]
         }

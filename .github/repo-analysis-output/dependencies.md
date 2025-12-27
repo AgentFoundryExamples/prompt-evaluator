@@ -8,10 +8,10 @@ Includes classification of external dependencies as stdlib vs third-party.
 
 ## Statistics
 
-- **Total files**: 31
-- **Intra-repo dependencies**: 54
+- **Total files**: 32
+- **Intra-repo dependencies**: 55
 - **External stdlib dependencies**: 28
-- **External third-party dependencies**: 14
+- **External third-party dependencies**: 16
 
 ## External Dependencies
 
@@ -43,10 +43,12 @@ Total: 28 unique modules
 
 ### Third-Party Packages
 
-Total: 14 unique packages
+Total: 16 unique packages
 
 - `anthropic.Anthropic`
 - `anthropic.AnthropicError`
+- `jsonschema.Draft7Validator`
+- `jsonschema.ValidationError`
 - `markdown`
 - `openai.OpenAI`
 - `openai.OpenAIError`
@@ -71,11 +73,11 @@ Total: 14 unique packages
 - `src/prompt_evaluator/__init__.py` (2 dependents)
 - `src/prompt_evaluator/comparison.py` (2 dependents)
 - `src/prompt_evaluator/reporting/compare_report.py` (2 dependents)
-- `src/prompt_evaluator/reporting/__init__.py` (1 dependents)
+- `src/prompt_evaluator/schema_validation.py` (1 dependents)
 
 ## Files with Most Dependencies (Intra-Repo)
 
-- `src/prompt_evaluator/cli.py` (7 dependencies)
+- `src/prompt_evaluator/cli.py` (8 dependencies)
 - `tests/test_basic.py` (5 dependencies)
 - `tests/test_mock_provider_integration.py` (4 dependencies)
 - `tests/test_prompt_version_metadata.py` (3 dependencies)

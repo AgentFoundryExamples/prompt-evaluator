@@ -411,6 +411,8 @@ prompt-evaluator evaluate-dataset \
   --dataset sample \
   --system-prompt default_system \
   --judge-model gpt-4 \
+  --judge-temperature 0.0 \
+  --judge-max-tokens 512 \
   --num-samples 5
 ```
 
@@ -433,8 +435,16 @@ You can also override settings via environment variables:
 
 ```bash
 # Generator overrides
-export OPENAI_MODEL="gpt-4"
+export GENERATOR_PROVIDER="openai"
+export GENERATOR_MODEL="gpt-4"
 export TEMPERATURE="0.7"
+export MAX_COMPLETION_TOKENS="1024"
+
+# Judge overrides
+export JUDGE_PROVIDER="openai"
+export JUDGE_MODEL="gpt-4"
+export JUDGE_TEMPERATURE="0.0"
+export JUDGE_MAX_COMPLETION_TOKENS="512"
 
 # Provider selection (when not specified in config or CLI)
 export OPENAI_API_KEY="sk-..."      # Implies openai provider
@@ -466,7 +476,19 @@ prompt-evaluator evaluate-dataset \
    - `max_completion_tokens` is independent for generator and judge
    - Generator default: 1024 tokens
    - Judge default: 512 tokens (sufficient for most rubric evaluations)
-   - Can be overridden in config or via CLI (for generator only; judge tokens are config-only)
+   - Both can be overridden via config file or CLI flags (`--max-tokens` for generator, `--judge-max-tokens` for judge)
+
+5. **Judge Temperature**:
+   - Judge should typically use `temperature=0.0` for deterministic, consistent scoring
+   - Can be overridden via config file, environment variable (`JUDGE_TEMPERATURE`), or CLI flag (`--judge-temperature`)
+   - Generator temperature is separate and typically higher (e.g., 0.7) for more diverse outputs
+
+6. **Available CLI Flags for Judge**:
+   - `--judge-provider`: Override judge provider (openai, anthropic, claude, mock)
+   - `--judge-model`: Override judge model
+   - `--judge-temperature`: Override judge temperature (default: 0.0)
+   - `--judge-max-tokens`: Override judge max tokens (default: 512)
+   - `--judge-system-prompt`: Custom judge system prompt file or template key
 
 See "Understanding Generator and Judge Roles" section below for detailed explanation of how these models work together in the evaluation workflow.
 
@@ -1438,13 +1460,31 @@ cat examples/schemas/simple_response.json
 
 ### Limitations and Known Issues
 
-**Current Limitations:**
+**Current Implementation Status:**
 
-1. **evaluate-single Command**: `--json-schema` flag exists but is not fully integrated (generates samples without schema validation)
-2. **evaluate-dataset Command**: No JSON schema support yet
-3. **Judge Outputs**: Judge responses are not schema-validated (only generator outputs)
-4. **Aggregate Statistics**: Schema validation counts not included in evaluation reports
-5. **Schema References**: `$ref` keyword not supported yet
+JSON schema validation is **currently only available for the `generate` command**. The feature is partially implemented for other commands:
+
+1. **`generate` Command**: ✅ **Fully functional**
+   - `--json-schema` flag is fully supported
+   - Schema validation is performed on all generated outputs
+   - Validation results are stored in metadata
+   - Works with all providers (OpenAI, Anthropic, Mock)
+
+2. **`evaluate-single` Command**: ⚠️ **Not yet supported**
+   - The `--json-schema` flag is **not currently functional** for this command
+   - While the CLI may accept the flag, schema validation is not performed on generated samples
+   - This is a planned feature for future releases
+
+3. **`evaluate-dataset` Command**: ⚠️ **Not yet supported**
+   - No `--json-schema` flag available
+   - Schema validation is not supported for dataset evaluations
+   - This is a planned feature for future releases
+
+**Other Current Limitations:**
+
+4. **Judge Outputs**: Judge responses are not schema-validated (only generator outputs are validated)
+5. **Aggregate Statistics**: Schema validation counts are not included in evaluation reports
+6. **Schema References**: `$ref` keyword for schema composition is not supported yet
 
 **Future Enhancements** (planned):
 - Full evaluate-single and evaluate-dataset support

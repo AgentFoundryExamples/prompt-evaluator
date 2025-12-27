@@ -1450,373 +1450,55 @@ If rubrics differ, not all metrics will be present in both runs:
 
 ### Overview
 
-When evaluating prompts that should generate structured data (e.g., API responses, task breakdowns, form data), you can use JSON Schema validation to ensure outputs conform to expected formats. This is particularly useful for:
+When evaluating prompts that should generate structured JSON data (e.g., API responses, task breakdowns, form data), you can use JSON Schema validation to ensure outputs conform to expected formats.
 
-- Validating that LLM responses match API contracts
-- Ensuring consistent data structures across multiple generations
-- Catching format errors early in the development cycle
-- Testing structured output capabilities of different prompts/models
+**For comprehensive guidance** on JSON schema validation, including:
+- How to author and structure schemas
+- CLI usage with the `--json-schema` flag
+- Provider-specific behavior (OpenAI, Anthropic, Mock)
+- Validation error interpretation and debugging
+- Path resolution (relative vs absolute)
+- Current implementation status and limitations
 
-### Authoring JSON Schemas
+**Please see the [JSON Schema Validation section in README.md](../README.md#json-schema-validation)** for complete documentation.
 
-JSON Schemas define the structure, types, and constraints for JSON data. Follow the [JSON Schema Draft-07](https://json-schema.org/draft-07/json-schema-release-notes.html) specification for compatibility.
+### Quick Reference for Dataset Usage
 
-**Basic Schema Template**:
+While JSON schema validation is currently **only available for the `generate` command**, here are key points for future reference when it becomes available for dataset evaluations:
 
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "field_name": {
-      "type": "string",
-      "description": "Description to help LLM understand what this field should contain"
-    },
-    "numeric_field": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 100
-    }
-  },
-  "required": ["field_name"],
-  "additionalProperties": false
-}
-```
-
-**Key Elements to Include**:
-
-1. **`$schema`**: Always specify the JSON Schema version
-   ```json
-   "$schema": "http://json-schema.org/draft-07/schema#"
-   ```
-
-2. **`type`**: Root type (usually `"object"` for structured data)
-   ```json
-   "type": "object"
-   ```
-
-3. **`properties`**: Define each field with type and constraints
-   ```json
-   "properties": {
-     "status": {"type": "string", "enum": ["success", "error"]},
-     "count": {"type": "integer", "minimum": 0}
-   }
-   ```
-
-4. **`required`**: List mandatory fields
-   ```json
-   "required": ["status", "count"]
-   ```
-
-5. **`additionalProperties`**: Control whether extra fields are allowed
-   ```json
-   "additionalProperties": false  // Strict - only defined fields allowed
-   ```
-
-**Schema Best Practices**:
-
-- **Keep it simple**: Complex nested schemas can confuse LLMs
-- **Add descriptions**: Help the model understand field purposes
-- **Use constraints**: `minimum`, `maximum`, `pattern`, `enum` for validation
-- **Test with mock**: Validate schema with mock provider before real API calls
-- **Version schemas**: Track changes like any code artifact
-
-**Example - Task Breakdown Schema** (`schemas/task_breakdown.json`):
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "description": "Structured task breakdown with steps and time estimates",
-  "properties": {
-    "task_title": {
-      "type": "string",
-      "description": "High-level title of the task"
-    },
-    "steps": {
-      "type": "array",
-      "description": "Sequential steps to complete the task",
-      "items": {
-        "type": "object",
-        "properties": {
-          "step_number": {"type": "integer", "minimum": 1},
-          "description": {"type": "string"},
-          "estimated_minutes": {"type": "integer", "minimum": 1}
-        },
-        "required": ["step_number", "description", "estimated_minutes"]
-      },
-      "minItems": 1
-    },
-    "total_estimated_minutes": {
-      "type": "integer",
-      "minimum": 1
-    }
-  },
-  "required": ["task_title", "steps", "total_estimated_minutes"],
-  "additionalProperties": false
-}
-```
-
-**Example - API Response Schema** (`schemas/api_response.json`):
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "status": {
-      "type": "string",
-      "enum": ["success", "error", "pending"],
-      "description": "Response status"
-    },
-    "data": {
-      "type": "object",
-      "description": "Response payload (structure depends on endpoint)"
-    },
-    "error_message": {
-      "type": "string",
-      "description": "Error details if status is error"
-    },
-    "timestamp": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 timestamp"
-    }
-  },
-  "required": ["status", "timestamp"],
-  "additionalProperties": false
-}
-```
-
-### Referencing Schemas in Configurations
-
-Store schemas in a dedicated directory and reference them in configs or CLI commands.
-
-**Directory Structure**:
+**Defining Schemas**: Store JSON schemas in a `schemas/` directory within your project:
 ```
 project/
 ├── schemas/
-│   ├── task_breakdown.json
 │   ├── api_response.json
-│   └── user_profile.json
+│   └── task_breakdown.json
 ├── datasets/
 │   └── test_suite.yaml
-├── prompts/
-│   └── system_prompt.txt
 └── prompt_evaluator.yaml
 ```
 
-**In Configuration File** (`prompt_evaluator.yaml`):
-
-```yaml
-defaults:
-  generator:
-    provider: openai
-    model: gpt-4
-    temperature: 0.7
-    max_completion_tokens: 1024
-  
-  judge:
-    provider: openai
-    model: gpt-4
-    temperature: 0.0
-    max_completion_tokens: 512
-  
-  # Default JSON schema for all generations
-  json_schema: schemas/api_response.json
-  
-  rubric: default
-  run_directory: runs
-```
-
-**CLI Override**:
-
-```bash
-# Override config default with different schema
-prompt-evaluator generate \
-  --system-prompt prompts/system_prompt.txt \
-  --input "Break down the task: Build a web application" \
-  --json-schema schemas/task_breakdown.json
-
-# Use absolute path (works across environments)
-prompt-evaluator generate \
-  --system-prompt prompts/system_prompt.txt \
-  --input "Generate API response for user login" \
-  --json-schema /home/user/project/schemas/api_response.json
-```
-
-### Schema Path Resolution
-
-Schema paths can be specified as relative or absolute:
-
-**Relative Paths**:
-- **From CLI**: Resolved from current working directory
+**Schema Path Resolution**:
+- **Relative paths in CLI**: Resolved from current working directory
   ```bash
-  --json-schema schemas/my_schema.json  # Resolves from CWD
-  ```
-  
-- **From config file**: Resolved from config file location
-  ```yaml
-  json_schema: schemas/my_schema.json  # Resolves from prompt_evaluator.yaml location
-  ```
-
-**Absolute Paths** (recommended for CI/CD and shared environments):
-```bash
-# Linux/Mac
---json-schema /home/user/project/schemas/schema.json
-
-# Windows
---json-schema C:\Users\user\project\schemas\schema.json
-```
-
-**Best Practice**: Use relative paths in config files for portability, absolute paths in CI/CD scripts for reliability.
-
-### Interpreting Validation Errors
-
-The tool validates LLM output against the schema and reports detailed errors.
-
-**Validation Status Values**:
-- `"valid"`: Output is valid JSON matching the schema
-- `"invalid_json"`: Output is not parseable as JSON
-- `"schema_mismatch"`: Output is valid JSON but doesn't match schema structure
-- `"not_validated"`: No schema was provided (validation skipped)
-
-**Common Error Types**:
-
-**1. Invalid JSON Syntax**:
-```
-Error: Invalid JSON: Expecting property name enclosed in double quotes at position 42
-```
-**Cause**: LLM generated malformed JSON  
-**Solution**: 
-- Simplify prompt to emphasize JSON-only output
-- Add JSON examples to system prompt
-- Use a more capable model
-- For OpenAI: Response format enforcement should prevent this
-
-**2. Missing Required Field**:
-```
-Error: Schema validation failed at 'root': 'status' is a required property
-```
-**Cause**: Output is missing a field marked as `required` in schema  
-**Solution**:
-- Explicitly list required fields in prompt
-- Provide complete examples showing all required fields
-- Review if field is truly necessary (adjust schema if not)
-
-**3. Type Mismatch**:
-```
-Error: Schema validation failed at 'count': 'five' is not of type 'integer'
-```
-**Cause**: Field has wrong type (string instead of number)  
-**Solution**:
-- Clarify expected types in prompt ("count must be a number")
-- Add examples with correct types
-- Check if schema type matches actual usage
-
-**4. Constraint Violation**:
-```
-Error: Schema validation failed at 'confidence': 1.5 is greater than the maximum of 1
-```
-**Cause**: Value violates min/max/pattern/enum constraints  
-**Solution**:
-- Explicitly state constraints in prompt ("confidence between 0 and 1")
-- Provide examples within valid ranges
-- Verify schema constraints are realistic
-
-**5. Additional Properties**:
-```
-Error: Schema validation failed at 'root': Additional properties are not allowed ('extra_field' was unexpected)
-```
-**Cause**: Output has fields not in schema when `additionalProperties: false`  
-**Solution**:
-- Set `additionalProperties: true` if extra fields are acceptable
-- Instruct LLM to only output defined fields
-- Add missing field to schema if it should be there
-
-### Testing Schemas
-
-**1. Validate Schema Syntax**:
-```bash
-# Check schema is valid JSON
-cat schemas/my_schema.json | jq .
-
-# Python validation
-python -c "import json; json.load(open('schemas/my_schema.json'))"
-```
-
-**2. Test with Mock Provider** (no API costs):
-```bash
-prompt-evaluator generate \
-  --system-prompt prompts/system_prompt.txt \
-  --input "Test input" \
-  --provider mock \
   --json-schema schemas/my_schema.json
-```
+  ```
+- **Relative paths in config**: Resolved from config file location
+  ```yaml
+  json_schema: schemas/my_schema.json
+  ```
+- **Absolute paths**: Work across all environments
+  ```bash
+  --json-schema /home/user/project/schemas/schema.json
+  ```
 
-Mock provider generates schema-compliant JSON automatically, confirming your schema is valid.
+**Validation Status Fields**: When schema validation is available, outputs will include:
+- `schema_validation_status`: `"valid"`, `"invalid_json"`, `"schema_mismatch"`, or `"not_validated"`
+- `schema_validation_error`: Error message if validation failed
+- `json_schema_path`: Path to schema file used
 
-**3. Check Validation Results**:
-```bash
-# View validation status in metadata
-cat runs/<run_id>/metadata.json | jq '.schema_validation_status'
+**Current Limitation**: Schema validation for `evaluate-dataset` and `evaluate-single` commands is not yet implemented. See the [Limitations section in README.md](../README.md#limitations-and-known-issues) for current status.
 
-# View error details if validation failed
-cat runs/<run_id>/metadata.json | jq '.schema_validation_error'
-```
-
-### Provider-Specific Considerations
-
-**OpenAI**:
-- Uses `response_format` parameter with strict schema enforcement
-- Most reliable for structured output
-- **Requirement**: Requires GPT-4 or newer models with response format support
-- Schema is directly passed to API (not embedded in prompt)
-
-**Anthropic (Claude)**:
-- Schema is embedded in system prompt with JSON instructions
-- Less strict than OpenAI (model may include extra text)
-- Post-generation validation catches format issues
-- Works with all Claude models
-
-**Mock Provider**:
-- Auto-generates schema-compliant responses for testing
-- Always passes validation (by design)
-- Useful for validating schema syntax and structure
-
-### Limitations
-
-**Current Limitations**:
-
-1. **Partial Integration**: JSON schema validation is fully functional for `generate` command only
-   - `evaluate-single`: CLI flag exists but not integrated (planned)
-   - `evaluate-dataset`: No schema support yet (planned)
-   
-2. **Judge Validation**: Judge outputs are not schema-validated (only generator outputs)
-
-3. **Schema References**: `$ref` keyword for schema composition not supported yet
-
-4. **Aggregate Statistics**: Schema validation counts not included in evaluation reports
-
-See `docs/json-schema-validation-status.md` for detailed implementation status and roadmap.
-
-### Fallback Behavior
-
-**When no schema is provided**:
-- Generator operates in normal text mode (no JSON enforcement)
-- No validation is performed
-- Validation status is `"not_validated"`
-- Tool behavior is unchanged from non-schema usage
-
-**Validation is NOT automatic** - you must explicitly provide a schema via `--json-schema` flag or config file.
-
-### Additional Resources
-
-- **JSON Schema Official Site**: [https://json-schema.org/](https://json-schema.org/)
-- **Understanding JSON Schema**: [https://json-schema.org/understanding-json-schema/](https://json-schema.org/understanding-json-schema/)
-- **Online Validator**: [https://www.jsonschemavalidator.net/](https://www.jsonschemavalidator.net/) - Test schemas interactively
-- **Draft-07 Specification**: [https://json-schema.org/draft-07/json-schema-release-notes.html](https://json-schema.org/draft-07/json-schema-release-notes.html)
-- **Implementation Status**: `docs/json-schema-validation-status.md` - Current features and roadmap
+For detailed examples, authoring guidelines, and troubleshooting, refer to the main README.md documentation.
 
 ## Best Practices
 
